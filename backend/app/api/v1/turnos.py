@@ -1,23 +1,38 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+
 from app.core.database import get_db
-from app.models.registro_turno import Turno, RegistroHorario
+from app.schemas.turno_schema import FechamentoTurnoCreate
+from app.services.turno_service import fechar_turno
+
 
 router = APIRouter(prefix="/turnos", tags=["Turnos"])
 
+
 @router.post("/fechamento", status_code=status.HTTP_201_CREATED)
-def criar_fechamento_turno(dados: dict, db: Session = Depends(get_db)):
+def criar_fechamento_turno(
+    dados: FechamentoTurnoCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """
+    Fecha um turno, persiste seus registros, calcula os KPIs e agenda
+    o envio do relatório em background.
+    """
     try:
-        novo_turno = Turno(
-            nome_turno=dados["nome_turno"],
-            responsavel_nome=dados["responsavel_nome"],
-            observacoes=dados.get("observacoes"),
-            status_assinatura="ASSINADO"
+        return fechar_turno(
+            db=db,
+            dados=dados,
+            background_tasks=background_tasks,
         )
-        db.add(novo_turno)
-        db.commit()
-        db.refresh(novo_turno)
-        return {"status": "sucesso", "turno_id": novo_turno.id}
-    except Exception as e:
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro interno ao processar o fechamento do turno.",
+        ) from exc
