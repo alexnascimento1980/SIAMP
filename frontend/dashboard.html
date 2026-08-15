@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SIAMP - Dashboard de Produção & Analytics</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+      rel="stylesheet"
+    />
+    <!-- Chart.js para visualização de dados -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body class="bg-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark px-3 shadow">
+      <a class="navbar-brand fw-bold" href="#"
+        ><i class="bi bi-bar-chart-fill me-2 text-primary"></i>SIAMP
+        Analytics</a
+      >
+      <div class="ms-auto">
+        <a href="index.html" class="btn btn-outline-light btn-sm"
+          ><i class="bi bi-pencil-square me-1"></i>Ir para Apontamento</a
+        >
+      </div>
+    </nav>
+
+    <div class="container-fluid py-4 px-4">
+      <!-- Linha de KPIs -->
+      <div class="row g-3 mb-4">
+        <div class="col-md-4">
+          <div
+            class="card border-0 shadow-sm border-start border-primary border-4 p-3"
+          >
+            <h6 class="text-muted text-uppercase mb-1">
+              Total Peças Produzidas
+            </h6>
+            <h2 class="fw-bold mb-0 text-dark" id="kpiProducao">--</h2>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div
+            class="card border-0 shadow-sm border-start border-success border-4 p-3"
+          >
+            <h6 class="text-muted text-uppercase mb-1">OEE Médio Estimado</h6>
+            <h2 class="fw-bold mb-0 text-success" id="kpiOEE">--</h2>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div
+            class="card border-0 shadow-sm border-start border-warning border-4 p-3"
+          >
+            <h6 class="text-muted text-uppercase mb-1">Turnos Registrados</h6>
+            <h2 class="fw-bold mb-0 text-dark" id="kpiTurnos">--</h2>
+          </div>
+        </div>
+      </div>
+
+      <!-- Linha Principal: Gráfico e Card de Inteligência de Máquina -->
+      <div class="row g-4">
+        <div class="col-lg-8">
+          <div class="card shadow-sm border-0 p-3">
+            <h5 class="fw-bold text-secondary mb-3">
+              <i class="bi bi-graph-up me-2"></i>Produção Acumulada por Injetora
+              (Peças)
+            </h5>
+            <canvas id="graficoProducaoCanvas" height="120"></canvas>
+          </div>
+        </div>
+
+        <div class="col-lg-4">
+          <div class="card shadow-sm border-0 p-3 h-100 bg-white">
+            <h5 class="fw-bold text-primary mb-3">
+              <i class="bi bi-cpu-fill me-2"></i>Súmula de IA & Predição
+            </h5>
+            <div class="p-3 bg-light rounded border mb-3">
+              <h6 class="fw-bold text-secondary mb-1">Diagnóstico do Modelo</h6>
+              <p id="iaMensagem" class="mb-2 text-dark">
+                Carregando análise...
+              </p>
+              <div class="progress" style="height: 10px">
+                <div
+                  id="iaBarraProbabilidade"
+                  class="progress-bar bg-danger"
+                  role="progressbar"
+                  style="width: 0%"
+                ></div>
+              </div>
+              <small class="text-muted d-block mt-2" id="iaProbTexto"
+                >Probabilidade de desvio: --%</small
+              >
+            </div>
+            <small class="text-muted">
+              <i class="bi bi-info-circle me-1"></i>Modelo Random Forest
+              avaliando tempo de ciclo, cavidades e histórico de paradas.
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      async function carregarDashboard() {
+        try {
+          const res = await fetch(
+            "http://localhost:8000/dashboard/metricas-gerais",
+          );
+          const dados = await res.json();
+
+          // Atualiza KPIs
+          document.getElementById("kpiProducao").innerText =
+            dados.kpis.total_pecas_produzidas.toLocaleString("pt-BR") + " pçs";
+          document.getElementById("kpiOEE").innerText =
+            dados.kpis.oee_medio_estimado + "%";
+          document.getElementById("kpiTurnos").innerText =
+            dados.kpis.total_turnos_encerrados;
+
+          // Atualiza Card de IA
+          document.getElementById("iaMensagem").innerText =
+            dados.insight_ml.mensagem;
+          document.getElementById("iaProbTexto").innerText =
+            `Probabilidade de desvio: ${dados.insight_ml.probabilidade_critica}%`;
+          document.getElementById("iaBarraProbabilidade").style.width =
+            dados.insight_ml.probabilidade_critica + "%";
+
+          // Renderiza Gráfico Chart.js
+          const ctx = document
+            .getElementById("graficoProducaoCanvas")
+            .getContext("2d");
+          new Chart(ctx, {
+            type: "bar",
+            data: {
+              labels: dados.grafico_producao.labels,
+              datasets: [
+                {
+                  label: "Peças Produzidas",
+                  data: dados.grafico_producao.valores,
+                  backgroundColor: "#0d6efd",
+                  borderRadius: 6,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              plugins: { legend: { display: false } },
+              scales: { y: { beginAtZero: true } },
+            },
+          });
+        } catch (err) {
+          console.error("Erro ao carregar dados do dashboard:", err);
+        }
+      }
+
+      document.addEventListener("DOMContentLoaded", carregarDashboard);
+    </script>
+  </body>
+</html>

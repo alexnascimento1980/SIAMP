@@ -1,6 +1,6 @@
-version: '3.8'
 
 services:
+  # Banco de Dados Relacional
   postgres_db:
     image: postgres:16-alpine
     container_name: siamp_postgres
@@ -13,6 +13,25 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./database/seeds.sql:/docker-entrypoint-initdb.d/seeds.sql # Executa sementes na 1ª inicialização
+
+  # Backend FastAPI
+  backend_api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: siamp_backend
+    restart: always
+    environment:
+      DATABASE_URL: postgresql+psycopg2://siamp_user:siamp_password@postgres_db:5432/siamp_db
+      SMTP_SERVER: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USER: notificacoes.siamp@gmail.com
+      SMTP_PASS: ""
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres_db
 
 volumes:
   pgdata:
