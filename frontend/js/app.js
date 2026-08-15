@@ -15,9 +15,9 @@ const HORARIOS_POR_TURNO = {
     "11:00",
     "12:00",
     "13:00",
-  ], //[cite: 1]
-  2: ["14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00"], //[cite: 1]
-  3: ["22:00", "23:00", "00:00", "01:00", "02:00", "03:00", "04:00"], //[cite: 1]
+  ],
+  2: ["14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00"],
+  3: ["22:00", "23:00", "00:00", "01:00", "02:00", "03:00", "04:00"],
 };
 
 // Dados padrão das injetoras 1 a 6
@@ -36,6 +36,17 @@ let registrosState = {};
 
 // Inicialização
 document.addEventListener("DOMContentLoaded", () => {
+  // Sem sessão válida, manda direto pra tela de login.
+  const token = obterTokenSalvo();
+  if (!token) {
+    window.location.href = "login.html";
+    return;
+  }
+
+  if (obterPerfilDoToken(token) === "ADMIN") {
+    document.getElementById("linkUsuarios").classList.remove("d-none");
+  }
+
   document.getElementById("dataTurno").valueAsDate = new Date();
   atualizarRelogio();
   setInterval(atualizarRelogio, 1000);
@@ -128,49 +139,34 @@ function salvarValor(hora, campo, valor) {
   registrosState[maquinaAtiva][hora][campo] = valor;
 }
 
-// Autenticação: o backend agora exige um Bearer token em todas as
-// rotas de dados. Fluxo simples via prompt() — para produção, trocar
-// por uma tela de login de verdade.
+// Autenticação: sessão gerenciada pela tela de login (login.html/login.js).
+// Aqui só lemos o token salvo e tratamos sessão expirada.
 function obterTokenSalvo() {
   return localStorage.getItem("siamp_token");
 }
 
-async function garantirLogin() {
-  if (obterTokenSalvo()) return true;
+function sair() {
+  localStorage.removeItem("siamp_token");
+  window.location.href = "login.html";
+}
 
-  const email = prompt("E-mail:");
-  const senha = email ? prompt("Senha:") : null;
-  if (!email || !senha) return false;
-
-  const corpo = new URLSearchParams();
-  corpo.set("username", email);
-  corpo.set("password", senha);
-
+// Leitura client-side do payload do JWT, só para decidir o que mostrar na
+// tela (ex.: exibir o link de Usuários para ADMIN). O backend SEMPRE
+// revalida a assinatura e a permissão de verdade em cada endpoint.
+function obterPerfilDoToken(token) {
   try {
-    const res = await fetch(`${API_BASE_URL}/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: corpo,
-    });
-    if (!res.ok) {
-      alert("Login inválido.");
-      return false;
-    }
-    const data = await res.json();
-    localStorage.setItem("siamp_token", data.access_token);
-    return true;
-  } catch (error) {
-    console.error("Erro no login:", error);
-    alert("Não foi possível autenticar.");
-    return false;
+    const payloadBase64 = token.split(".")[1];
+    const payload = JSON.parse(
+      atob(payloadBase64.replace(/-/g, "+").replace(/_/g, "/")),
+    );
+    return payload.perfil || null;
+  } catch (erro) {
+    return null;
   }
 }
 
 // Envio para o Backend FastAPI
 async function confirmarFechamento() {
-  const autenticado = await garantirLogin();
-  if (!autenticado) return;
-
   const lider = document.getElementById("nomeLider").value.trim();
   if (!lider) {
     alert("Por favor, preencha o nome do líder antes de finalizar.");
@@ -213,7 +209,8 @@ async function confirmarFechamento() {
 
     if (res.status === 401) {
       localStorage.removeItem("siamp_token");
-      alert("Sessão expirada. Faça login novamente e tente de novo.");
+      alert("Sessão expirada. Faça login novamente.");
+      window.location.href = "login.html";
       return;
     }
 
