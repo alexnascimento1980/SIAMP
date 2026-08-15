@@ -1,12 +1,17 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+from app.api.deps import get_current_user
 from app.core.database import get_db
-from app.models.registro_turno import Maquina
+from app.models.maquina import Maquina
+from app.models.usuario import Usuario
 
 router = APIRouter(prefix="/maquinas", tags=["Máquinas"])
 
 @router.get("/")
-def listar_maquinas(db: Session = Depends(get_db)):
+def listar_maquinas(
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+):
     maquinas = db.query(Maquina).order_by(Maquina.numero_maquina).all()
     return [
         {

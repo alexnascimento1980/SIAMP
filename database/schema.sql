@@ -1,0 +1,10 @@
+-- Este arquivo está intencionalmente vazio.
+--
+-- O schema do banco de dados do SIAMP é gerenciado via migrations do
+-- Alembic (backend/alembic/versions/), não por um dump SQL manual.
+-- Para criar/atualizar as tabelas, rode:
+--
+--   docker compose exec backend_api alembic upgrade head
+--
+-- (o entrypoint do container do backend já faz isso automaticamente
+-- ao subir com `docker compose up`).

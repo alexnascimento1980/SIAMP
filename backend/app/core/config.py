@@ -14,6 +14,9 @@ class Settings:
     smtp_user: str
     smtp_pass: str
     report_recipients: list[str]
+    jwt_secret_key: str
+    jwt_algorithm: str
+    jwt_expires_minutes: int
 
 
 def _build_settings() -> Settings:
@@ -26,6 +29,15 @@ def _build_settings() -> Settings:
         "gerente.producao@empresa.com,supervisao@empresa.com",
     )
 
+    jwt_secret_key = os.getenv("JWT_SECRET_KEY", "")
+    if not jwt_secret_key:
+        # Falha alto (fail-loud) em vez de rodar com uma chave previsível:
+        # um SECRET_KEY ausente/óbvio permitiria forjar tokens válidos.
+        raise RuntimeError(
+            "JWT_SECRET_KEY não configurada. Defina uma chave aleatória "
+            "forte na variável de ambiente JWT_SECRET_KEY."
+        )
+
     return Settings(
         cors_origins=_parse_origins(cors_value),
         smtp_server=os.getenv("SMTP_SERVER", "smtp.gmail.com"),
@@ -33,6 +45,9 @@ def _build_settings() -> Settings:
         smtp_user=os.getenv("SMTP_USER", ""),
         smtp_pass=os.getenv("SMTP_PASS", ""),
         report_recipients=_parse_origins(recipients_value),
+        jwt_secret_key=jwt_secret_key,
+        jwt_algorithm=os.getenv("JWT_ALGORITHM", "HS256"),
+        jwt_expires_minutes=int(os.getenv("JWT_EXPIRES_MINUTES", "480")),
     )
 
 

@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 from sqlalchemy.orm import Session
-from app.models.registro_turno import RegistroHorario, Maquina
+from app.models.maquina import Maquina
+from app.models.registro_turno import RegistroHorario
 
 def calcular_kpis_turno(db: Session, turno_id: int) -> dict:
     registros = db.query(RegistroHorario, Maquina).\

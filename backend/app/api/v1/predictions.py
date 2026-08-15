@@ -1,5 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
+from app.api.deps import get_current_user
+from app.models.usuario import Usuario
 from app.services.ml_engine import prever_risco_operacional
 
 router = APIRouter(prefix="/predictions", tags=["Inteligência Artificial"])
@@ -11,7 +13,10 @@ class InferenciaRequest(BaseModel):
     tempo_parada_minutos: float = Field(..., example=25.0)
 
 @router.post("/diagnostico-risco")
-def diagnosticar_risco(dados: InferenciaRequest):
+def diagnosticar_risco(
+    dados: InferenciaRequest,
+    usuario: Usuario = Depends(get_current_user),
+):
     resultado = prever_risco_operacional(
         numero_maquina=dados.numero_maquina,
         cavidades=dados.cavidades,

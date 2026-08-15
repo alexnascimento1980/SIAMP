@@ -4,16 +4,25 @@ services:
   postgres_db:
     image: postgres:16-alpine
     container_name: siamp_postgres
-    restart: always
+    restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      POSTGRES_DB: siamp_db
-      POSTGRES_USER: siamp_user
-      POSTGRES_PASSWORD: siamp_password
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB:-siamp_db}
+      POSTGRES_USER: ${POSTGRES_USER:-siamp_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+    # Porta não é publicada no host por padrão: o backend acessa via
+    # rede interna do Compose. Para debugar localmente com um cliente
+    # SQL, descomente e prefira restringir ao localhost:
+    # ports:
+    #   - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./database/seeds.sql:/docker-entrypoint-initdb.d/seeds.sql # Executa sementes na 1ª inicialização
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-siamp_user} -d ${POSTGRES_DB:-siamp_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   # Backend FastAPI
   backend_api:
@@ -21,17 +30,40 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: siamp_backend
-    restart: always
+    restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgresql+psycopg2://siamp_user:siamp_password@postgres_db:5432/siamp_db
-      SMTP_SERVER: smtp.gmail.com
-      SMTP_PORT: 587
-      SMTP_USER: notificacoes.siamp@gmail.com
-      SMTP_PASS: ""
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-siamp_user}:${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}@postgres_db:5432/${POSTGRES_DB:-siamp_db}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?defina JWT_SECRET_KEY no .env}
+      SMTP_SERVER: ${SMTP_SERVER:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      # Em produção, prefira rodar `alembic upgrade head` + seed como
+      # um passo manual/CI e deixar SEED_ON_START=false.
+      SEED_ON_START: ${SEED_ON_START:-true}
     ports:
       - "8000:8000"
+    volumes:
+      # Necessário apenas para o carregamento opcional de seeds
+      # (SEED_ON_START=true). Somente leitura.
+      - ./database:/app/database:ro
     depends_on:
-      - postgres_db
+      postgres_db:
+        condition: service_healthy
+
+  # Frontend estático (servido via Nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: siamp_frontend
+    restart: unless-stopped
+    ports:
+      - "8090:80"
+    depends_on:
+      - backend_api
 
 volumes:
   pgdata:

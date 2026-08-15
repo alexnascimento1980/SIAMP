@@ -5,7 +5,12 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class RegistroHorarioCreate(BaseModel):
-    maquina_id: int = Field(..., gt=0)
+    # Identifica a máquina pelo número de injetora exibido na interface
+    # (ex.: "1" a "6"), não pelo id interno (primary key) da tabela
+    # `maquinas`. A resolução para o id real é feita no service, via
+    # busca por Maquina.numero_maquina, para não depender da ordem de
+    # inserção do seed.
+    numero_maquina: str = Field(..., min_length=1, max_length=30)
     hora_referencia: str = Field(..., min_length=5, max_length=5, examples=["05:00"])
     prod_executada: int = Field(default=0, ge=0)
     inicio_parada: Optional[time] = None

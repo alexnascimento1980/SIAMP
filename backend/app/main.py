@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import dashboard, maquinas, predictions, turnos
+from app.api.router import api_router
 from app.core.config import settings
 
 
@@ -22,10 +22,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
-app.include_router(maquinas.router, prefix="/api/v1")
-app.include_router(turnos.router, prefix="/api/v1")
-app.include_router(dashboard.router, prefix="/api/v1")
-app.include_router(predictions.router, prefix="/api/v1")
+app.include_router(api_router, prefix="/api/v1")
 
 
 @app.get("/", tags=["Health"])

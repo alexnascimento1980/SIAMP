@@ -1,8 +1,12 @@
+from datetime import time
+
 from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.registro_turno import RegistroHorario, Turno
+from app.models.maquina import Maquina
+from app.models.registro_turno import RegistroHorario
+from app.models.turno import Turno
 from app.schemas.turno_schema import FechamentoTurnoCreate
 from app.services.analytics import calcular_kpis_turno
 from app.services.mailer import enviar_relatorio_email
@@ -30,11 +34,23 @@ def fechar_turno(
     db.add(novo_turno)
     db.flush()
 
+    # Resolve todos os números de máquina do payload de uma vez,
+    # em vez de assumir que numero_maquina == id (primary key).
+    numeros_maquina = {reg.numero_maquina for reg in dados.registros}
+    maquinas_por_numero = {
+        maq.numero_maquina: maq
+        for maq in db.query(Maquina).filter(Maquina.numero_maquina.in_(numeros_maquina)).all()
+    }
+
     for reg in dados.registros:
+        maquina = maquinas_por_numero.get(reg.numero_maquina)
+        if maquina is None:
+            raise ValueError(f"Máquina '{reg.numero_maquina}' não encontrada.")
+
         registro_db = RegistroHorario(
             turno_id=novo_turno.id,
-            maquina_id=reg.maquina_id,
-            hora_referencia=reg.hora_referencia,
+            maquina_id=maquina.id,
+            hora_referencia=time.fromisoformat(reg.hora_referencia),
             prod_executada=reg.prod_executada,
             inicio_parada=reg.inicio_parada,
             retomada=reg.retomada,
