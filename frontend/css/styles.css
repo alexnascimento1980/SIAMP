@@ -1,0 +1,32 @@
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  user-select: none; /* Evita seleções acidentais de texto no touch */
+}
+
+/* Otimização de botões para toque no tablet */
+.btn-maq {
+  font-size: 1.1rem;
+  font-weight: 600;
+  padding: 12px 10px;
+  border-radius: 8px !important;
+  color: #4b5563;
+}
+
+.btn-maq.active {
+  background-color: #0d6efd !important;
+  color: #fff !important;
+  box-shadow: 0 4px 6px -1px rgba(13, 110, 253, 0.4);
+}
+
+/* Campos de entrada com altura ampliada para facilidade de digitação rápida */
+.table input.form-control, .table select.form-select {
+  height: 48px;
+  font-size: 1.1rem;
+  text-align: center;
+}
+
+.table th {
+  padding: 12px 8px;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+}
