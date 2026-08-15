@@ -1,3 +1,18 @@
+version: '3.8'
 
+services:
+  postgres_db:
+    image: postgres:16-alpine
+    container_name: siamp_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: siamp_db
+      POSTGRES_USER: siamp_user
+      POSTGRES_PASSWORD: siamp_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
 
-.
+volumes:
+  pgdata:
