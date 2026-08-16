@@ -1,5 +1,6 @@
 from datetime import time
 from typing import List, Optional
+from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -50,3 +51,13 @@ class ResumoProducaoResponse(BaseModel):
     minutos_parada_total: float
     eficiencia_oee: float
     status: str
+
+
+class TurnoListItem(BaseModel):
+    id: int
+    nome_turno: str
+    responsavel_nome: str
+    data_registro: datetime
+    status_assinatura: str
+    total_produzido: int
+    eficiencia_oee: float

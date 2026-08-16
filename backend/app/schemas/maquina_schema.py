@@ -13,6 +13,13 @@ class MaquinaCreate(MaquinaBase):
     pass
 
 
+class MaquinaUpdate(BaseModel):
+    descricao: str | None = Field(default=None, max_length=150)
+    cavidades: int | None = Field(default=None, gt=0)
+    ciclo_padrao: float | None = Field(default=None, gt=0)
+    ativo: bool | None = None
+
+
 class MaquinaResponse(MaquinaBase):
     id: int
 

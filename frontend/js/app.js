@@ -20,22 +20,15 @@ const HORARIOS_POR_TURNO = {
   3: ["22:00", "23:00", "00:00", "01:00", "02:00", "03:00", "04:00"],
 };
 
-// Dados padrão das injetoras 1 a 6
-const MAQUINAS_INFO = {
-  1: { nome: "Injetora 1", cavidades: 4, ciclo: 18.5 },
-  2: { nome: "Injetora 2", cavidades: 2, ciclo: 22.0 },
-  3: { nome: "Injetora 3", cavidades: 8, ciclo: 15.0 },
-  4: { nome: "Injetora 4", cavidades: 4, ciclo: 20.0 },
-  5: { nome: "Injetora 5", cavidades: 1, ciclo: 30.0 },
-  6: { nome: "Injetora 6", cavidades: 6, ciclo: 16.5 },
-};
-
-let maquinaAtiva = 1;
-// Estado centralizado dos apontamentos: dados[maquinaId][hora] = { prod, inicio_parada, retomada, motivo }
+// Lista de máquinas ativas, carregada do backend (não é mais fixa em 6).
+// Cada item: { id, numero_maquina, descricao, cavidades, ciclo_padrao }
+let maquinasDisponiveis = [];
+let maquinaAtiva = null; // guarda o numero_maquina (string) selecionado
+// Estado centralizado dos apontamentos: dados[numero_maquina][hora] = { prod, inicio, retomada, motivo }
 let registrosState = {};
 
 // Inicialização
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   // Sem sessão válida, manda direto pra tela de login.
   const token = obterTokenSalvo();
   if (!token) {
@@ -43,16 +36,84 @@ document.addEventListener("DOMContentLoaded", () => {
     return;
   }
 
-  if (obterPerfilDoToken(token) === "ADMIN") {
+  const perfil = obterPerfilDoToken(token);
+  if (perfil === "ADMIN") {
     document.getElementById("linkUsuarios").classList.remove("d-none");
+  }
+  if (perfil === "ADMIN" || perfil === "SUPERVISOR") {
+    document.getElementById("linkMaquinas").classList.remove("d-none");
   }
 
   document.getElementById("dataTurno").valueAsDate = new Date();
   atualizarRelogio();
   setInterval(atualizarRelogio, 1000);
-  inicializarEstado();
+
+  await carregarMaquinas();
   renderizarTabela();
 });
+
+async function carregarMaquinas() {
+  const container = document.getElementById("pills-maquinas");
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/maquinas/`, {
+      headers: { Authorization: `Bearer ${obterTokenSalvo()}` },
+    });
+
+    if (res.status === 401) {
+      localStorage.removeItem("siamp_token");
+      window.location.href = "login.html";
+      return;
+    }
+
+    if (!res.ok) throw new Error("Não foi possível carregar as máquinas.");
+
+    maquinasDisponiveis = await res.json();
+
+    if (maquinasDisponiveis.length === 0) {
+      container.innerHTML = `<li class="nav-item"><span class="nav-link disabled">
+        Nenhuma injetora cadastrada. Peça a um admin para cadastrar em "Máquinas".
+      </span></li>`;
+      return;
+    }
+
+    // Garante que sempre há um estado (mesmo vazio) para cada máquina.
+    maquinasDisponiveis.forEach((m) => {
+      if (!registrosState[m.numero_maquina]) {
+        registrosState[m.numero_maquina] = {};
+      }
+    });
+
+    renderizarAbasMaquinas();
+    selecionarMaquina(maquinasDisponiveis[0].numero_maquina);
+  } catch (erro) {
+    console.error(erro);
+    container.innerHTML = `<li class="nav-item"><span class="nav-link disabled text-danger">
+      Erro ao carregar máquinas: ${erro.message}
+    </span></li>`;
+  }
+}
+
+function renderizarAbasMaquinas() {
+  const container = document.getElementById("pills-maquinas");
+  container.innerHTML = "";
+
+  maquinasDisponiveis.forEach((m) => {
+    const li = document.createElement("li");
+    li.className = "nav-item";
+
+    const btn = document.createElement("button");
+    btn.className = "nav-link btn-maq";
+    btn.dataset.numeroMaquina = m.numero_maquina;
+    btn.textContent = m.descricao
+      ? `Injetora ${m.numero_maquina}`
+      : `Máquina ${m.numero_maquina}`;
+    btn.addEventListener("click", () => selecionarMaquina(m.numero_maquina));
+
+    li.appendChild(btn);
+    container.appendChild(li);
+  });
+}
 
 function atualizarRelogio() {
   const agora = new Date();
@@ -62,29 +123,28 @@ function atualizarRelogio() {
   );
 }
 
-function inicializarEstado() {
-  for (let m = 1; m <= 6; m++) {
-    registrosState[m] = {};
-  }
-}
-
 function atualizarHorariosTurno() {
   renderizarTabela();
 }
 
-function selecionarMaquina(numMaquina) {
-  maquinaAtiva = numMaquina;
+function selecionarMaquina(numeroMaquina) {
+  maquinaAtiva = numeroMaquina;
 
   // Atualiza botões
-  document.querySelectorAll(".btn-maq").forEach((btn, idx) => {
-    btn.classList.toggle("active", idx + 1 === numMaquina);
+  document.querySelectorAll(".btn-maq").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.numeroMaquina === numeroMaquina);
   });
 
   // Atualiza cabeçalho da máquina
-  const info = MAQUINAS_INFO[numMaquina];
-  document.getElementById("tituloMaquina").innerText = info.nome;
-  document.getElementById("badgeDetalheMaquina").innerText =
-    `Cavidades: ${info.cavidades} | Ciclo: ${info.ciclo}s`;
+  const info = maquinasDisponiveis.find(
+    (m) => m.numero_maquina === numeroMaquina,
+  );
+  if (info) {
+    document.getElementById("tituloMaquina").innerText =
+      info.descricao || `Injetora ${info.numero_maquina}`;
+    document.getElementById("badgeDetalheMaquina").innerText =
+      `Cavidades: ${info.cavidades} | Ciclo: ${info.ciclo_padrao}s`;
+  }
 
   renderizarTabela();
 }
@@ -95,8 +155,10 @@ function renderizarTabela() {
   const tbody = document.getElementById("corpoTabelaApontamento");
   tbody.innerHTML = "";
 
+  if (!maquinaAtiva) return;
+
   horas.forEach((hora) => {
-    const salvo = registrosState[maquinaAtiva][hora] || {
+    const salvo = (registrosState[maquinaAtiva] || {})[hora] || {
       prod: "",
       inicio: "",
       retomada: "",
@@ -128,6 +190,9 @@ function renderizarTabela() {
 }
 
 function salvarValor(hora, campo, valor) {
+  if (!registrosState[maquinaAtiva]) {
+    registrosState[maquinaAtiva] = {};
+  }
   if (!registrosState[maquinaAtiva][hora]) {
     registrosState[maquinaAtiva][hora] = {
       prod: "",
@@ -151,8 +216,9 @@ function sair() {
 }
 
 // Leitura client-side do payload do JWT, só para decidir o que mostrar na
-// tela (ex.: exibir o link de Usuários para ADMIN). O backend SEMPRE
-// revalida a assinatura e a permissão de verdade em cada endpoint.
+// tela (ex.: exibir os links de Usuários/Máquinas para ADMIN/SUPERVISOR).
+// O backend SEMPRE revalida a assinatura e a permissão de verdade em cada
+// endpoint - isto aqui não é uma camada de segurança, é conveniência de UI.
 function obterPerfilDoToken(token) {
   try {
     const payloadBase64 = token.split(".")[1];
@@ -181,12 +247,14 @@ async function confirmarFechamento() {
     registros: [],
   };
 
-  // Formata os registros de todas as 6 máquinas
-  for (let m = 1; m <= 6; m++) {
-    for (const [hora, dados] of Object.entries(registrosState[m])) {
+  // Formata os registros de todas as máquinas cadastradas (número dinâmico,
+  // não mais fixo em 6).
+  maquinasDisponiveis.forEach((m) => {
+    const registrosMaquina = registrosState[m.numero_maquina] || {};
+    for (const [hora, dados] of Object.entries(registrosMaquina)) {
       if (dados.prod !== "" || dados.inicio !== "") {
         payload.registros.push({
-          numero_maquina: String(m),
+          numero_maquina: m.numero_maquina,
           hora_referencia: hora,
           prod_executada: parseInt(dados.prod || 0),
           inicio_parada: dados.inicio || null,
@@ -195,7 +263,7 @@ async function confirmarFechamento() {
         });
       }
     }
-  }
+  });
 
   try {
     const res = await fetch(`${API_BASE_URL}/turnos/fechamento`, {

@@ -17,14 +17,17 @@
   </head>
   <body class="bg-light">
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark px-3 shadow">
-      <a class="navbar-brand fw-bold" href="#"
+      <a class="navbar-brand fw-bold" href="dashboard.html"
         ><i class="bi bi-bar-chart-fill me-2 text-primary"></i>SIAMP
         Analytics</a
       >
-      <div class="ms-auto">
+      <div class="ms-auto d-flex gap-2">
         <a href="index.html" class="btn btn-outline-light btn-sm"
           ><i class="bi bi-pencil-square me-1"></i>Ir para Apontamento</a
         >
+        <button class="btn btn-outline-light btn-sm" onclick="sair()">
+          <i class="bi bi-box-arrow-right me-1"></i>Sair
+        </button>
       </div>
     </nav>
 
@@ -102,59 +105,6 @@
       </div>
     </div>
 
-    <script>
-      async function carregarDashboard() {
-        try {
-          const res = await fetch(
-            "http://localhost:8000/dashboard/metricas-gerais",
-          );
-          const dados = await res.json();
-
-          // Atualiza KPIs
-          document.getElementById("kpiProducao").innerText =
-            dados.kpis.total_pecas_produzidas.toLocaleString("pt-BR") + " pçs";
-          document.getElementById("kpiOEE").innerText =
-            dados.kpis.oee_medio_estimado + "%";
-          document.getElementById("kpiTurnos").innerText =
-            dados.kpis.total_turnos_encerrados;
-
-          // Atualiza Card de IA
-          document.getElementById("iaMensagem").innerText =
-            dados.insight_ml.mensagem;
-          document.getElementById("iaProbTexto").innerText =
-            `Probabilidade de desvio: ${dados.insight_ml.probabilidade_critica}%`;
-          document.getElementById("iaBarraProbabilidade").style.width =
-            dados.insight_ml.probabilidade_critica + "%";
-
-          // Renderiza Gráfico Chart.js
-          const ctx = document
-            .getElementById("graficoProducaoCanvas")
-            .getContext("2d");
-          new Chart(ctx, {
-            type: "bar",
-            data: {
-              labels: dados.grafico_producao.labels,
-              datasets: [
-                {
-                  label: "Peças Produzidas",
-                  data: dados.grafico_producao.valores,
-                  backgroundColor: "#0d6efd",
-                  borderRadius: 6,
-                },
-              ],
-            },
-            options: {
-              responsive: true,
-              plugins: { legend: { display: false } },
-              scales: { y: { beginAtZero: true } },
-            },
-          });
-        } catch (err) {
-          console.error("Erro ao carregar dados do dashboard:", err);
-        }
-      }
-
-      document.addEventListener("DOMContentLoaded", carregarDashboard);
-    </script>
+    <script src="js/dashboard.js"></script>
   </body>
 </html>
