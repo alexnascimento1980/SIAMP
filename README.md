@@ -4,18 +4,25 @@ Plataforma desenvolvida para digitalização e automação do processo de fecham
 
 ## 🚀 Funcionalidades Principais
 
-- **Registro Operacional Ágil:** Interface para tablets com seleção de injetoras, apontamento de horas, ciclo, cavidades e paradas.
-- **Assinatura Digital de Turno:** Validação e rastreabilidade na troca de equipes.
-- **Processamento & Inteligência:** Consolidação dos dados de produção e métricas de desempenho.
-- **Relatórios Automáticos:** Geração e disparo diário de relatórios PDF consolidados por e-mail para a liderança.
+- **Autenticação por usuário:** login com e-mail/senha (JWT), sem cadastro público — contas são criadas por um administrador.
+- **Controle de acesso por perfil:** `ADMIN`, `SUPERVISOR` e `OPERADOR`, com permissões diferentes em cada tela.
+- **Registro Operacional Ágil:** apontamento por injetora (hora a hora), produção executada, paradas e retomadas, por turno (1º, 2º ou 3º).
+- **Injetoras configuráveis:** o número de máquinas não é fixo no código — administradores e supervisores cadastram, editam e ativam/desativam injetoras pela própria interface, e as abas de apontamento são geradas automaticamente a partir desse cadastro.
+- **Gestão de usuários:** administradores cadastram novos usuários (operador, supervisor ou admin) e podem ativar/desativar contas.
+- **Assinatura Digital de Turno:** fechamento de turno vinculado ao usuário autenticado, com cálculo automático de KPIs (produção total, minutos parados, eficiência OEE).
+- **Histórico de Turnos:** listagem dos turnos encerrados com produção total, eficiência e status, com download do relatório em PDF direto pela tela.
+- **Relatórios em PDF sob demanda:** gerados a partir dos dados reais do turno a qualquer momento (não dependem de e-mail configurado).
+- **Dashboard Analítico:** KPIs gerais, gráfico de produção por injetora e um diagnóstico de risco operacional baseado em um modelo de Machine Learning (scikit-learn).
+- **Registro de Paradas:** paradas avulsas por máquina/turno, com motivo e categoria.
 
 ## 🛠️ Tecnologias
 
-- **Backend:** Python 3.11 + FastAPI, SQLAlchemy, Alembic
+- **Backend:** Python 3.12 + FastAPI, SQLAlchemy, Alembic
 - **Frontend:** HTML5/CSS3/JavaScript + Bootstrap (páginas estáticas, servidas via Nginx)
 - **Banco de Dados:** PostgreSQL
 - **Relatórios:** ReportLab (PDF)
-- **Autenticação:** JWT (login por e-mail/senha em `/api/v1/auth/login`)
+- **Autenticação:** JWT (`python-jose` + `passlib`/`bcrypt`), login em `/api/v1/auth/login`
+- **IA / Analytics:** scikit-learn (diagnóstico de risco operacional no dashboard)
 
 ## 🏁 Como Executar o Projeto
 
@@ -30,7 +37,7 @@ cp .env.example .env
 # (gere uma chave forte com: python -c "import secrets; print(secrets.token_urlsafe(64))")
 
 # 3. Execução via Docker Compose (Recomendado)
-docker-compose up --build
+docker compose up --build
 ```
 
 Ao subir, o backend aplica automaticamente as migrations do Alembic e,
@@ -40,11 +47,16 @@ de exemplo em `database/seeds.sql`.
 - API: http://localhost:8000 (docs interativos em `/docs`)
 - Frontend: http://localhost:8080
 
-### Criando o primeiro usuário
+> **Porta ocupada?** Se `8080` já estiver em uso na sua máquina (ex.:
+> outro serviço local de banco de dados), altere o mapeamento em
+> `docker-compose.yml` (serviço `frontend`, chave `ports`) para outra
+> porta livre, e atualize `CORS_ORIGINS` no `.env` para incluir a nova
+> origem (ex. `http://localhost:8090`).
 
-Não há endpoint público de cadastro (por design — o registro de
-turno é uma operação sensível). Crie o primeiro usuário direto no
-banco, por exemplo:
+### Criando o primeiro usuário (administrador)
+
+Não há endpoint público de cadastro (por design — criar contas é uma
+operação sensível). Crie o primeiro usuário (admin) direto no banco:
 
 ```bash
 docker compose exec backend_api python -c "
@@ -59,6 +71,28 @@ db.add(Usuario(nome='Admin', email='admin@empresa.com',
 db.commit()
 "
 ```
+
+A partir daí, faça login em `http://localhost:8080/login.html` e use a
+tela **Usuários** (visível só para ADMIN) para cadastrar os demais
+usuários da equipe — não é mais necessário repetir o comando acima.
+
+### Perfis de usuário
+
+| Perfil       | Apontamento / Histórico / Dashboard | Gestão de Máquinas | Gestão de Usuários |
+| ------------ | ----------------------------------- | ------------------ | ------------------ |
+| `OPERADOR`   | ✅                                  | ❌                 | ❌                 |
+| `SUPERVISOR` | ✅                                  | ✅                 | ❌                 |
+| `ADMIN`      | ✅                                  | ✅                 | ✅                 |
+
+O frontend esconde os links conforme o perfil, mas a permissão de
+verdade é sempre revalidada pelo backend em cada endpoint.
+
+### Cadastrando injetoras
+
+O número de injetoras não é fixo: administradores e supervisores
+cadastram novas máquinas na tela **Máquinas** (número, descrição,
+cavidades e ciclo padrão). Elas aparecem automaticamente como abas na
+tela de apontamento assim que cadastradas.
 
 ### Rodando os testes
 
