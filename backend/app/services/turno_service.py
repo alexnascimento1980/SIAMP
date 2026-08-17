@@ -1,4 +1,4 @@
-from datetime import time
+from datetime import datetime, time
 
 from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
@@ -14,6 +14,39 @@ from app.services.pdf_generator import gerar_relatorio_turno_pdf
 
 
 STATUS_ASSINADO = "ASSINADO_DIGITALMENTE"
+
+
+def _resolver_maquinas(db: Session, dados: FechamentoTurnoCreate) -> dict:
+    """Resolve todos os números de máquina do payload de uma vez, em vez de
+    assumir que numero_maquina == id (primary key)."""
+    numeros_maquina = {reg.numero_maquina for reg in dados.registros}
+    return {
+        maq.numero_maquina: maq
+        for maq in db.query(Maquina).filter(Maquina.numero_maquina.in_(numeros_maquina)).all()
+    }
+
+
+def _criar_registros(db: Session, turno: Turno, dados: FechamentoTurnoCreate) -> None:
+    maquinas_por_numero = _resolver_maquinas(db, dados)
+
+    for reg in dados.registros:
+        maquina = maquinas_por_numero.get(reg.numero_maquina)
+        if maquina is None:
+            raise ValueError(f"Máquina '{reg.numero_maquina}' não encontrada.")
+
+        registro_db = RegistroHorario(
+            turno_id=turno.id,
+            maquina_id=maquina.id,
+            hora_referencia=time.fromisoformat(reg.hora_referencia),
+            prod_executada=reg.prod_executada,
+            pecas_boas=reg.pecas_boas,
+            refugo=reg.refugo,
+            meta_producao=reg.meta_producao,
+            inicio_parada=reg.inicio_parada,
+            retomada=reg.retomada,
+            motivo_parada=reg.motivo_parada,
+        )
+        db.add(registro_db)
 
 
 def fechar_turno(
@@ -34,29 +67,7 @@ def fechar_turno(
     db.add(novo_turno)
     db.flush()
 
-    # Resolve todos os números de máquina do payload de uma vez,
-    # em vez de assumir que numero_maquina == id (primary key).
-    numeros_maquina = {reg.numero_maquina for reg in dados.registros}
-    maquinas_por_numero = {
-        maq.numero_maquina: maq
-        for maq in db.query(Maquina).filter(Maquina.numero_maquina.in_(numeros_maquina)).all()
-    }
-
-    for reg in dados.registros:
-        maquina = maquinas_por_numero.get(reg.numero_maquina)
-        if maquina is None:
-            raise ValueError(f"Máquina '{reg.numero_maquina}' não encontrada.")
-
-        registro_db = RegistroHorario(
-            turno_id=novo_turno.id,
-            maquina_id=maquina.id,
-            hora_referencia=time.fromisoformat(reg.hora_referencia),
-            prod_executada=reg.prod_executada,
-            inicio_parada=reg.inicio_parada,
-            retomada=reg.retomada,
-            motivo_parada=reg.motivo_parada,
-        )
-        db.add(registro_db)
+    _criar_registros(db, novo_turno, dados)
 
     db.commit()
     db.refresh(novo_turno)
@@ -95,5 +106,50 @@ def fechar_turno(
             and settings.smtp_pass
             and settings.report_recipients
         ),
+        "kpis": kpis,
+    }
+
+
+def editar_turno(
+    db: Session,
+    turno_id: int,
+    dados: FechamentoTurnoCreate,
+    usuario_id: int,
+) -> dict:
+    """
+    Corrige um turno já encerrado: substitui integralmente seus registros
+    pelos informados e recalcula os KPIs. Não reenvia e-mail (evita
+    duplicidade) — o PDF sob demanda (GET /turnos/{id}/relatorio.pdf) já
+    reflete os dados corrigidos automaticamente, pois é gerado na hora.
+    """
+    if not dados.registros:
+        raise ValueError("O turno deve possuir pelo menos um registro.")
+
+    turno = db.query(Turno).filter(Turno.id == turno_id).first()
+    if turno is None:
+        raise ValueError("Turno não encontrado.")
+
+    turno.nome_turno = dados.nome_turno
+    turno.responsavel_nome = dados.responsavel_nome
+    turno.observacoes = dados.observacoes
+    turno.editado_por_id = usuario_id
+    turno.editado_em = datetime.utcnow()
+
+    # Substitui todos os registros (mais simples e seguro do que tentar
+    # casar registro a registro por hora/máquina).
+    db.query(RegistroHorario).filter(RegistroHorario.turno_id == turno_id).delete()
+    db.flush()
+
+    _criar_registros(db, turno, dados)
+
+    db.commit()
+    db.refresh(turno)
+
+    kpis = calcular_kpis_turno(db, turno.id)
+
+    return {
+        "status": "sucesso",
+        "mensagem": "Turno corrigido com sucesso.",
+        "turno_id": turno.id,
         "kpis": kpis,
     }

@@ -2,14 +2,21 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import exigir_perfil, get_current_user
 from app.core.database import get_db
+from app.models.maquina import Maquina
+from app.models.registro_turno import RegistroHorario
 from app.models.turno import Turno
 from app.models.usuario import Usuario
-from app.schemas.turno_schema import FechamentoTurnoCreate, TurnoListItem
+from app.schemas.turno_schema import (
+    FechamentoTurnoCreate,
+    RegistroHorarioDetail,
+    TurnoDetail,
+    TurnoListItem,
+)
 from app.services.analytics import calcular_kpis_turno
 from app.services.pdf_generator import gerar_relatorio_turno_pdf
-from app.services.turno_service import fechar_turno
+from app.services.turno_service import editar_turno, fechar_turno
 
 
 router = APIRouter(prefix="/turnos", tags=["Turnos"])
@@ -44,6 +51,8 @@ def listar_turnos(
                 status_assinatura=turno.status_assinatura,
                 total_produzido=kpis["total_produzido"],
                 eficiencia_oee=kpis["eficiencia_oee"],
+                indice_qualidade=kpis["indice_qualidade"],
+                editado=turno.editado_por_id is not None,
             )
         )
     return resultado
@@ -79,6 +88,88 @@ def criar_fechamento_turno(
         ) from exc
 
 
+@router.get("/{turno_id}", response_model=TurnoDetail)
+def obter_turno(
+    turno_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+):
+    """Detalhe completo de um turno, incluindo todos os registros
+    horários — usado para pré-carregar a tela de edição."""
+    turno = db.query(Turno).filter(Turno.id == turno_id).first()
+    if turno is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Turno não encontrado.",
+        )
+
+    registros = (
+        db.query(RegistroHorario, Maquina)
+        .join(Maquina, RegistroHorario.maquina_id == Maquina.id)
+        .filter(RegistroHorario.turno_id == turno_id)
+        .order_by(RegistroHorario.hora_referencia)
+        .all()
+    )
+
+    return TurnoDetail(
+        id=turno.id,
+        nome_turno=turno.nome_turno,
+        responsavel_nome=turno.responsavel_nome,
+        observacoes=turno.observacoes,
+        data_registro=turno.data_registro,
+        status_assinatura=turno.status_assinatura,
+        editado_por_nome=turno.editado_por.nome if turno.editado_por else None,
+        editado_em=turno.editado_em,
+        registros=[
+            RegistroHorarioDetail(
+                numero_maquina=maq.numero_maquina,
+                hora_referencia=reg.hora_referencia.strftime("%H:%M"),
+                prod_executada=reg.prod_executada,
+                pecas_boas=reg.pecas_boas,
+                refugo=reg.refugo,
+                inicio_parada=reg.inicio_parada,
+                retomada=reg.retomada,
+                motivo_parada=reg.motivo_parada,
+            )
+            for reg, maq in registros
+        ],
+    )
+
+
+@router.patch("/{turno_id}")
+def corrigir_turno(
+    turno_id: int,
+    dados: FechamentoTurnoCreate,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(exigir_perfil("ADMIN", "SUPERVISOR")),
+):
+    """
+    Corrige um turno já encerrado (ex.: erro de digitação em produção ou
+    horário). Restrito a ADMIN/SUPERVISOR. Substitui todos os registros
+    do turno pelos informados e registra quem editou.
+    """
+    try:
+        return editar_turno(
+            db=db,
+            turno_id=turno_id,
+            dados=dados,
+            usuario_id=usuario.id,
+        )
+    except ValueError as exc:
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if "não encontrado" in str(exc)
+            else status.HTTP_400_BAD_REQUEST
+        )
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro interno ao corrigir o turno.",
+        ) from exc
+
+
 @router.get("/{turno_id}/relatorio.pdf")
 def baixar_relatorio_turno(
     turno_id: int,
@@ -88,7 +179,7 @@ def baixar_relatorio_turno(
     """
     Gera (sob demanda) e retorna o PDF de fechamento do turno indicado.
     Os KPIs são recalculados a partir dos registros salvos, então o PDF
-    sempre reflete o estado atual do turno.
+    sempre reflete o estado atual do turno (inclusive após correções).
     """
     turno = db.query(Turno).filter(Turno.id == turno_id).first()
     if turno is None:

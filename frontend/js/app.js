@@ -20,12 +20,16 @@ const HORARIOS_POR_TURNO = {
   3: ["22:00", "23:00", "00:00", "01:00", "02:00", "03:00", "04:00"],
 };
 
-// Lista de máquinas ativas, carregada do backend (não é mais fixa em 6).
+// Lista de máquinas (ativas, ou todas se estiver editando um turno antigo).
 // Cada item: { id, numero_maquina, descricao, cavidades, ciclo_padrao }
 let maquinasDisponiveis = [];
 let maquinaAtiva = null; // guarda o numero_maquina (string) selecionado
-// Estado centralizado dos apontamentos: dados[numero_maquina][hora] = { prod, inicio, retomada, motivo }
+// Estado centralizado dos apontamentos: dados[numero_maquina][hora] = { prod, pecasBoas, refugo, inicio, retomada, motivo }
 let registrosState = {};
+
+// Preenchido quando a tela está em modo de correção de um turno já
+// fechado (via index.html?editar=<id>). null = modo normal (novo turno).
+let turnoEditandoId = null;
 
 // Inicialização
 document.addEventListener("DOMContentLoaded", async () => {
@@ -44,21 +48,117 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("linkMaquinas").classList.remove("d-none");
   }
 
+  const params = new URLSearchParams(window.location.search);
+  const idParaEditar = params.get("editar");
+
+  if (idParaEditar) {
+    if (perfil !== "ADMIN" && perfil !== "SUPERVISOR") {
+      alert(
+        "Apenas administradores e supervisores podem corrigir um turno já fechado.",
+      );
+      window.location.href = "historico.html";
+      return;
+    }
+    turnoEditandoId = idParaEditar;
+    ativarModoEdicao();
+  }
+
   document.getElementById("dataTurno").valueAsDate = new Date();
   atualizarRelogio();
   setInterval(atualizarRelogio, 1000);
 
-  await carregarMaquinas();
+  // Em modo de edição, inclui também máquinas já desativadas, para que
+  // os registros históricos delas continuem visíveis e editáveis.
+  await carregarMaquinas(!!turnoEditandoId);
+
+  if (turnoEditandoId) {
+    await carregarTurnoParaEdicao(turnoEditandoId);
+  }
+
   renderizarTabela();
 });
 
-async function carregarMaquinas() {
+function ativarModoEdicao() {
+  const aviso = document.createElement("div");
+  aviso.className =
+    "alert alert-warning d-flex justify-content-between align-items-center mb-3";
+  aviso.innerHTML = `
+    <span><i class="bi bi-pencil-square me-2"></i>Corrigindo um turno já encerrado.</span>
+    <a href="historico.html" class="btn btn-sm btn-outline-dark">Cancelar</a>
+  `;
+  document.querySelector(".container-fluid.p-3").prepend(aviso);
+
+  const botaoFechar = document.querySelector(
+    'button[onclick="confirmarFechamento()"]',
+  );
+  botaoFechar.innerHTML =
+    '<i class="bi bi-check-circle me-2"></i>Salvar Correção';
+
+  // O turno (1º/2º/3º) não é editável em modo de correção, para evitar
+  // inconsistência entre a grade de horários e os registros já salvos.
+  document.getElementById("selectTurno").disabled = true;
+}
+
+async function carregarTurnoParaEdicao(turnoId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/turnos/${turnoId}`, {
+      headers: { Authorization: `Bearer ${obterTokenSalvo()}` },
+    });
+
+    if (res.status === 401) {
+      localStorage.removeItem("siamp_token");
+      window.location.href = "login.html";
+      return;
+    }
+
+    if (!res.ok) throw new Error("Turno não encontrado.");
+
+    const turno = await res.json();
+
+    // Tenta casar o nome_turno salvo com uma das opções do seletor
+    // (ex.: "1º Turno (05:00 - 13:00)") para pré-selecionar a grade
+    // horária correta.
+    const selectTurno = document.getElementById("selectTurno");
+    for (const opcao of selectTurno.options) {
+      if (opcao.text === turno.nome_turno) {
+        selectTurno.value = opcao.value;
+        break;
+      }
+    }
+
+    document.getElementById("nomeLider").value = turno.responsavel_nome || "";
+    document.getElementById("observacoesTurno").value = turno.observacoes || "";
+
+    turno.registros.forEach((reg) => {
+      if (!registrosState[reg.numero_maquina]) {
+        registrosState[reg.numero_maquina] = {};
+      }
+      registrosState[reg.numero_maquina][reg.hora_referencia] = {
+        prod: reg.prod_executada ?? "",
+        pecasBoas: reg.pecas_boas ?? "",
+        refugo: reg.refugo ?? "",
+        inicio: reg.inicio_parada ? reg.inicio_parada.slice(0, 5) : "",
+        retomada: reg.retomada ? reg.retomada.slice(0, 5) : "",
+        motivo: reg.motivo_parada || "",
+      };
+    });
+  } catch (erro) {
+    console.error(erro);
+    alert("Não foi possível carregar os dados do turno para edição.");
+    window.location.href = "historico.html";
+  }
+}
+
+async function carregarMaquinas(incluirInativas = false) {
   const container = document.getElementById("pills-maquinas");
 
   try {
-    const res = await fetch(`${API_BASE_URL}/maquinas/`, {
-      headers: { Authorization: `Bearer ${obterTokenSalvo()}` },
-    });
+    const res = await fetch(
+      `${API_BASE_URL}/maquinas/?incluir_inativas=${incluirInativas}`,
+      {
+        headers: { Authorization: `Bearer ${obterTokenSalvo()}` },
+      },
+    );
 
     if (res.status === 401) {
       localStorage.removeItem("siamp_token");
@@ -105,9 +205,10 @@ function renderizarAbasMaquinas() {
     const btn = document.createElement("button");
     btn.className = "nav-link btn-maq";
     btn.dataset.numeroMaquina = m.numero_maquina;
-    btn.textContent = m.descricao
+    const rotulo = m.descricao
       ? `Injetora ${m.numero_maquina}`
       : `Máquina ${m.numero_maquina}`;
+    btn.textContent = m.ativo === false ? `${rotulo} (inativa)` : rotulo;
     btn.addEventListener("click", () => selecionarMaquina(m.numero_maquina));
 
     li.appendChild(btn);
@@ -160,6 +261,8 @@ function renderizarTabela() {
   horas.forEach((hora) => {
     const salvo = (registrosState[maquinaAtiva] || {})[hora] || {
       prod: "",
+      pecasBoas: "",
+      refugo: "",
       inicio: "",
       retomada: "",
       motivo: "",
@@ -171,6 +274,14 @@ function renderizarTabela() {
       <td>
         <input type="number" min="0" class="form-control" placeholder="0" 
           value="${salvo.prod}" onchange="salvarValor('${hora}', 'prod', this.value)">
+      </td>
+      <td>
+        <input type="number" min="0" class="form-control" placeholder="opcional" 
+          value="${salvo.pecasBoas}" onchange="salvarValor('${hora}', 'pecasBoas', this.value)">
+      </td>
+      <td>
+        <input type="number" min="0" class="form-control" placeholder="opcional" 
+          value="${salvo.refugo}" onchange="salvarValor('${hora}', 'refugo', this.value)">
       </td>
       <td>
         <input type="time" class="form-control" 
@@ -196,6 +307,8 @@ function salvarValor(hora, campo, valor) {
   if (!registrosState[maquinaAtiva][hora]) {
     registrosState[maquinaAtiva][hora] = {
       prod: "",
+      pecasBoas: "",
+      refugo: "",
       inicio: "",
       retomada: "",
       motivo: "",
@@ -231,14 +344,8 @@ function obterPerfilDoToken(token) {
   }
 }
 
-// Envio para o Backend FastAPI
-async function confirmarFechamento() {
+function montarPayloadFechamento() {
   const lider = document.getElementById("nomeLider").value.trim();
-  if (!lider) {
-    alert("Por favor, preencha o nome do líder antes de finalizar.");
-    return;
-  }
-
   const turnoSelect = document.getElementById("selectTurno");
   const payload = {
     nome_turno: turnoSelect.options[turnoSelect.selectedIndex].text,
@@ -257,6 +364,8 @@ async function confirmarFechamento() {
           numero_maquina: m.numero_maquina,
           hora_referencia: hora,
           prod_executada: parseInt(dados.prod || 0),
+          pecas_boas: dados.pecasBoas !== "" ? parseInt(dados.pecasBoas) : null,
+          refugo: dados.refugo !== "" ? parseInt(dados.refugo) : null,
           inicio_parada: dados.inicio || null,
           retomada: dados.retomada || null,
           motivo_parada: dados.motivo || null,
@@ -265,9 +374,27 @@ async function confirmarFechamento() {
     }
   });
 
+  return { lider, payload };
+}
+
+// Envio para o Backend FastAPI (cria um turno novo, ou corrige um
+// existente quando turnoEditandoId estiver definido).
+async function confirmarFechamento() {
+  const { lider, payload } = montarPayloadFechamento();
+  if (!lider) {
+    alert("Por favor, preencha o nome do líder antes de finalizar.");
+    return;
+  }
+
+  const editando = !!turnoEditandoId;
+  const url = editando
+    ? `${API_BASE_URL}/turnos/${turnoEditandoId}`
+    : `${API_BASE_URL}/turnos/fechamento`;
+  const metodo = editando ? "PATCH" : "POST";
+
   try {
-    const res = await fetch(`${API_BASE_URL}/turnos/fechamento`, {
-      method: "POST",
+    const res = await fetch(url, {
+      method: metodo,
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${obterTokenSalvo()}`,
@@ -282,13 +409,28 @@ async function confirmarFechamento() {
       return;
     }
 
+    if (res.status === 403) {
+      alert("Você não tem permissão para corrigir este turno.");
+      return;
+    }
+
     if (res.ok) {
-      alert(
-        "✅ Fechamento de turno registrado e assinado com sucesso! O relatório será gerado.",
-      );
-      window.location.reload();
+      if (editando) {
+        alert("✅ Turno corrigido com sucesso!");
+        window.location.href = "historico.html";
+      } else {
+        alert(
+          "✅ Fechamento de turno registrado e assinado com sucesso! O relatório será gerado.",
+        );
+        window.location.reload();
+      }
     } else {
-      alert("⚠️ Erro ao registrar dados. Verifique a conexão com o servidor.");
+      const erro = await res.json().catch(() => null);
+      alert(
+        "⚠️ " +
+          (erro?.detail ||
+            "Erro ao registrar dados. Verifique a conexão com o servidor."),
+      );
     }
   } catch (error) {
     console.error("Erro na requisição:", error);

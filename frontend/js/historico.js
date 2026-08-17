@@ -1,11 +1,14 @@
 const API_BASE_URL =
   window.SIAMP_API_BASE_URL || "http://localhost:8000/api/v1";
+let perfilUsuario = null;
 
 document.addEventListener("DOMContentLoaded", () => {
-  if (!obterTokenSalvo()) {
+  const token = obterTokenSalvo();
+  if (!token) {
     window.location.href = "login.html";
     return;
   }
+  perfilUsuario = obterPerfilDoToken(token);
   carregarTurnos();
 });
 
@@ -16,6 +19,18 @@ function obterTokenSalvo() {
 function sair() {
   localStorage.removeItem("siamp_token");
   window.location.href = "login.html";
+}
+
+function obterPerfilDoToken(token) {
+  try {
+    const payloadBase64 = token.split(".")[1];
+    const payload = JSON.parse(
+      atob(payloadBase64.replace(/-/g, "+").replace(/_/g, "/")),
+    );
+    return payload.perfil || null;
+  } catch (erro) {
+    return null;
+  }
 }
 
 async function chamarApi(caminho, opcoes = {}) {
@@ -38,7 +53,7 @@ async function chamarApi(caminho, opcoes = {}) {
 
 async function carregarTurnos() {
   const tbody = document.getElementById("corpoTabelaHistorico");
-  tbody.innerHTML = `<tr><td colspan="7" class="text-center text-secondary py-4">Carregando...</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="8" class="text-center text-secondary py-4">Carregando...</td></tr>`;
 
   try {
     const res = await chamarApi("/turnos/");
@@ -47,7 +62,7 @@ async function carregarTurnos() {
     renderizarTurnos(turnos);
   } catch (erro) {
     console.error(erro);
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">${erro.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">${erro.message}</td></tr>`;
   }
 }
 
@@ -56,9 +71,12 @@ function renderizarTurnos(turnos) {
   tbody.innerHTML = "";
 
   if (turnos.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-secondary py-4">Nenhum turno encerrado ainda.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-secondary py-4">Nenhum turno encerrado ainda.</td></tr>`;
     return;
   }
+
+  const podeEditar =
+    perfilUsuario === "ADMIN" || perfilUsuario === "SUPERVISOR";
 
   turnos.forEach((t) => {
     const tr = document.createElement("tr");
@@ -73,18 +91,34 @@ function renderizarTurnos(turnos) {
       t.eficiencia_oee < 75
         ? `<span class="badge bg-danger">${t.eficiencia_oee}%</span>`
         : `<span class="badge bg-success">${t.eficiencia_oee}%</span>`;
+    const badgeQualidade =
+      t.indice_qualidade < 95
+        ? `<span class="badge bg-warning text-dark">${t.indice_qualidade}%</span>`
+        : `<span class="badge bg-success">${t.indice_qualidade}%</span>`;
+    const marcaEditado = t.editado
+      ? ' <i class="bi bi-pencil-fill text-secondary" title="Turno corrigido"></i>'
+      : "";
+    const botaoEditar = podeEditar
+      ? `<a href="index.html?editar=${t.id}" class="btn btn-sm btn-outline-secondary" title="Corrigir este turno">
+           <i class="bi bi-pencil-square"></i>
+         </a>`
+      : "";
 
     tr.innerHTML = `
-      <td class="fw-bold">${escaparHtml(t.nome_turno)}</td>
+      <td class="fw-bold">${escaparHtml(t.nome_turno)}${marcaEditado}</td>
       <td>${escaparHtml(t.responsavel_nome)}</td>
       <td>${dataFormatada}</td>
       <td class="text-center">${t.total_produzido} pçs</td>
+      <td class="text-center">${badgeQualidade}</td>
       <td class="text-center">${badgeEficiencia}</td>
       <td class="text-center"><span class="badge bg-primary">${escaparHtml(t.status_assinatura)}</span></td>
       <td class="text-center">
-        <button class="btn btn-sm btn-outline-primary" onclick="baixarRelatorio(${t.id}, this)">
-          <i class="bi bi-file-earmark-pdf me-1"></i>Baixar PDF
-        </button>
+        <div class="d-flex gap-1 justify-content-center">
+          <button class="btn btn-sm btn-outline-primary" onclick="baixarRelatorio(${t.id}, this)">
+            <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+          </button>
+          ${botaoEditar}
+        </div>
       </td>
     `;
     tbody.appendChild(tr);

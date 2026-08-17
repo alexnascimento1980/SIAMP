@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -25,6 +25,14 @@ class Turno(Base):
         default="PENDENTE",
         index=True,
     )
+    # Trilha de auditoria de correções: um turno já fechado pode ser
+    # editado por SUPERVISOR/ADMIN (ex.: corrigir erro de digitação),
+    # e aqui fica registrado quem foi e quando.
+    editado_por_id: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id"),
+        nullable=True,
+    )
+    editado_em: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     registros = relationship(
         "RegistroHorario",
@@ -36,3 +44,4 @@ class Turno(Base):
         back_populates="turno",
         cascade="all, delete-orphan",
     )
+    editado_por = relationship("Usuario", foreign_keys=[editado_por_id])

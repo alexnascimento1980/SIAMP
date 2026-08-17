@@ -14,6 +14,11 @@ class RegistroHorarioCreate(BaseModel):
     numero_maquina: str = Field(..., min_length=1, max_length=30)
     hora_referencia: str = Field(..., min_length=5, max_length=5, examples=["05:00"])
     prod_executada: int = Field(default=0, ge=0)
+    # Apontamento de qualidade (opcional). Quando informados, entram no
+    # cálculo do Índice de Qualidade do OEE (ver app/services/analytics.py).
+    pecas_boas: Optional[int] = Field(default=None, ge=0)
+    refugo: Optional[int] = Field(default=None, ge=0)
+    meta_producao: Optional[int] = Field(default=None, ge=0)
     inicio_parada: Optional[time] = None
     retomada: Optional[time] = None
     motivo_parada: Optional[str] = Field(default=None, max_length=150)
@@ -35,6 +40,19 @@ class RegistroHorarioCreate(BaseModel):
         inicio = info.data.get("inicio_parada")
         if value is not None and inicio is not None and value < inicio:
             raise ValueError("retomada não pode ser anterior ao início da parada.")
+        return value
+
+    @field_validator("refugo")
+    @classmethod
+    def validar_soma_qualidade(cls, value: Optional[int], info):
+        pecas_boas = info.data.get("pecas_boas")
+        prod_executada = info.data.get("prod_executada")
+        if value is not None and pecas_boas is not None and prod_executada is not None:
+            if (value + pecas_boas) > prod_executada:
+                raise ValueError(
+                    "A soma de peças boas e refugo não pode ser maior que a "
+                    "produção executada informada."
+                )
         return value
 
 
@@ -61,3 +79,28 @@ class TurnoListItem(BaseModel):
     status_assinatura: str
     total_produzido: int
     eficiencia_oee: float
+    indice_qualidade: float
+    editado: bool = False
+
+
+class RegistroHorarioDetail(BaseModel):
+    numero_maquina: str
+    hora_referencia: str
+    prod_executada: int
+    pecas_boas: Optional[int] = None
+    refugo: Optional[int] = None
+    inicio_parada: Optional[time] = None
+    retomada: Optional[time] = None
+    motivo_parada: Optional[str] = None
+
+
+class TurnoDetail(BaseModel):
+    id: int
+    nome_turno: str
+    responsavel_nome: str
+    observacoes: Optional[str] = None
+    data_registro: datetime
+    status_assinatura: str
+    editado_por_nome: Optional[str] = None
+    editado_em: Optional[datetime] = None
+    registros: List[RegistroHorarioDetail]
