@@ -1,14 +1,8 @@
-const API_BASE_URL =
-  window.SIAMP_API_BASE_URL || "http://localhost:8000/api/v1";
+document.addEventListener("DOMContentLoaded", async () => {
+  const sessao = await exigirSessao();
+  if (!sessao) return;
 
-document.addEventListener("DOMContentLoaded", () => {
-  const token = obterTokenSalvo();
-  if (!token) {
-    window.location.href = "login.html";
-    return;
-  }
-
-  if (obterPerfilDoToken(token) !== "ADMIN") {
+  if (sessao.perfil !== "ADMIN") {
     alert("Apenas administradores podem acessar esta página.");
     window.location.href = "index.html";
     return;
@@ -19,54 +13,6 @@ document.addEventListener("DOMContentLoaded", () => {
     .addEventListener("submit", onCriarUsuario);
   carregarUsuarios();
 });
-
-function obterTokenSalvo() {
-  return localStorage.getItem("siamp_token");
-}
-
-function sair() {
-  localStorage.removeItem("siamp_token");
-  window.location.href = "login.html";
-}
-
-// Leitura client-side do payload do JWT, só para decidir o que mostrar na
-// tela (esconder/mostrar menu). O backend SEMPRE revalida a assinatura e a
-// permissão de verdade em cada endpoint - isto aqui não é uma camada de
-// segurança, é só uma conveniência de UI.
-function obterPerfilDoToken(token) {
-  try {
-    const payloadBase64 = token.split(".")[1];
-    const payload = JSON.parse(
-      atob(payloadBase64.replace(/-/g, "+").replace(/_/g, "/")),
-    );
-    return payload.perfil || null;
-  } catch (erro) {
-    return null;
-  }
-}
-
-async function chamarApi(caminho, opcoes = {}) {
-  const res = await fetch(`${API_BASE_URL}${caminho}`, {
-    ...opcoes,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${obterTokenSalvo()}`,
-      ...(opcoes.headers || {}),
-    },
-  });
-
-  if (res.status === 401) {
-    localStorage.removeItem("siamp_token");
-    window.location.href = "login.html";
-    throw new Error("Sessão expirada.");
-  }
-
-  if (res.status === 403) {
-    throw new Error("Você não tem permissão para esta ação.");
-  }
-
-  return res;
-}
 
 async function carregarUsuarios() {
   const tbody = document.getElementById("corpoTabelaUsuarios");

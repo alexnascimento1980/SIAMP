@@ -17,6 +17,7 @@ class Settings:
     jwt_secret_key: str
     jwt_algorithm: str
     jwt_expires_minutes: int
+    cookie_secure: bool
 
 
 def _build_settings() -> Settings:
@@ -48,6 +49,10 @@ def _build_settings() -> Settings:
         jwt_secret_key=jwt_secret_key,
         jwt_algorithm=os.getenv("JWT_ALGORITHM", "HS256"),
         jwt_expires_minutes=int(os.getenv("JWT_EXPIRES_MINUTES", "480")),
+        # Padrão seguro (exige HTTPS) caso a variável não seja definida.
+        # O .env.example de desenvolvimento define explicitamente "false",
+        # já que o fluxo local roda em http://localhost sem TLS.
+        cookie_secure=os.getenv("COOKIE_SECURE", "true").lower() == "true",
     )
 
 

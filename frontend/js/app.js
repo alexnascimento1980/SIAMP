@@ -1,8 +1,3 @@
-// Base da API. Ajuste via variável global window.SIAMP_API_BASE_URL se
-// o backend não estiver em localhost:8000 (ex. em produção).
-const API_BASE_URL =
-  window.SIAMP_API_BASE_URL || "http://localhost:8000/api/v1";
-
 // Grade horária de acordo com as fichas operacionais de cada turno
 const HORARIOS_POR_TURNO = {
   1: [
@@ -34,13 +29,10 @@ let turnoEditandoId = null;
 // Inicialização
 document.addEventListener("DOMContentLoaded", async () => {
   // Sem sessão válida, manda direto pra tela de login.
-  const token = obterTokenSalvo();
-  if (!token) {
-    window.location.href = "login.html";
-    return;
-  }
+  const sessao = await exigirSessao();
+  if (!sessao) return;
 
-  const perfil = obterPerfilDoToken(token);
+  const perfil = sessao.perfil;
   if (perfil === "ADMIN") {
     document.getElementById("linkUsuarios").classList.remove("d-none");
   }
@@ -101,15 +93,7 @@ function ativarModoEdicao() {
 
 async function carregarTurnoParaEdicao(turnoId) {
   try {
-    const res = await fetch(`${API_BASE_URL}/turnos/${turnoId}`, {
-      headers: { Authorization: `Bearer ${obterTokenSalvo()}` },
-    });
-
-    if (res.status === 401) {
-      localStorage.removeItem("siamp_token");
-      window.location.href = "login.html";
-      return;
-    }
+    const res = await chamarApi(`/turnos/${turnoId}`);
 
     if (!res.ok) throw new Error("Turno não encontrado.");
 
@@ -153,18 +137,9 @@ async function carregarMaquinas(incluirInativas = false) {
   const container = document.getElementById("pills-maquinas");
 
   try {
-    const res = await fetch(
-      `${API_BASE_URL}/maquinas/?incluir_inativas=${incluirInativas}`,
-      {
-        headers: { Authorization: `Bearer ${obterTokenSalvo()}` },
-      },
+    const res = await chamarApi(
+      `/maquinas/?incluir_inativas=${incluirInativas}`,
     );
-
-    if (res.status === 401) {
-      localStorage.removeItem("siamp_token");
-      window.location.href = "login.html";
-      return;
-    }
 
     if (!res.ok) throw new Error("Não foi possível carregar as máquinas.");
 
@@ -317,33 +292,6 @@ function salvarValor(hora, campo, valor) {
   registrosState[maquinaAtiva][hora][campo] = valor;
 }
 
-// Autenticação: sessão gerenciada pela tela de login (login.html/login.js).
-// Aqui só lemos o token salvo e tratamos sessão expirada.
-function obterTokenSalvo() {
-  return localStorage.getItem("siamp_token");
-}
-
-function sair() {
-  localStorage.removeItem("siamp_token");
-  window.location.href = "login.html";
-}
-
-// Leitura client-side do payload do JWT, só para decidir o que mostrar na
-// tela (ex.: exibir os links de Usuários/Máquinas para ADMIN/SUPERVISOR).
-// O backend SEMPRE revalida a assinatura e a permissão de verdade em cada
-// endpoint - isto aqui não é uma camada de segurança, é conveniência de UI.
-function obterPerfilDoToken(token) {
-  try {
-    const payloadBase64 = token.split(".")[1];
-    const payload = JSON.parse(
-      atob(payloadBase64.replace(/-/g, "+").replace(/_/g, "/")),
-    );
-    return payload.perfil || null;
-  } catch (erro) {
-    return null;
-  }
-}
-
 function montarPayloadFechamento() {
   const lider = document.getElementById("nomeLider").value.trim();
   const turnoSelect = document.getElementById("selectTurno");
@@ -387,27 +335,16 @@ async function confirmarFechamento() {
   }
 
   const editando = !!turnoEditandoId;
-  const url = editando
-    ? `${API_BASE_URL}/turnos/${turnoEditandoId}`
-    : `${API_BASE_URL}/turnos/fechamento`;
+  const caminho = editando
+    ? `/turnos/${turnoEditandoId}`
+    : `/turnos/fechamento`;
   const metodo = editando ? "PATCH" : "POST";
 
   try {
-    const res = await fetch(url, {
+    const res = await chamarApi(caminho, {
       method: metodo,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${obterTokenSalvo()}`,
-      },
       body: JSON.stringify(payload),
     });
-
-    if (res.status === 401) {
-      localStorage.removeItem("siamp_token");
-      alert("Sessão expirada. Faça login novamente.");
-      window.location.href = "login.html";
-      return;
-    }
 
     if (res.status === 403) {
       alert("Você não tem permissão para corrigir este turno.");
@@ -433,6 +370,9 @@ async function confirmarFechamento() {
       );
     }
   } catch (error) {
+    // Sessão expirada: chamarApi já redirecionou para login.html, então
+    // não mostramos um alerta de erro de conexão por cima do redirect.
+    if (error.message === "Sessão expirada.") return;
     console.error("Erro na requisição:", error);
     alert("❌ Não foi possível conectar à API.");
   }
