@@ -77,6 +77,38 @@ usuários da equipe — não é mais necessário repetir o comando acima.
 > inclusive os usuários) — use `-v` apenas quando quiser mesmo resetar
 > o ambiente do zero.
 
+### Envio de relatório por e-mail (opcional)
+
+Ao fechar um turno, o SIAMP tenta enviar o PDF do relatório por e-mail
+em background (não bloqueia o fechamento do turno em si). Isso só
+acontece se `SMTP_USER`, `SMTP_PASS` e `REPORT_RECIPIENTS` estiverem
+configurados no `.env` — sem eles, o envio é simplesmente pulado (não
+é erro).
+
+```env
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=seu-email@empresa.com
+SMTP_PASS=sua-senha-de-app
+REPORT_RECIPIENTS=gerente.producao@empresa.com,supervisao@empresa.com
+```
+
+> **Usando Gmail?** É necessário gerar uma ["senha de
+> app"](https://myaccount.google.com/apppasswords) — a senha normal da
+> conta Google não funciona para SMTP via terceiros, mesmo com a senha
+> certa (o Gmail bloqueia por segurança).
+
+Depois de configurar, valide sem precisar fechar um turno de verdade:
+
+```bash
+docker compose exec backend_api python -m app.scripts.testar_email --para seu-email@empresa.com
+```
+
+Se der erro, o script já indica a causa mais provável (credenciais
+erradas, servidor/porta incorretos etc.) — os mesmos detalhes também
+ficam registrados no log do container (`docker compose logs backend_api`)
+sempre que um envio de relatório real falhar.
+
 ### Perfis de usuário
 
 | Perfil       | Apontamento / Histórico / Dashboard | Gestão de Máquinas | Gestão de Usuários |
