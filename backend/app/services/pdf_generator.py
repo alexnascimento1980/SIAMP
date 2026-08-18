@@ -68,7 +68,7 @@ def gerar_relatorio_turno_pdf(dados_turno: dict, kpis: dict, registros: list[dic
     # Detalhe por hora/máquina: qual peça foi produzida e o tipo de parada
     # (quando houve), para o relatório deixar isso explícito.
     if registros:
-        cabecalho_detalhe = ["Hora", "Máquina", "Peça", "Produção", "Parada"]
+        cabecalho_detalhe = ["Hora", "Máquina", "Peça", "Produção", "Esperado", "Parada"]
         linhas_detalhe = [cabecalho_detalhe]
         for reg in registros:
             if reg.get("inicio_parada"):
@@ -81,18 +81,19 @@ def gerar_relatorio_turno_pdf(dados_turno: dict, kpis: dict, registros: list[dic
                 reg["numero_maquina"],
                 reg.get("produto_descricao") or "-",
                 str(reg["prod_executada"]),
+                str(reg.get("producao_esperada", "-")),
                 parada_txt,
             ])
 
         tabela_detalhe = Table(
-            linhas_detalhe, colWidths=[45, 55, 220, 65, 135], repeatRows=1
+            linhas_detalhe, colWidths=[40, 45, 190, 55, 55, 135], repeatRows=1
         )
         tabela_detalhe.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F3F4F6')),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, -1), 8),
             ('ALIGN', (0, 0), (0, -1), 'CENTER'),
-            ('ALIGN', (3, 0), (3, -1), 'CENTER'),
+            ('ALIGN', (3, 0), (4, -1), 'CENTER'),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
             ('TOPPADDING', (0, 0), (-1, -1), 4),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),

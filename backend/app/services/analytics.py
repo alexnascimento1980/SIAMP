@@ -4,6 +4,52 @@ from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
 
 
+def calcular_capacidade_esperada_registro(
+    reg: RegistroHorario, maq: Maquina, produto: Produto | None
+) -> dict:
+    """Capacidade teórica esperada de UM registro (hora/máquina), já
+    descontando parada programada. Extraída para ser reutilizada tanto no
+    agregado de KPIs do turno (_kpis_a_partir_de_registros) quanto no
+    detalhamento por linha do relatório em PDF (ver
+    turno_service.buscar_registros_para_relatorio), evitando duas
+    implementações divergentes da mesma conta."""
+    # O ciclo e as cavidades da peça (quando cadastrados) prevalecem
+    # sobre os "padrão" da máquina: a mesma injetora pode trocar de
+    # molde entre turnos, então usar sempre o ciclo fixo da máquina
+    # distorceria a capacidade teórica de peças com ciclo diferente.
+    ciclo = maq.ciclo_padrao
+    cavidades = maq.cavidades
+    if produto is not None:
+        if produto.ciclo_padrao:
+            ciclo = produto.ciclo_padrao
+        if produto.cavidades:
+            cavidades = produto.cavidades
+
+    # Cálculo de produção nominal esperada (3600s / ciclo * cavidades por hora cheia)
+    capacidade_hora_cheia = int((3600 / ciclo) * cavidades) if ciclo else 0
+
+    duracao_parada_min = 0
+    if reg.inicio_parada and reg.retomada:
+        t_inicio = reg.inicio_parada.hour * 60 + reg.inicio_parada.minute
+        t_fim = reg.retomada.hour * 60 + reg.retomada.minute
+        duracao_parada_min = max(0, t_fim - t_inicio)
+
+    if duracao_parada_min > 0 and reg.parada_programada:
+        # Parada programada (troca de molde, manutenção preventiva,
+        # refeição etc.): reduz a capacidade esperada na proporção do
+        # tempo parado, para que ela não penalize o OEE. Uma hora
+        # inteira de parada programada não conta contra a eficiência.
+        fracao_disponivel = max(0.0, (60 - duracao_parada_min) / 60)
+        capacidade_ajustada = capacidade_hora_cheia * fracao_disponivel
+    else:
+        capacidade_ajustada = capacidade_hora_cheia
+
+    return {
+        "capacidade_ajustada": capacidade_ajustada,
+        "duracao_parada_min": duracao_parada_min,
+    }
+
+
 def _kpis_a_partir_de_registros(
     registros: list[tuple[RegistroHorario, Maquina, Produto | None]],
 ) -> dict:
@@ -24,41 +70,16 @@ def _kpis_a_partir_de_registros(
     for reg, maq, produto in registros:
         total_produzido += reg.prod_executada
 
-        # O ciclo e as cavidades da peça (quando cadastrados) prevalecem
-        # sobre os "padrão" da máquina: a mesma injetora pode trocar de
-        # molde entre turnos, então usar sempre o ciclo fixo da máquina
-        # distorceria a capacidade teórica de peças com ciclo diferente.
-        ciclo = maq.ciclo_padrao
-        cavidades = maq.cavidades
-        if produto is not None:
-            if produto.ciclo_padrao:
-                ciclo = produto.ciclo_padrao
-            if produto.cavidades:
-                cavidades = produto.cavidades
+        capacidade = calcular_capacidade_esperada_registro(reg, maq, produto)
+        total_esperado += capacidade["capacidade_ajustada"]
 
-        # Cálculo de produção nominal esperada (3600s / ciclo * cavidades por hora cheia)
-        capacidade_hora = int((3600 / ciclo) * cavidades) if ciclo else 0
-
-        duracao_parada_min = 0
-        if reg.inicio_parada and reg.retomada:
-            t_inicio = reg.inicio_parada.hour * 60 + reg.inicio_parada.minute
-            t_fim = reg.retomada.hour * 60 + reg.retomada.minute
-            duracao_parada_min = max(0, t_fim - t_inicio)
-
+        duracao_parada_min = capacidade["duracao_parada_min"]
         minutos_parados += duracao_parada_min
-
-        if duracao_parada_min > 0 and reg.parada_programada:
-            # Parada programada (troca de molde, manutenção preventiva,
-            # refeição etc.): reduz a capacidade esperada na proporção do
-            # tempo parado, para que ela não penalize o OEE. Uma hora
-            # inteira de parada programada não conta contra a eficiência.
-            minutos_parados_programados += duracao_parada_min
-            fracao_disponivel = max(0.0, (60 - duracao_parada_min) / 60)
-            total_esperado += capacidade_hora * fracao_disponivel
-        else:
-            if duracao_parada_min > 0:
+        if duracao_parada_min > 0:
+            if reg.parada_programada:
+                minutos_parados_programados += duracao_parada_min
+            else:
                 minutos_parados_nao_programados += duracao_parada_min
-            total_esperado += capacidade_hora
 
         # pecas_boas/refugo são opcionais (retrocompatibilidade com registros
         # antigos, que não apontavam qualidade). Só entram no cálculo do

@@ -121,3 +121,44 @@ def test_fechamento_com_produto_id_inexistente_e_rejeitado(client, db_session, u
     res = client.post("/api/v1/turnos/fechamento", json=payload)
     assert res.status_code == 400
     assert "não encontrada" in res.json()["detail"].lower()
+
+
+def test_producao_esperada_por_linha_no_relatorio(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)
+
+    payload = {
+        "nome_turno": "1º Turno (05:00 - 13:00)",
+        "responsavel_nome": "Líder Teste",
+        "registros": [
+            {
+                "numero_maquina": maquina.numero_maquina,
+                "hora_referencia": "05:00",
+                "prod_executada": 1000,
+                "produto_id": peca.id,
+            },
+            {
+                "numero_maquina": maquina.numero_maquina,
+                "hora_referencia": "06:00",
+                "prod_executada": 200,
+                "produto_id": peca.id,
+                "inicio_parada": "06:00:00",
+                "retomada": "06:30:00",
+                "parada_programada": True,
+            },
+        ],
+    }
+
+    res = client.post("/api/v1/turnos/fechamento", json=payload)
+    assert res.status_code == 201, res.text
+    turno_id = res.json()["turno_id"]
+
+    from app.services.turno_service import buscar_registros_para_relatorio
+
+    registros = buscar_registros_para_relatorio(db_session, turno_id)
+    por_hora = {r["hora_referencia"]: r for r in registros}
+
+    # Peça com ciclo 5s / 2 cavidades -> capacidade cheia = 1440/h.
+    assert por_hora["05:00"]["producao_esperada"] == 1440
+    # 30 min de parada programada -> metade da capacidade = 720.
+    assert por_hora["06:00"]["producao_esperada"] == 720

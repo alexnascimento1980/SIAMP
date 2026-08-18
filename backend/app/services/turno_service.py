@@ -9,7 +9,7 @@ from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
 from app.models.turno import Turno
 from app.schemas.turno_schema import FechamentoTurnoCreate
-from app.services.analytics import calcular_kpis_turno
+from app.services.analytics import calcular_capacidade_esperada_registro, calcular_kpis_turno
 from app.services.mailer import enviar_relatorio_email
 from app.services.pdf_generator import gerar_relatorio_turno_pdf
 
@@ -19,7 +19,8 @@ STATUS_ASSINADO = "ASSINADO_DIGITALMENTE"
 
 def buscar_registros_para_relatorio(db: Session, turno_id: int) -> list[dict]:
     """Registros de um turno formatados para o PDF de fechamento: hora,
-    máquina, peça produzida e detalhe da parada (se houve)."""
+    máquina, peça produzida, produção esperada e detalhe da parada (se
+    houve)."""
     registros = (
         db.query(RegistroHorario, Maquina, Produto)
         .join(Maquina, RegistroHorario.maquina_id == Maquina.id)
@@ -34,6 +35,9 @@ def buscar_registros_para_relatorio(db: Session, turno_id: int) -> list[dict]:
             "numero_maquina": maq.numero_maquina,
             "produto_descricao": produto.descricao if produto else None,
             "prod_executada": reg.prod_executada,
+            "producao_esperada": round(
+                calcular_capacidade_esperada_registro(reg, maq, produto)["capacidade_ajustada"]
+            ),
             "inicio_parada": reg.inicio_parada.strftime("%H:%M") if reg.inicio_parada else None,
             "retomada": reg.retomada.strftime("%H:%M") if reg.retomada else None,
             "parada_programada": reg.parada_programada,
