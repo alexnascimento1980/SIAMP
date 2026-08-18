@@ -1,6 +1,6 @@
 from datetime import time
 
-from sqlalchemy import ForeignKey, Integer, String, Time
+from sqlalchemy import Boolean, ForeignKey, Integer, String, Time
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -33,6 +33,13 @@ class RegistroHorario(Base):
     inicio_parada: Mapped[time | None] = mapped_column(Time, nullable=True)
     retomada: Mapped[time | None] = mapped_column(Time, nullable=True)
     motivo_parada: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    # Parada programada (troca de molde, manutenção preventiva, refeição
+    # etc.): o tempo parado não deve contar contra a capacidade esperada
+    # no cálculo do OEE (ver app/services/analytics.py). Paradas não
+    # marcadas aqui são tratadas como não programadas (penalizam o OEE).
+    parada_programada: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
 
     turno = relationship("Turno", back_populates="registros")
     maquina = relationship("Maquina", back_populates="registros")
