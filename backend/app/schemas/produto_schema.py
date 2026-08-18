@@ -14,6 +14,14 @@ class ProdutoCreate(ProdutoBase):
     pass
 
 
+class ProdutoUpdate(BaseModel):
+    descricao: str | None = Field(default=None, min_length=2, max_length=200)
+    ciclo_padrao: float | None = Field(default=None, gt=0)
+    cavidades: int | None = Field(default=None, gt=0)
+    peso_gramas: float | None = Field(default=None, gt=0)
+    ativo: bool | None = None
+
+
 class ProdutoResponse(ProdutoBase):
     id: int
 
