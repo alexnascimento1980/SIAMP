@@ -3,11 +3,11 @@ from app.models.maquina import Maquina
 from app.models.registro_turno import RegistroHorario
 
 
-def calcular_kpis_turno(db: Session, turno_id: int) -> dict:
-    registros = db.query(RegistroHorario, Maquina).\
-        join(Maquina, RegistroHorario.maquina_id == Maquina.id).\
-        filter(RegistroHorario.turno_id == turno_id).all()
-
+def _kpis_a_partir_de_registros(registros: list[tuple[RegistroHorario, Maquina]]) -> dict:
+    """Lógica pura de cálculo de KPI a partir de uma lista já carregada de
+    (registro, máquina). Extraída de calcular_kpis_turno para ser reutilizada
+    tanto no cálculo de um único turno quanto no de vários de uma vez
+    (ver calcular_kpis_varios_turnos), evitando N+1 queries no histórico."""
     total_produzido = 0
     total_esperado = 0
     minutos_parados = 0
@@ -61,3 +61,39 @@ def calcular_kpis_turno(db: Session, turno_id: int) -> dict:
         "eficiencia_oee": eficiencia_oee,
         "alerta_ia": "Abaixo da meta esperada" if eficiencia_oee < 75.0 else "Operação normal"
     }
+
+
+def calcular_kpis_turno(db: Session, turno_id: int) -> dict:
+    registros = db.query(RegistroHorario, Maquina).\
+        join(Maquina, RegistroHorario.maquina_id == Maquina.id).\
+        filter(RegistroHorario.turno_id == turno_id).all()
+
+    return _kpis_a_partir_de_registros(registros)
+
+
+def calcular_kpis_varios_turnos(db: Session, turno_ids: list[int]) -> dict[int, dict]:
+    """Calcula os KPIs de vários turnos em uma única query (em vez de uma
+    query por turno), usado no histórico (GET /turnos/) para evitar N+1.
+    Turnos sem nenhum registro entram no resultado com KPIs zerados."""
+    kpis_por_turno = {
+        turno_id: _kpis_a_partir_de_registros([]) for turno_id in turno_ids
+    }
+
+    if not turno_ids:
+        return kpis_por_turno
+
+    registros = (
+        db.query(RegistroHorario, Maquina)
+        .join(Maquina, RegistroHorario.maquina_id == Maquina.id)
+        .filter(RegistroHorario.turno_id.in_(turno_ids))
+        .all()
+    )
+
+    registros_por_turno: dict[int, list] = {turno_id: [] for turno_id in turno_ids}
+    for reg, maq in registros:
+        registros_por_turno[reg.turno_id].append((reg, maq))
+
+    for turno_id, regs in registros_por_turno.items():
+        kpis_por_turno[turno_id] = _kpis_a_partir_de_registros(regs)
+
+    return kpis_por_turno
