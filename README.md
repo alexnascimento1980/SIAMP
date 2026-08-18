@@ -98,6 +98,6 @@ tela de apontamento assim que cadastradas.
 
 ```bash
 cd backend
-pip install -r requirements.txt pytest
+pip install -r requirements-dev.txt
 pytest -v
 ```

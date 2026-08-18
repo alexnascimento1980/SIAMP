@@ -1,31 +1,85 @@
 from sqlalchemy.orm import Session
 from app.models.maquina import Maquina
+from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
 
 
-def _kpis_a_partir_de_registros(registros: list[tuple[RegistroHorario, Maquina]]) -> dict:
+def calcular_capacidade_esperada_registro(
+    reg: RegistroHorario, maq: Maquina, produto: Produto | None
+) -> dict:
+    """Capacidade teórica esperada de UM registro (hora/máquina), já
+    descontando parada programada. Extraída para ser reutilizada tanto no
+    agregado de KPIs do turno (_kpis_a_partir_de_registros) quanto no
+    detalhamento por linha do relatório em PDF (ver
+    turno_service.buscar_registros_para_relatorio), evitando duas
+    implementações divergentes da mesma conta."""
+    # O ciclo e as cavidades da peça (quando cadastrados) prevalecem
+    # sobre os "padrão" da máquina: a mesma injetora pode trocar de
+    # molde entre turnos, então usar sempre o ciclo fixo da máquina
+    # distorceria a capacidade teórica de peças com ciclo diferente.
+    ciclo = maq.ciclo_padrao
+    cavidades = maq.cavidades
+    if produto is not None:
+        if produto.ciclo_padrao:
+            ciclo = produto.ciclo_padrao
+        if produto.cavidades:
+            cavidades = produto.cavidades
+
+    # Cálculo de produção nominal esperada (3600s / ciclo * cavidades por hora cheia)
+    capacidade_hora_cheia = int((3600 / ciclo) * cavidades) if ciclo else 0
+
+    duracao_parada_min = 0
+    if reg.inicio_parada and reg.retomada:
+        t_inicio = reg.inicio_parada.hour * 60 + reg.inicio_parada.minute
+        t_fim = reg.retomada.hour * 60 + reg.retomada.minute
+        duracao_parada_min = max(0, t_fim - t_inicio)
+
+    if duracao_parada_min > 0 and reg.parada_programada:
+        # Parada programada (troca de molde, manutenção preventiva,
+        # refeição etc.): reduz a capacidade esperada na proporção do
+        # tempo parado, para que ela não penalize o OEE. Uma hora
+        # inteira de parada programada não conta contra a eficiência.
+        fracao_disponivel = max(0.0, (60 - duracao_parada_min) / 60)
+        capacidade_ajustada = capacidade_hora_cheia * fracao_disponivel
+    else:
+        capacidade_ajustada = capacidade_hora_cheia
+
+    return {
+        "capacidade_ajustada": capacidade_ajustada,
+        "duracao_parada_min": duracao_parada_min,
+    }
+
+
+def _kpis_a_partir_de_registros(
+    registros: list[tuple[RegistroHorario, Maquina, Produto | None]],
+) -> dict:
     """Lógica pura de cálculo de KPI a partir de uma lista já carregada de
-    (registro, máquina). Extraída de calcular_kpis_turno para ser reutilizada
-    tanto no cálculo de um único turno quanto no de vários de uma vez
-    (ver calcular_kpis_varios_turnos), evitando N+1 queries no histórico."""
+    (registro, máquina, peça). Extraída de calcular_kpis_turno para ser
+    reutilizada tanto no cálculo de um único turno quanto no de vários de
+    uma vez (ver calcular_kpis_varios_turnos), evitando N+1 queries no
+    histórico."""
     total_produzido = 0
-    total_esperado = 0
+    total_esperado = 0.0
     minutos_parados = 0
+    minutos_parados_programados = 0
+    minutos_parados_nao_programados = 0
     total_pecas_boas = 0
     total_refugo = 0
     houve_apontamento_qualidade = False
 
-    for reg, maq in registros:
+    for reg, maq, produto in registros:
         total_produzido += reg.prod_executada
 
-        # Cálculo de produção nominal esperada (3600s / ciclo * cavidades por hora cheia)
-        capacidade_hora = int((3600 / maq.ciclo_padrao) * maq.cavidades)
-        total_esperado += capacidade_hora
+        capacidade = calcular_capacidade_esperada_registro(reg, maq, produto)
+        total_esperado += capacidade["capacidade_ajustada"]
 
-        if reg.inicio_parada and reg.retomada:
-            t_inicio = reg.inicio_parada.hour * 60 + reg.inicio_parada.minute
-            t_fim = reg.retomada.hour * 60 + reg.retomada.minute
-            minutos_parados += max(0, t_fim - t_inicio)
+        duracao_parada_min = capacidade["duracao_parada_min"]
+        minutos_parados += duracao_parada_min
+        if duracao_parada_min > 0:
+            if reg.parada_programada:
+                minutos_parados_programados += duracao_parada_min
+            else:
+                minutos_parados_nao_programados += duracao_parada_min
 
         # pecas_boas/refugo são opcionais (retrocompatibilidade com registros
         # antigos, que não apontavam qualidade). Só entram no cálculo do
@@ -36,8 +90,11 @@ def _kpis_a_partir_de_registros(registros: list[tuple[RegistroHorario, Maquina]]
             total_pecas_boas += reg.pecas_boas or 0
             total_refugo += reg.refugo or 0
 
+    total_esperado = round(total_esperado)
+
     # Índice de Produção combina Disponibilidade e Performance: quanto do
-    # volume teoricamente possível (sem paradas) foi de fato produzido.
+    # volume teoricamente possível (já descontando paradas programadas) foi
+    # de fato produzido.
     indice_producao = (total_produzido / total_esperado) if total_esperado > 0 else 0.0
 
     # Índice de Qualidade: proporção de peças boas sobre o total inspecionado
@@ -54,6 +111,8 @@ def _kpis_a_partir_de_registros(registros: list[tuple[RegistroHorario, Maquina]]
         "total_produzido": total_produzido,
         "total_esperado": total_esperado,
         "minutos_parados": minutos_parados,
+        "minutos_parados_programados": minutos_parados_programados,
+        "minutos_parados_nao_programados": minutos_parados_nao_programados,
         "total_pecas_boas": total_pecas_boas,
         "total_refugo": total_refugo,
         "indice_producao": round(indice_producao * 100, 2),
@@ -64,8 +123,9 @@ def _kpis_a_partir_de_registros(registros: list[tuple[RegistroHorario, Maquina]]
 
 
 def calcular_kpis_turno(db: Session, turno_id: int) -> dict:
-    registros = db.query(RegistroHorario, Maquina).\
+    registros = db.query(RegistroHorario, Maquina, Produto).\
         join(Maquina, RegistroHorario.maquina_id == Maquina.id).\
+        outerjoin(Produto, RegistroHorario.produto_id == Produto.id).\
         filter(RegistroHorario.turno_id == turno_id).all()
 
     return _kpis_a_partir_de_registros(registros)
@@ -83,15 +143,16 @@ def calcular_kpis_varios_turnos(db: Session, turno_ids: list[int]) -> dict[int, 
         return kpis_por_turno
 
     registros = (
-        db.query(RegistroHorario, Maquina)
+        db.query(RegistroHorario, Maquina, Produto)
         .join(Maquina, RegistroHorario.maquina_id == Maquina.id)
+        .outerjoin(Produto, RegistroHorario.produto_id == Produto.id)
         .filter(RegistroHorario.turno_id.in_(turno_ids))
         .all()
     )
 
     registros_por_turno: dict[int, list] = {turno_id: [] for turno_id in turno_ids}
-    for reg, maq in registros:
-        registros_por_turno[reg.turno_id].append((reg, maq))
+    for reg, maq, produto in registros:
+        registros_por_turno[reg.turno_id].append((reg, maq, produto))
 
     for turno_id, regs in registros_por_turno.items():
         kpis_por_turno[turno_id] = _kpis_a_partir_de_registros(regs)
