@@ -45,13 +45,12 @@ se `SEED_ON_START=true` (padrão no `.env.example`), carrega os dados
 de exemplo em `database/seeds.sql`.
 
 - API: http://localhost:8000 (docs interativos em `/docs`)
-- Frontend: http://localhost:8080
+- Frontend: http://localhost:8090
 
-> **Porta ocupada?** Se `8080` já estiver em uso na sua máquina (ex.:
-> outro serviço local de banco de dados), altere o mapeamento em
-> `docker-compose.yml` (serviço `frontend`, chave `ports`) para outra
-> porta livre, e atualize `CORS_ORIGINS` no `.env` para incluir a nova
-> origem (ex. `http://localhost:8090`).
+> **Porta ocupada?** Se `8090` já estiver em uso na sua máquina, altere
+> o mapeamento em `docker-compose.yml` (serviço `frontend`, chave
+> `ports`) para outra porta livre, e atualize `CORS_ORIGINS` no `.env`
+> para incluir a nova origem (ex. `http://localhost:8091`).
 
 ### Criando o primeiro usuário (administrador)
 
@@ -72,7 +71,7 @@ db.commit()
 "
 ```
 
-A partir daí, faça login em `http://localhost:8080/login.html` e use a
+A partir daí, faça login em `http://localhost:8090/login.html` e use a
 tela **Usuários** (visível só para ADMIN) para cadastrar os demais
 usuários da equipe — não é mais necessário repetir o comando acima.
 
