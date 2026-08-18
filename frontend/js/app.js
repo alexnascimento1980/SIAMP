@@ -19,7 +19,9 @@ const HORARIOS_POR_TURNO = {
 // Cada item: { id, numero_maquina, descricao, cavidades, ciclo_padrao }
 let maquinasDisponiveis = [];
 let maquinaAtiva = null; // guarda o numero_maquina (string) selecionado
-// Estado centralizado dos apontamentos: dados[numero_maquina][hora] = { prod, pecasBoas, refugo, inicio, retomada, motivo }
+// Catálogo de peças (GET /produtos/): { id, codigo, descricao, ciclo_padrao, cavidades }
+let pecasDisponiveis = [];
+// Estado centralizado dos apontamentos: dados[numero_maquina][hora] = { prod, pecasBoas, refugo, inicio, retomada, motivo, produtoId, paradaProgramada }
 let registrosState = {};
 
 // Preenchido quando a tela está em modo de correção de um turno já
@@ -61,7 +63,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Em modo de edição, inclui também máquinas já desativadas, para que
   // os registros históricos delas continuem visíveis e editáveis.
-  await carregarMaquinas(!!turnoEditandoId);
+  await Promise.all([carregarMaquinas(!!turnoEditandoId), carregarPecas()]);
 
   if (turnoEditandoId) {
     await carregarTurnoParaEdicao(turnoEditandoId);
@@ -124,12 +126,27 @@ async function carregarTurnoParaEdicao(turnoId) {
         inicio: reg.inicio_parada ? reg.inicio_parada.slice(0, 5) : "",
         retomada: reg.retomada ? reg.retomada.slice(0, 5) : "",
         motivo: reg.motivo_parada || "",
+        produtoId: reg.produto_id ?? "",
+        paradaProgramada: !!reg.parada_programada,
       };
     });
   } catch (erro) {
     console.error(erro);
     alert("Não foi possível carregar os dados do turno para edição.");
     window.location.href = "historico.html";
+  }
+}
+
+async function carregarPecas() {
+  try {
+    const res = await chamarApi("/produtos/");
+    if (!res.ok) throw new Error("Não foi possível carregar as peças.");
+    pecasDisponiveis = await res.json();
+  } catch (erro) {
+    console.error(erro);
+    // Não bloqueia o apontamento: sem o catálogo carregado, o seletor de
+    // peça fica só com a opção em branco, mas o resto da tela funciona.
+    pecasDisponiveis = [];
   }
 }
 
@@ -233,6 +250,13 @@ function renderizarTabela() {
 
   if (!maquinaAtiva) return;
 
+  const opcoesPecas = pecasDisponiveis
+    .map(
+      (p) =>
+        `<option value="${p.id}">${escaparHtml(p.codigo)} - ${escaparHtml(p.descricao)}</option>`,
+    )
+    .join("");
+
   horas.forEach((hora) => {
     const salvo = (registrosState[maquinaAtiva] || {})[hora] || {
       prod: "",
@@ -241,11 +265,19 @@ function renderizarTabela() {
       inicio: "",
       retomada: "",
       motivo: "",
+      produtoId: "",
+      paradaProgramada: false,
     };
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td class="fw-bold fs-5 text-secondary">${hora}</td>
+      <td>
+        <select class="form-select" onchange="salvarValor('${hora}', 'produtoId', this.value)">
+          <option value="" ${salvo.produtoId ? "" : "selected"}>— Selecionar —</option>
+          ${opcoesPecas}
+        </select>
+      </td>
       <td>
         <input type="number" min="0" class="form-control" placeholder="0" 
           value="${salvo.prod}" onchange="salvarValor('${hora}', 'prod', this.value)">
@@ -267,10 +299,22 @@ function renderizarTabela() {
           value="${salvo.retomada}" onchange="salvarValor('${hora}', 'retomada', this.value)">
       </td>
       <td>
+        <input type="checkbox" class="form-check-input" title="Parada programada (não penaliza o OEE)"
+          ${salvo.paradaProgramada ? "checked" : ""}
+          onchange="salvarValor('${hora}', 'paradaProgramada', this.checked)">
+      </td>
+      <td>
         <input type="text" class="form-control text-start" placeholder="Ex: Molde travado" 
           value="${salvo.motivo}" onchange="salvarValor('${hora}', 'motivo', this.value)">
       </td>
     `;
+
+    // Restaura a peça selecionada (o innerHTML acima recria o <select>
+    // do zero, então marcar "selected" na string dificultaria escapar o
+    // id corretamente - fazemos pela API do DOM em vez disso).
+    if (salvo.produtoId) {
+      tr.querySelector("select").value = String(salvo.produtoId);
+    }
     tbody.appendChild(tr);
   });
 }
@@ -287,9 +331,26 @@ function salvarValor(hora, campo, valor) {
       inicio: "",
       retomada: "",
       motivo: "",
+      produtoId: "",
+      paradaProgramada: false,
     };
   }
+
+  // Parada programada só faz sentido com um horário de início registrado
+  // (é o que o backend usa pra calcular quantos minutos excluir do OEE).
+  if (campo === "paradaProgramada" && valor && !registrosState[maquinaAtiva][hora].inicio) {
+    alert("Preencha o horário de início da parada antes de marcar como programada.");
+    renderizarTabela();
+    return;
+  }
+
   registrosState[maquinaAtiva][hora][campo] = valor;
+}
+
+function escaparHtml(texto) {
+  const div = document.createElement("div");
+  div.textContent = texto;
+  return div.innerHTML;
 }
 
 function montarPayloadFechamento() {
@@ -312,11 +373,13 @@ function montarPayloadFechamento() {
           numero_maquina: m.numero_maquina,
           hora_referencia: hora,
           prod_executada: parseInt(dados.prod || 0),
+          produto_id: dados.produtoId ? parseInt(dados.produtoId) : null,
           pecas_boas: dados.pecasBoas !== "" ? parseInt(dados.pecasBoas) : null,
           refugo: dados.refugo !== "" ? parseInt(dados.refugo) : null,
           inicio_parada: dados.inicio || null,
           retomada: dados.retomada || null,
           motivo_parada: dados.motivo || null,
+          parada_programada: !!dados.paradaProgramada,
         });
       }
     }

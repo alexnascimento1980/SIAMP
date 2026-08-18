@@ -14,6 +14,11 @@ class RegistroHorarioCreate(BaseModel):
     numero_maquina: str = Field(..., min_length=1, max_length=30)
     hora_referencia: str = Field(..., min_length=5, max_length=5, examples=["05:00"])
     prod_executada: int = Field(default=0, ge=0)
+    # Peça produzida nessa hora/máquina (opcional, para retrocompatibilidade
+    # com registros antigos). Identifica pelo id do catálogo de produtos
+    # (GET /produtos/), não pelo código, já que o frontend já carrega a
+    # lista com os ids reais para popular o seletor.
+    produto_id: Optional[int] = Field(default=None, gt=0)
     # Apontamento de qualidade (opcional). Quando informados, entram no
     # cálculo do Índice de Qualidade do OEE (ver app/services/analytics.py).
     pecas_boas: Optional[int] = Field(default=None, ge=0)
@@ -22,6 +27,11 @@ class RegistroHorarioCreate(BaseModel):
     inicio_parada: Optional[time] = None
     retomada: Optional[time] = None
     motivo_parada: Optional[str] = Field(default=None, max_length=150)
+    # Parada programada (troca de molde, manutenção preventiva, refeição
+    # etc.): o tempo parado não entra na capacidade esperada do cálculo
+    # de OEE (ver app/services/analytics.py). Só faz sentido quando
+    # inicio_parada/retomada estão preenchidos.
+    parada_programada: bool = False
 
     @field_validator("hora_referencia")
     @classmethod
@@ -53,6 +63,15 @@ class RegistroHorarioCreate(BaseModel):
                     "A soma de peças boas e refugo não pode ser maior que a "
                     "produção executada informada."
                 )
+        return value
+
+    @field_validator("parada_programada")
+    @classmethod
+    def validar_parada_programada(cls, value: bool, info):
+        if value and info.data.get("inicio_parada") is None:
+            raise ValueError(
+                "Marque o início da parada antes de sinalizá-la como programada."
+            )
         return value
 
 
@@ -89,9 +108,13 @@ class RegistroHorarioDetail(BaseModel):
     prod_executada: int
     pecas_boas: Optional[int] = None
     refugo: Optional[int] = None
+    produto_id: Optional[int] = None
+    produto_codigo: Optional[str] = None
+    produto_descricao: Optional[str] = None
     inicio_parada: Optional[time] = None
     retomada: Optional[time] = None
     motivo_parada: Optional[str] = None
+    parada_programada: bool = False
 
 
 class TurnoDetail(BaseModel):
