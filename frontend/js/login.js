@@ -1,11 +1,15 @@
-const API_BASE_URL =
-  window.SIAMP_API_BASE_URL || "http://localhost:8000/api/v1";
-
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   // Se já existe uma sessão válida, não faz sentido mostrar o login de novo.
-  if (localStorage.getItem("siamp_token")) {
-    window.location.href = "index.html";
-    return;
+  try {
+    const res = await fetch(`${API_BASE_URL}/auth/me`, {
+      credentials: "include",
+    });
+    if (res.ok) {
+      window.location.href = "index.html";
+      return;
+    }
+  } catch (erro) {
+    // Sem conexão com a API ainda: deixa continuar na tela de login.
   }
 
   document.getElementById("formLogin").addEventListener("submit", onSubmit);
@@ -33,6 +37,10 @@ async function onSubmit(evento) {
     const res = await fetch(`${API_BASE_URL}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      // O backend define o cookie httpOnly de sessão na resposta; o
+      // navegador só o guarda se a request for feita com credentials
+      // "include".
+      credentials: "include",
       body: corpo,
     });
 
@@ -41,13 +49,16 @@ async function onSubmit(evento) {
       return;
     }
 
+    if (res.status === 429) {
+      mostrarErro("Muitas tentativas. Aguarde um minuto e tente novamente.");
+      return;
+    }
+
     if (!res.ok) {
       mostrarErro("Não foi possível entrar. Tente novamente em instantes.");
       return;
     }
 
-    const data = await res.json();
-    localStorage.setItem("siamp_token", data.access_token);
     window.location.href = "index.html";
   } catch (error) {
     console.error("Erro no login:", error);

@@ -2,6 +2,10 @@ import os
 
 os.environ.setdefault("JWT_SECRET_KEY", "chave-de-teste-nao-usar-em-producao")
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+# TestClient fala por HTTP puro (sem TLS); cookies "Secure" não seriam
+# aceitos/enviados pelo cliente de teste, então usamos o mesmo valor do
+# ambiente de desenvolvimento local.
+os.environ.setdefault("COOKIE_SECURE", "false")
 
 import pytest
 from sqlalchemy import create_engine
@@ -10,6 +14,7 @@ from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 
 from app.core.database import Base, get_db
+from app.core.rate_limit import limiter
 from app.core.security import gerar_hash_senha
 from app.main import app
 from app.models.usuario import Usuario
@@ -42,6 +47,7 @@ def client(db_session):
             pass
 
     app.dependency_overrides[get_db] = _override_get_db
+    limiter.reset()  # evita que o rate limit de um teste vaze para o próximo
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()

@@ -1,34 +1,12 @@
-const API_BASE_URL =
-  window.SIAMP_API_BASE_URL || "http://localhost:8000/api/v1";
-
-document.addEventListener("DOMContentLoaded", () => {
-  if (!obterTokenSalvo()) {
-    window.location.href = "login.html";
-    return;
-  }
+document.addEventListener("DOMContentLoaded", async () => {
+  const sessao = await exigirSessao();
+  if (!sessao) return;
   carregarDashboard();
 });
 
-function obterTokenSalvo() {
-  return localStorage.getItem("siamp_token");
-}
-
-function sair() {
-  localStorage.removeItem("siamp_token");
-  window.location.href = "login.html";
-}
-
 async function carregarDashboard() {
   try {
-    const res = await fetch(`${API_BASE_URL}/dashboard/metricas-gerais`, {
-      headers: { Authorization: `Bearer ${obterTokenSalvo()}` },
-    });
-
-    if (res.status === 401) {
-      localStorage.removeItem("siamp_token");
-      window.location.href = "login.html";
-      return;
-    }
+    const res = await chamarApi("/dashboard/metricas-gerais");
 
     if (!res.ok) {
       throw new Error(`Falha ao carregar dashboard (HTTP ${res.status})`);
@@ -50,6 +28,17 @@ async function carregarDashboard() {
       `Probabilidade de desvio: ${dados.insight_ml.probabilidade_critica}%`;
     document.getElementById("iaBarraProbabilidade").style.width =
       dados.insight_ml.probabilidade_critica + "%";
+
+    // Deixa claro se o diagnóstico veio do modelo scikit-learn treinado
+    // ou da heurística de fallback (usada enquanto o modelo não existe).
+    const fonteEl = document.getElementById("iaFonteTexto");
+    if (dados.insight_ml.fonte === "modelo_ml") {
+      fonteEl.innerHTML =
+        '<i class="bi bi-cpu me-1"></i>Modelo de Machine Learning treinado, avaliando tempo de ciclo, cavidades e histórico de paradas.';
+    } else {
+      fonteEl.innerHTML =
+        '<i class="bi bi-exclamation-triangle me-1"></i>Modelo ainda não treinado — diagnóstico por regra heurística simples (parada &gt; 20 min).';
+    }
 
     // Renderiza Gráfico Chart.js
     const ctx = document

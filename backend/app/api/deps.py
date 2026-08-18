@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
@@ -6,11 +6,20 @@ from app.core.database import get_db
 from app.core.security import decodificar_access_token
 from app.models.usuario import Usuario
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+# Nome do cookie httpOnly de sessão, definido em /auth/login (ver
+# app/api/v1/auth.py) e usado pelo frontend web.
+COOKIE_NAME = "siamp_token"
+
+# auto_error=False: a ausência do header Authorization não deve derrubar a
+# request aqui, pois o token também pode chegar via cookie httpOnly (fluxo
+# do frontend). Continua funcionando normalmente com Bearer token puro
+# para clientes de API e para testar pelo Swagger (/docs).
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 
 def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    request: Request,
+    token_header: str | None = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> Usuario:
     credenciais_invalidas = HTTPException(
@@ -18,6 +27,10 @@ def get_current_user(
         detail="Credenciais inválidas ou expiradas.",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    token = token_header or request.cookies.get(COOKIE_NAME)
+    if token is None:
+        raise credenciais_invalidas
 
     payload = decodificar_access_token(token)
     if payload is None:

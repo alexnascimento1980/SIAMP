@@ -14,7 +14,7 @@ from app.schemas.turno_schema import (
     TurnoDetail,
     TurnoListItem,
 )
-from app.services.analytics import calcular_kpis_turno
+from app.services.analytics import calcular_kpis_turno, calcular_kpis_varios_turnos
 from app.services.pdf_generator import gerar_relatorio_turno_pdf
 from app.services.turno_service import editar_turno, fechar_turno
 
@@ -39,9 +39,13 @@ def listar_turnos(
         .all()
     )
 
+    # Uma única query para os KPIs de todos os turnos listados, em vez de
+    # uma consulta por turno (evita N+1 em listas grandes de histórico).
+    kpis_por_turno = calcular_kpis_varios_turnos(db, [t.id for t in turnos])
+
     resultado = []
     for turno in turnos:
-        kpis = calcular_kpis_turno(db, turno.id)
+        kpis = kpis_por_turno[turno.id]
         resultado.append(
             TurnoListItem(
                 id=turno.id,
