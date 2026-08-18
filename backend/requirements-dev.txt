@@ -1,0 +1,8 @@
+-r requirements.txt
+
+# pytest: framework de testes.
+# httpx: exigido pelo starlette.testclient.TestClient (usado em
+# tests/conftest.py) a partir das versões recentes do Starlette/FastAPI -
+# não é uma dependência de runtime da aplicação, só dos testes.
+pytest==9.1.1
+httpx==0.28.1
