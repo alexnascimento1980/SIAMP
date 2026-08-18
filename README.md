@@ -55,25 +55,27 @@ de exemplo em `database/seeds.sql`.
 ### Criando o primeiro usuário (administrador)
 
 Não há endpoint público de cadastro (por design — criar contas é uma
-operação sensível). Crie o primeiro usuário (admin) direto no banco:
+operação sensível). Crie o primeiro usuário (admin) com o script
+idempotente `create_admin` (pode rodar mais de uma vez sem risco —
+se o e-mail já existir, ele só avisa e não faz nada):
 
 ```bash
-docker compose exec backend_api python -c "
-from app.core.database import SessionLocal
-from app.core.security import gerar_hash_senha
-from app.models.usuario import Usuario
-
-db = SessionLocal()
-db.add(Usuario(nome='Admin', email='admin@empresa.com',
-                senha_hash=gerar_hash_senha('troque-esta-senha'),
-                perfil='ADMIN'))
-db.commit()
-"
+docker compose exec backend_api python -m app.scripts.create_admin \
+    --nome "Admin" \
+    --email admin@empresa.com \
+    --senha "troque-esta-senha"
 ```
 
 A partir daí, faça login em `http://localhost:8090/login.html` e use a
 tela **Usuários** (visível só para ADMIN) para cadastrar os demais
 usuários da equipe — não é mais necessário repetir o comando acima.
+
+> **Perdeu o usuário depois de reiniciar o projeto?** Os dados do
+> Postgres ficam num volume Docker (`pgdata`) que sobrevive a
+> `docker compose down` / `docker compose up` normalmente. Só
+> `docker compose down -v` remove esse volume (e junto, todo o banco,
+> inclusive os usuários) — use `-v` apenas quando quiser mesmo resetar
+> o ambiente do zero.
 
 ### Perfis de usuário
 
