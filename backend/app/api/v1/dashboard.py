@@ -7,6 +7,7 @@ from app.models.maquina import Maquina
 from app.models.registro_turno import RegistroHorario
 from app.models.turno import Turno
 from app.models.usuario import Usuario
+from app.services.analytics import calcular_kpis_varios_turnos
 from app.services.ml_engine import prever_risco_operacional
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
@@ -18,6 +19,19 @@ def obter_metricas_dashboard(
 ):
     total_turnos = db.query(func.count(Turno.id)).scalar() or 0
     total_pecas = db.query(func.sum(RegistroHorario.prod_executada)).scalar() or 0
+
+    # OEE médio real, calculado a partir dos KPIs de cada turno encerrado
+    # (antes era um valor fixo de 82.4%, que não refletia os dados reais).
+    ids_turnos = [t.id for t in db.query(Turno.id).all()]
+    kpis_por_turno = calcular_kpis_varios_turnos(db, ids_turnos)
+    if kpis_por_turno:
+        oee_medio_estimado = round(
+            sum(k["eficiencia_oee"] for k in kpis_por_turno.values())
+            / len(kpis_por_turno),
+            2,
+        )
+    else:
+        oee_medio_estimado = 0.0
     
     # Consulta produção agrupada por máquina (Injetoras 1 a 6)
     producao_por_maquina = db.query(
@@ -62,7 +76,7 @@ def obter_metricas_dashboard(
         "kpis": {
             "total_turnos_encerrados": total_turnos,
             "total_pecas_produzidas": total_pecas,
-            "oee_medio_estimado": 82.4
+            "oee_medio_estimado": oee_medio_estimado
         },
         "grafico_producao": {
             "labels": [f"Injetora {m.numero_maquina}" for m in producao_por_maquina],
