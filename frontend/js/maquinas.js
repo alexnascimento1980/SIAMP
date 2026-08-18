@@ -1,15 +1,8 @@
-const API_BASE_URL =
-  window.SIAMP_API_BASE_URL || "http://localhost:8000/api/v1";
+document.addEventListener("DOMContentLoaded", async () => {
+  const sessao = await exigirSessao();
+  if (!sessao) return;
 
-document.addEventListener("DOMContentLoaded", () => {
-  const token = obterTokenSalvo();
-  if (!token) {
-    window.location.href = "login.html";
-    return;
-  }
-
-  const perfil = obterPerfilDoToken(token);
-  if (perfil !== "ADMIN" && perfil !== "SUPERVISOR") {
+  if (sessao.perfil !== "ADMIN" && sessao.perfil !== "SUPERVISOR") {
     alert("Apenas administradores e supervisores podem acessar esta página.");
     window.location.href = "index.html";
     return;
@@ -20,46 +13,6 @@ document.addEventListener("DOMContentLoaded", () => {
     .addEventListener("submit", onCriarMaquina);
   carregarMaquinas();
 });
-
-function obterTokenSalvo() {
-  return localStorage.getItem("siamp_token");
-}
-
-function sair() {
-  localStorage.removeItem("siamp_token");
-  window.location.href = "login.html";
-}
-
-function obterPerfilDoToken(token) {
-  try {
-    const payloadBase64 = token.split(".")[1];
-    const payload = JSON.parse(
-      atob(payloadBase64.replace(/-/g, "+").replace(/_/g, "/")),
-    );
-    return payload.perfil || null;
-  } catch (erro) {
-    return null;
-  }
-}
-
-async function chamarApi(caminho, opcoes = {}) {
-  const res = await fetch(`${API_BASE_URL}${caminho}`, {
-    ...opcoes,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${obterTokenSalvo()}`,
-      ...(opcoes.headers || {}),
-    },
-  });
-
-  if (res.status === 401) {
-    localStorage.removeItem("siamp_token");
-    window.location.href = "login.html";
-    throw new Error("Sessão expirada.");
-  }
-
-  return res;
-}
 
 async function carregarMaquinas() {
   const tbody = document.getElementById("corpoTabelaMaquinas");

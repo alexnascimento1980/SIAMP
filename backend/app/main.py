@@ -1,8 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.api.router import api_router
 from app.core.config import settings
+from app.core.rate_limit import limiter
 
 
 app = FastAPI(
@@ -10,6 +13,11 @@ app = FastAPI(
     description="Sistema Integrado de Apontamento, Machine Learning e Gestão de Produção",
     version="1.1.0",
 )
+
+# Rate limiting (usado principalmente em /auth/login, para mitigar força
+# bruta de senha). O handler traduz o estouro de limite em HTTP 429.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS controlado por variável de ambiente.
 # Em desenvolvimento, use por exemplo:
