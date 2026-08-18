@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.maquina import Maquina
+from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
 from app.models.turno import Turno
 from app.schemas.turno_schema import FechamentoTurnoCreate
@@ -14,6 +15,31 @@ from app.services.pdf_generator import gerar_relatorio_turno_pdf
 
 
 STATUS_ASSINADO = "ASSINADO_DIGITALMENTE"
+
+
+def buscar_registros_para_relatorio(db: Session, turno_id: int) -> list[dict]:
+    """Registros de um turno formatados para o PDF de fechamento: hora,
+    máquina, peça produzida e detalhe da parada (se houve)."""
+    registros = (
+        db.query(RegistroHorario, Maquina, Produto)
+        .join(Maquina, RegistroHorario.maquina_id == Maquina.id)
+        .outerjoin(Produto, RegistroHorario.produto_id == Produto.id)
+        .filter(RegistroHorario.turno_id == turno_id)
+        .order_by(RegistroHorario.hora_referencia, Maquina.numero_maquina)
+        .all()
+    )
+    return [
+        {
+            "hora_referencia": reg.hora_referencia.strftime("%H:%M"),
+            "numero_maquina": maq.numero_maquina,
+            "produto_descricao": produto.descricao if produto else None,
+            "prod_executada": reg.prod_executada,
+            "inicio_parada": reg.inicio_parada.strftime("%H:%M") if reg.inicio_parada else None,
+            "retomada": reg.retomada.strftime("%H:%M") if reg.retomada else None,
+            "parada_programada": reg.parada_programada,
+        }
+        for reg, maq, produto in registros
+    ]
 
 
 def _resolver_maquinas(db: Session, dados: FechamentoTurnoCreate) -> dict:
@@ -26,8 +52,25 @@ def _resolver_maquinas(db: Session, dados: FechamentoTurnoCreate) -> dict:
     }
 
 
+def _validar_produtos(db: Session, dados: FechamentoTurnoCreate) -> None:
+    """Confere que todo produto_id informado existe, para retornar um erro
+    400 claro em vez de uma falha de FK crua vinda do banco."""
+    ids_informados = {reg.produto_id for reg in dados.registros if reg.produto_id is not None}
+    if not ids_informados:
+        return
+
+    ids_existentes = {
+        produto_id
+        for (produto_id,) in db.query(Produto.id).filter(Produto.id.in_(ids_informados)).all()
+    }
+    ids_invalidos = ids_informados - ids_existentes
+    if ids_invalidos:
+        raise ValueError(f"Peça(s) não encontrada(s): {sorted(ids_invalidos)}.")
+
+
 def _criar_registros(db: Session, turno: Turno, dados: FechamentoTurnoCreate) -> None:
     maquinas_por_numero = _resolver_maquinas(db, dados)
+    _validar_produtos(db, dados)
 
     for reg in dados.registros:
         maquina = maquinas_por_numero.get(reg.numero_maquina)
@@ -37,6 +80,7 @@ def _criar_registros(db: Session, turno: Turno, dados: FechamentoTurnoCreate) ->
         registro_db = RegistroHorario(
             turno_id=turno.id,
             maquina_id=maquina.id,
+            produto_id=reg.produto_id,
             hora_referencia=time.fromisoformat(reg.hora_referencia),
             prod_executada=reg.prod_executada,
             pecas_boas=reg.pecas_boas,
@@ -45,6 +89,7 @@ def _criar_registros(db: Session, turno: Turno, dados: FechamentoTurnoCreate) ->
             inicio_parada=reg.inicio_parada,
             retomada=reg.retomada,
             motivo_parada=reg.motivo_parada,
+            parada_programada=reg.parada_programada,
         )
         db.add(registro_db)
 
@@ -79,7 +124,8 @@ def fechar_turno(
         "responsavel_nome": novo_turno.responsavel_nome,
     }
 
-    pdf_bytes = gerar_relatorio_turno_pdf(dados_turno, kpis)
+    registros_pdf = buscar_registros_para_relatorio(db, novo_turno.id)
+    pdf_bytes = gerar_relatorio_turno_pdf(dados_turno, kpis, registros_pdf)
 
     if settings.smtp_user and settings.smtp_pass and settings.report_recipients:
         assunto = f"[SIAMP] Fechamento de Turno: {novo_turno.nome_turno}"

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import exigir_perfil, get_current_user
 from app.core.database import get_db
 from app.models.maquina import Maquina
+from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
 from app.models.turno import Turno
 from app.models.usuario import Usuario
@@ -16,7 +17,7 @@ from app.schemas.turno_schema import (
 )
 from app.services.analytics import calcular_kpis_turno, calcular_kpis_varios_turnos
 from app.services.pdf_generator import gerar_relatorio_turno_pdf
-from app.services.turno_service import editar_turno, fechar_turno
+from app.services.turno_service import buscar_registros_para_relatorio, editar_turno, fechar_turno
 
 
 router = APIRouter(prefix="/turnos", tags=["Turnos"])
@@ -108,8 +109,9 @@ def obter_turno(
         )
 
     registros = (
-        db.query(RegistroHorario, Maquina)
+        db.query(RegistroHorario, Maquina, Produto)
         .join(Maquina, RegistroHorario.maquina_id == Maquina.id)
+        .outerjoin(Produto, RegistroHorario.produto_id == Produto.id)
         .filter(RegistroHorario.turno_id == turno_id)
         .order_by(RegistroHorario.hora_referencia)
         .all()
@@ -131,11 +133,15 @@ def obter_turno(
                 prod_executada=reg.prod_executada,
                 pecas_boas=reg.pecas_boas,
                 refugo=reg.refugo,
+                produto_id=produto.id if produto else None,
+                produto_codigo=produto.codigo if produto else None,
+                produto_descricao=produto.descricao if produto else None,
                 inicio_parada=reg.inicio_parada,
                 retomada=reg.retomada,
                 motivo_parada=reg.motivo_parada,
+                parada_programada=reg.parada_programada,
             )
-            for reg, maq in registros
+            for reg, maq, produto in registros
         ],
     )
 
@@ -197,7 +203,8 @@ def baixar_relatorio_turno(
         "nome_turno": turno.nome_turno,
         "responsavel_nome": turno.responsavel_nome,
     }
-    pdf_bytes = gerar_relatorio_turno_pdf(dados_turno, kpis)
+    registros_pdf = buscar_registros_para_relatorio(db, turno_id)
+    pdf_bytes = gerar_relatorio_turno_pdf(dados_turno, kpis, registros_pdf)
 
     nome_arquivo = f"relatorio_turno_{turno_id}.pdf"
     return StreamingResponse(
