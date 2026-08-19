@@ -17,7 +17,12 @@ from app.schemas.turno_schema import (
 )
 from app.services.analytics import calcular_kpis_turno, calcular_kpis_varios_turnos
 from app.services.pdf_generator import gerar_relatorio_turno_pdf
-from app.services.turno_service import buscar_registros_para_relatorio, editar_turno, fechar_turno
+from app.services.turno_service import (
+    buscar_registros_para_relatorio,
+    editar_turno,
+    fechar_turno,
+    reenviar_email_turno,
+)
 
 
 router = APIRouter(prefix="/turnos", tags=["Turnos"])
@@ -178,6 +183,37 @@ def corrigir_turno(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Erro interno ao corrigir o turno.",
         ) from exc
+
+
+@router.post("/{turno_id}/reenviar-email")
+def reenviar_email(
+    turno_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(exigir_perfil("ADMIN", "SUPERVISOR")),
+):
+    """
+    Reenvia o relatório do turno por e-mail, sob demanda (ex.: depois de
+    uma correção considerada relevante o suficiente para avisar de
+    novo). Diferente de PATCH /turnos/{id} (correção), isto nunca
+    acontece automaticamente - é sempre uma ação explícita de
+    ADMIN/SUPERVISOR, para não gerar e-mails repetidos a cada ajuste
+    pequeno.
+    """
+    try:
+        return reenviar_email_turno(
+            db=db,
+            turno_id=turno_id,
+            background_tasks=background_tasks,
+        )
+    except ValueError as exc:
+        if "não encontrado" in str(exc):
+            status_code = status.HTTP_404_NOT_FOUND
+        elif "não está configurado" in str(exc):
+            status_code = status.HTTP_409_CONFLICT
+        else:
+            status_code = status.HTTP_400_BAD_REQUEST
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
 
 
 @router.get("/{turno_id}/relatorio.pdf")

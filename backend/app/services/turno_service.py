@@ -98,6 +98,41 @@ def _criar_registros(db: Session, turno: Turno, dados: FechamentoTurnoCreate) ->
         db.add(registro_db)
 
 
+def _agendar_email_relatorio(
+    db: Session,
+    turno: Turno,
+    kpis: dict,
+    background_tasks: BackgroundTasks,
+) -> bool:
+    """Monta o PDF e agenda o envio do relatório em background. Retorna
+    True se o envio foi agendado (SMTP configurado), False se foi
+    pulado (sem SMTP_USER/SMTP_PASS/REPORT_RECIPIENTS no .env)."""
+    if not (settings.smtp_user and settings.smtp_pass and settings.report_recipients):
+        return False
+
+    dados_turno = {
+        "nome_turno": turno.nome_turno,
+        "responsavel_nome": turno.responsavel_nome,
+    }
+    registros_pdf = buscar_registros_para_relatorio(db, turno.id)
+    pdf_bytes = gerar_relatorio_turno_pdf(dados_turno, kpis, registros_pdf)
+
+    assunto = f"[SIAMP] Fechamento de Turno: {turno.nome_turno}"
+    corpo = (
+        "<p>Segue em anexo o relatório de produção.</p>"
+        f"<p>Eficiência calculada: <b>{kpis['eficiencia_oee']}%</b>.</p>"
+    )
+
+    background_tasks.add_task(
+        enviar_relatorio_email,
+        settings.report_recipients,
+        assunto,
+        corpo,
+        pdf_bytes,
+    )
+    return True
+
+
 def fechar_turno(
     db: Session,
     dados: FechamentoTurnoCreate,
@@ -122,40 +157,14 @@ def fechar_turno(
     db.refresh(novo_turno)
 
     kpis = calcular_kpis_turno(db, novo_turno.id)
-
-    dados_turno = {
-        "nome_turno": novo_turno.nome_turno,
-        "responsavel_nome": novo_turno.responsavel_nome,
-    }
-
-    registros_pdf = buscar_registros_para_relatorio(db, novo_turno.id)
-    pdf_bytes = gerar_relatorio_turno_pdf(dados_turno, kpis, registros_pdf)
-
-    if settings.smtp_user and settings.smtp_pass and settings.report_recipients:
-        assunto = f"[SIAMP] Fechamento de Turno: {novo_turno.nome_turno}"
-        corpo = (
-            "<p>Segue em anexo o relatório de produção.</p>"
-            f"<p>Eficiência calculada: <b>{kpis['eficiencia_oee']}%</b>.</p>"
-        )
-
-        background_tasks.add_task(
-            enviar_relatorio_email,
-            settings.report_recipients,
-            assunto,
-            corpo,
-            pdf_bytes,
-        )
+    email_agendado = _agendar_email_relatorio(db, novo_turno, kpis, background_tasks)
 
     return {
         "status": "sucesso",
         "mensagem": "Turno encerrado com sucesso.",
         "turno_id": novo_turno.id,
         "status_assinatura": STATUS_ASSINADO,
-        "relatorio_email_agendado": bool(
-            settings.smtp_user
-            and settings.smtp_pass
-            and settings.report_recipients
-        ),
+        "relatorio_email_agendado": email_agendado,
         "kpis": kpis,
     }
 
@@ -202,4 +211,35 @@ def editar_turno(
         "mensagem": "Turno corrigido com sucesso.",
         "turno_id": turno.id,
         "kpis": kpis,
+    }
+
+
+def reenviar_email_turno(
+    db: Session,
+    turno_id: int,
+    background_tasks: BackgroundTasks,
+) -> dict:
+    """Reenvia o relatório de um turno já encerrado por e-mail, sob
+    demanda (ex.: depois de uma correção que a pessoa considera
+    relevante o suficiente para avisar de novo). Diferente do
+    fechamento e da edição, isto é sempre uma ação explícita da pessoa
+    - o sistema nunca reenvia sozinho a cada correção, para não gerar
+    e-mails repetidos por ajustes pequenos."""
+    turno = db.query(Turno).filter(Turno.id == turno_id).first()
+    if turno is None:
+        raise ValueError("Turno não encontrado.")
+
+    kpis = calcular_kpis_turno(db, turno.id)
+    email_agendado = _agendar_email_relatorio(db, turno, kpis, background_tasks)
+
+    if not email_agendado:
+        raise ValueError(
+            "Envio de e-mail não está configurado (SMTP_USER/SMTP_PASS/"
+            "REPORT_RECIPIENTS ausentes no .env)."
+        )
+
+    return {
+        "status": "sucesso",
+        "mensagem": "Relatório reenviado por e-mail.",
+        "turno_id": turno.id,
     }

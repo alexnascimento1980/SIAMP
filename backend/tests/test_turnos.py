@@ -1,5 +1,21 @@
+from app.core.security import gerar_hash_senha
 from app.models.maquina import Maquina
 from app.models.produto import Produto
+from app.models.usuario import Usuario
+
+
+def _criar_admin(db_session, email="admin-turnos@siamp.test"):
+    admin = Usuario(
+        nome="Admin Teste",
+        email=email,
+        senha_hash=gerar_hash_senha("senha-forte-123"),
+        perfil="ADMIN",
+        ativo=True,
+    )
+    db_session.add(admin)
+    db_session.commit()
+    db_session.refresh(admin)
+    return admin
 
 
 def _login(client, usuario_teste):
@@ -99,6 +115,90 @@ def test_parada_programada_sem_inicio_e_rejeitada(client, db_session, usuario_te
 
     res = client.post("/api/v1/turnos/fechamento", json=payload)
     assert res.status_code == 422
+
+
+def test_reenviar_email_operador_nao_pode(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, _peca = _criar_maquina_e_peca(db_session)
+
+    payload = {
+        "nome_turno": "1º Turno (05:00 - 13:00)",
+        "responsavel_nome": "Líder Teste",
+        "registros": [
+            {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 100},
+        ],
+    }
+    turno_id = client.post("/api/v1/turnos/fechamento", json=payload).json()["turno_id"]
+
+    res = client.post(f"/api/v1/turnos/{turno_id}/reenviar-email")
+    assert res.status_code == 403
+
+
+def test_reenviar_email_sem_smtp_configurado_retorna_409(client, db_session, usuario_teste):
+    admin = _criar_admin(db_session)
+    # Cria o turno como operador (fluxo normal), mas reenvia como admin.
+    _login(client, usuario_teste)
+    maquina, _peca = _criar_maquina_e_peca(db_session)
+
+    payload = {
+        "nome_turno": "1º Turno (05:00 - 13:00)",
+        "responsavel_nome": "Líder Teste",
+        "registros": [
+            {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 100},
+        ],
+    }
+    turno_id = client.post("/api/v1/turnos/fechamento", json=payload).json()["turno_id"]
+
+    _login(client, admin)
+    # Ambiente de teste roda sem SMTP configurado (ver conftest.py).
+    res = client.post(f"/api/v1/turnos/{turno_id}/reenviar-email")
+    assert res.status_code == 409
+    assert "não está configurado" in res.json()["detail"]
+
+
+def test_reenviar_email_turno_inexistente_retorna_404(client, db_session, usuario_teste):
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+    res = client.post("/api/v1/turnos/99999/reenviar-email")
+    assert res.status_code == 404
+
+
+def test_reenviar_email_bem_sucedido_com_smtp_configurado(client, db_session, usuario_teste, monkeypatch):
+    admin = _criar_admin(db_session)
+    _login(client, usuario_teste)
+    maquina, _peca = _criar_maquina_e_peca(db_session)
+
+    payload = {
+        "nome_turno": "1º Turno (05:00 - 13:00)",
+        "responsavel_nome": "Líder Teste",
+        "registros": [
+            {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 100},
+        ],
+    }
+    turno_id = client.post("/api/v1/turnos/fechamento", json=payload).json()["turno_id"]
+    _login(client, admin)
+
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock, patch
+
+    fake_settings = SimpleNamespace(
+        smtp_user="siamp@empresa.com",
+        smtp_pass="senha",
+        smtp_from="siamp@empresa.com",
+        smtp_server="smtp.exemplo.com",
+        smtp_port=587,
+        report_recipients=["gerente@empresa.com"],
+    )
+    with patch("app.services.turno_service.settings", fake_settings), patch(
+        "app.services.mailer.settings", fake_settings
+    ):
+        with patch("smtplib.SMTP") as mock_smtp:
+            mock_smtp.return_value.__enter__.return_value = mock_smtp.return_value
+            res = client.post(f"/api/v1/turnos/{turno_id}/reenviar-email")
+
+    assert res.status_code == 200, res.text
+    assert res.json()["status"] == "sucesso"
+    mock_smtp.return_value.send_message.assert_called_once()
 
 
 def test_fechamento_com_produto_id_inexistente_e_rejeitado(client, db_session, usuario_teste):
