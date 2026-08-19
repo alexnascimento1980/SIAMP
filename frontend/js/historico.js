@@ -59,6 +59,15 @@ function renderizarTurnos(turnos) {
            <i class="bi bi-pencil-square"></i>
          </a>`
       : "";
+    // Reenvio de e-mail é uma ação administrativa explícita (não
+    // acontece sozinho a cada correção, para não gerar e-mails
+    // repetidos por ajustes pequenos) - por isso restrito a
+    // ADMIN/SUPERVISOR, igual à correção do turno.
+    const botaoReenviarEmail = podeEditar
+      ? `<button class="btn btn-sm btn-outline-secondary" title="Reenviar relatório por e-mail" onclick="reenviarEmail(${t.id}, this)">
+           <i class="bi bi-envelope-arrow-up"></i>
+         </button>`
+      : "";
 
     tr.innerHTML = `
       <td class="fw-bold">${escaparHtml(t.nome_turno)}${marcaEditado}</td>
@@ -73,6 +82,7 @@ function renderizarTurnos(turnos) {
           <button class="btn btn-sm btn-outline-primary" onclick="baixarRelatorio(${t.id}, this)">
             <i class="bi bi-file-earmark-pdf me-1"></i>PDF
           </button>
+          ${botaoReenviarEmail}
           ${botaoEditar}
         </div>
       </td>
@@ -104,6 +114,42 @@ async function baixarRelatorio(turnoId, botao) {
     link.click();
     link.remove();
     window.URL.revokeObjectURL(url);
+  } catch (erro) {
+    mostrarMensagem(erro.message, "danger");
+  } finally {
+    botao.disabled = false;
+    botao.innerHTML = textoOriginal;
+  }
+}
+
+async function reenviarEmail(turnoId, botao) {
+  if (!confirm("Reenviar o relatório deste turno por e-mail para os destinatários configurados?")) {
+    return;
+  }
+
+  const textoOriginal = botao.innerHTML;
+  botao.disabled = true;
+  botao.innerHTML = `<span class="spinner-border spinner-border-sm"></span>`;
+
+  try {
+    const res = await chamarApi(`/turnos/${turnoId}/reenviar-email`, {
+      method: "POST",
+    });
+
+    if (res.status === 409) {
+      mostrarMensagem(
+        "Envio de e-mail não está configurado neste ambiente (faltam SMTP_USER/SMTP_PASS/REPORT_RECIPIENTS no .env).",
+        "warning",
+      );
+      return;
+    }
+
+    if (!res.ok) {
+      const erro = await res.json().catch(() => null);
+      throw new Error(erro?.detail || "Não foi possível reenviar o relatório.");
+    }
+
+    mostrarMensagem("Relatório reenviado por e-mail com sucesso!", "success");
   } catch (erro) {
     mostrarMensagem(erro.message, "danger");
   } finally {
