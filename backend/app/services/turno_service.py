@@ -1,4 +1,5 @@
 from datetime import datetime, time
+import re
 
 from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
@@ -16,6 +17,24 @@ from app.services.pdf_generator import gerar_relatorio_turno_pdf
 
 
 STATUS_ASSINADO = "ASSINADO_DIGITALMENTE"
+
+
+def montar_nome_arquivo_relatorio(nome_turno: str, data_registro: datetime) -> str:
+    """Nome de arquivo amigável para o PDF do relatório - inclui o turno
+    e a data, em vez de só 'relatorio_turno_<id>.pdf' (o id sozinho não
+    diz nada para quem recebe o arquivo por e-mail ou baixa vários de
+    uma vez). Usado tanto no download manual (GET /turnos/{id}/
+    relatorio.pdf) quanto no anexo do e-mail.
+
+    Ex.: "1º Turno (05:00 - 13:00)" + 19/08/2026 -> "relatorio_1-turno_19-08-2026.pdf"
+    """
+    # Corta na primeira parte antes de "(" - o range de horário já fica
+    # implícito pela data e pelo nome do turno, sem precisar repetir os
+    # dois-pontos (que não são válidos em nome de arquivo no Windows).
+    prefixo = nome_turno.split("(")[0].strip()
+    slug = re.sub(r"[^a-z0-9]+", "-", prefixo.lower()).strip("-") or "turno"
+    data_formatada = data_registro.strftime("%d-%m-%Y")
+    return f"relatorio_{slug}_{data_formatada}.pdf"
 
 
 def buscar_registros_para_relatorio(db: Session, turno_id: int) -> list[dict]:
@@ -134,7 +153,10 @@ def _agendar_email_relatorio(
     registros_pdf = buscar_registros_para_relatorio(db, turno.id)
     pdf_bytes = gerar_relatorio_turno_pdf(dados_turno, kpis, registros_pdf)
 
-    assunto = f"[SIAMP] Fechamento de Turno: {turno.nome_turno}"
+    assunto = (
+        f"[SIAMP] Fechamento de Turno: {turno.nome_turno} - "
+        f"{turno.data_registro.strftime('%d/%m/%y')}"
+    )
     corpo = (
         "<p>Segue em anexo o relatório de produção.</p>"
         f"<p>Eficiência calculada: <b>{kpis['eficiencia_oee']}%</b>.</p>"
@@ -146,6 +168,7 @@ def _agendar_email_relatorio(
         assunto,
         corpo,
         pdf_bytes,
+        montar_nome_arquivo_relatorio(turno.nome_turno, turno.data_registro),
     )
     return True
 

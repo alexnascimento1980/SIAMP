@@ -10,11 +10,13 @@ Se SMTP_USER/SMTP_PASS não estiverem configurados no .env, o script
 avisa e não tenta enviar nada (mesmo comportamento do envio real).
 """
 import argparse
+from datetime import datetime
 import sys
 
 from app.core.config import settings
 from app.services.mailer import EnvioEmailError, enviar_relatorio_email
 from app.services.pdf_generator import gerar_relatorio_turno_pdf
+from app.services.turno_service import montar_nome_arquivo_relatorio
 
 
 def _gerar_pdf_de_exemplo() -> bytes:
@@ -101,6 +103,9 @@ def main() -> None:
                 "fechado.</p>"
             ),
             pdf_bytes=_gerar_pdf_de_exemplo(),
+            nome_arquivo=montar_nome_arquivo_relatorio(
+                "[EXEMPLO] 1º Turno", datetime.now()
+            ),
         )
     except EnvioEmailError as exc:
         print(f"[testar_email] Falha ao enviar: {exc}", file=sys.stderr)

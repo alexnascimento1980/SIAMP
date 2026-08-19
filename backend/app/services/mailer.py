@@ -16,7 +16,11 @@ class EnvioEmailError(Exception):
 
 
 def _montar_mensagem(
-    destinatarios: list[str], assunto: str, corpo_html: str, pdf_bytes: bytes
+    destinatarios: list[str],
+    assunto: str,
+    corpo_html: str,
+    pdf_bytes: bytes,
+    nome_arquivo: str,
 ) -> MIMEMultipart:
     mensagem = MIMEMultipart()
     mensagem["From"] = settings.smtp_from
@@ -29,7 +33,7 @@ def _montar_mensagem(
     anexo.add_header(
         "Content-Disposition",
         "attachment",
-        filename="fechamento_turno_siamp.pdf",
+        filename=nome_arquivo,
     )
     mensagem.attach(anexo)
     return mensagem
@@ -40,6 +44,7 @@ def enviar_relatorio_email(
     assunto: str,
     corpo_html: str,
     pdf_bytes: bytes,
+    nome_arquivo: str = "relatorio_siamp.pdf",
 ) -> None:
     """Envia o relatório de fechamento de turno por e-mail (chamado em
     background após o fechamento - ver turno_service.fechar_turno).
@@ -61,7 +66,7 @@ def enviar_relatorio_email(
         logger.warning("Envio de e-mail pulado: nenhum destinatário informado.")
         return
 
-    mensagem = _montar_mensagem(destinatarios, assunto, corpo_html, pdf_bytes)
+    mensagem = _montar_mensagem(destinatarios, assunto, corpo_html, pdf_bytes, nome_arquivo)
 
     try:
         with smtplib.SMTP(settings.smtp_server, settings.smtp_port, timeout=15) as server:

@@ -21,6 +21,7 @@ from app.services.turno_service import (
     buscar_registros_para_relatorio,
     editar_turno,
     fechar_turno,
+    montar_nome_arquivo_relatorio,
     reenviar_email_turno,
 )
 
@@ -242,7 +243,7 @@ def baixar_relatorio_turno(
     registros_pdf = buscar_registros_para_relatorio(db, turno_id)
     pdf_bytes = gerar_relatorio_turno_pdf(dados_turno, kpis, registros_pdf)
 
-    nome_arquivo = f"relatorio_turno_{turno_id}.pdf"
+    nome_arquivo = montar_nome_arquivo_relatorio(turno.nome_turno, turno.data_registro)
     return StreamingResponse(
         iter([pdf_bytes]),
         media_type="application/pdf",

@@ -282,3 +282,76 @@ def test_destinatarios_do_banco_tem_prioridade_sobre_env(client, db_session, usu
     db_session.commit()
 
     assert _resolver_destinatarios(db_session) == ["ativo@empresa.com"]
+
+
+def test_montar_nome_arquivo_relatorio():
+    from datetime import datetime
+
+    from app.services.turno_service import montar_nome_arquivo_relatorio
+
+    nome = montar_nome_arquivo_relatorio(
+        "1º Turno (05:00 - 13:00)", datetime(2026, 8, 19)
+    )
+    assert nome == "relatorio_1-turno_19-08-2026.pdf"
+
+
+def test_relatorio_pdf_e_email_tem_nome_de_arquivo_com_turno_e_data(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, _peca = _criar_maquina_e_peca(db_session)
+
+    payload = {
+        "nome_turno": "2º Turno (13:00 - 21:00)",
+        "responsavel_nome": "Líder Teste",
+        "registros": [
+            {"numero_maquina": maquina.numero_maquina, "hora_referencia": "13:00", "prod_executada": 100},
+        ],
+    }
+    turno_id = client.post("/api/v1/turnos/fechamento", json=payload).json()["turno_id"]
+
+    res = client.get(f"/api/v1/turnos/{turno_id}/relatorio.pdf")
+    assert res.status_code == 200
+    cabecalho = res.headers["content-disposition"]
+    assert "relatorio_2-turno_" in cabecalho
+    assert ".pdf" in cabecalho
+
+
+def test_assunto_do_email_inclui_data_dd_mm_aa(client, db_session, usuario_teste):
+    admin = _criar_admin(db_session, email="admin-assunto@siamp.test")
+    _login(client, usuario_teste)
+    maquina, _peca = _criar_maquina_e_peca(db_session)
+
+    payload = {
+        "nome_turno": "1º Turno (05:00 - 13:00)",
+        "responsavel_nome": "Líder Teste",
+        "registros": [
+            {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 100},
+        ],
+    }
+    turno_id = client.post("/api/v1/turnos/fechamento", json=payload).json()["turno_id"]
+    _login(client, admin)
+
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    fake_settings = SimpleNamespace(
+        smtp_user="siamp@empresa.com",
+        smtp_pass="senha",
+        smtp_from="siamp@empresa.com",
+        smtp_server="smtp.exemplo.com",
+        smtp_port=587,
+        report_recipients=["gerente@empresa.com"],
+    )
+    with patch("app.services.turno_service.settings", fake_settings), patch(
+        "app.services.mailer.settings", fake_settings
+    ):
+        with patch("smtplib.SMTP") as mock_smtp:
+            mock_smtp.return_value.__enter__.return_value = mock_smtp.return_value
+            res = client.post(f"/api/v1/turnos/{turno_id}/reenviar-email")
+
+    assert res.status_code == 200, res.text
+    mensagem_enviada = mock_smtp.return_value.send_message.call_args[0][0]
+    # Formato dd/mm/aa (ano com 2 dígitos) no assunto.
+    import re
+
+    assert re.search(r"\d{2}/\d{2}/\d{2}$", mensagem_enviada["Subject"])
+    assert "1º Turno" in mensagem_enviada["Subject"]

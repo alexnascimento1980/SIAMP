@@ -109,7 +109,12 @@ async function baixarRelatorio(turnoId, botao) {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `relatorio_turno_${turnoId}.pdf`;
+    // O nome do arquivo (com turno + data) vem do backend via
+    // Content-Disposition, em vez de remontado aqui - assim os dois
+    // lugares (download manual e anexo do e-mail) nunca ficam
+    // divergentes.
+    link.download =
+      extrairNomeArquivo(res) || `relatorio_turno_${turnoId}.pdf`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -120,6 +125,13 @@ async function baixarRelatorio(turnoId, botao) {
     botao.disabled = false;
     botao.innerHTML = textoOriginal;
   }
+}
+
+function extrairNomeArquivo(res) {
+  const cabecalho = res.headers.get("Content-Disposition");
+  if (!cabecalho) return null;
+  const match = cabecalho.match(/filename="?([^"]+)"?/);
+  return match ? match[1] : null;
 }
 
 async function reenviarEmail(turnoId, botao) {
