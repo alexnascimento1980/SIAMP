@@ -77,13 +77,12 @@
 
             <h6 class="text-secondary fw-bold mb-2">Produto e Meta</h6>
             <div class="row g-2 mb-3">
-              <div class="col-md-3">
-                <label class="form-label mb-1">Código do Produto</label>
-                <input type="text" id="produtoCodigo" class="form-control" placeholder="Ex: 34-7506-00BR">
-              </div>
-              <div class="col-md-6">
-                <label class="form-label mb-1">Descrição do Produto</label>
-                <input type="text" id="produtoDescricao" class="form-control" placeholder="Ex: CLIP TUBE - BRESIL - UN">
+              <div class="col-md-9">
+                <label class="form-label mb-1">Peça <span class="text-danger">*</span></label>
+                <select id="produtoId" class="form-select" required>
+                  <option value="">— Selecionar —</option>
+                </select>
+                <div class="form-text">Só peças já cadastradas em <a href="pecas.html">Peças</a> aparecem aqui.</div>
               </div>
               <div class="col-md-3">
                 <label class="form-label mb-1">Quantidade a Produzir <span class="text-danger">*</span></label>
@@ -94,9 +93,10 @@
             <h6 class="text-secondary fw-bold mb-2">Equipamento</h6>
             <div class="row g-2 mb-3">
               <div class="col-md-3">
-                <label class="form-label mb-1">Número da Máquina</label>
-                <input type="text" id="numeroMaquina" class="form-control" placeholder="Ex: 06">
-                <div class="form-text">Deve bater com o número já cadastrado em Máquinas.</div>
+                <label class="form-label mb-1">Máquina <span class="text-danger">*</span></label>
+                <select id="numeroMaquina" class="form-select" required>
+                  <option value="">— Selecionar —</option>
+                </select>
               </div>
               <div class="col-md-9">
                 <label class="form-label mb-1">Descrição do Equipamento</label>

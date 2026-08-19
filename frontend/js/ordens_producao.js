@@ -1,5 +1,7 @@
 let opsCarregadas = [];
 let podeGerenciar = false;
+let pecasCatalogo = [];
+let maquinasCatalogo = [];
 
 document.addEventListener("DOMContentLoaded", async () => {
   const sessao = await exigirSessao();
@@ -8,6 +10,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   podeGerenciar = sessao.perfil === "ADMIN" || sessao.perfil === "SUPERVISOR";
   if (!podeGerenciar) {
     document.querySelector(".card.shadow-sm.mb-3").style.display = "none";
+  } else {
+    await carregarCatalogos();
   }
 
   document.getElementById("formNovaOp").addEventListener("submit", onSalvarOp);
@@ -24,6 +28,40 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   carregarOps();
 });
+
+async function carregarCatalogos() {
+  try {
+    const [resPecas, resMaquinas] = await Promise.all([
+      chamarApi("/produtos/"),
+      chamarApi("/maquinas/"),
+    ]);
+
+    pecasCatalogo = resPecas.ok ? await resPecas.json() : [];
+    maquinasCatalogo = resMaquinas.ok ? await resMaquinas.json() : [];
+
+    const selectPeca = document.getElementById("produtoId");
+    pecasCatalogo.forEach((p) => {
+      const option = document.createElement("option");
+      option.value = p.id;
+      option.textContent = `${p.codigo} - ${p.descricao}`;
+      selectPeca.appendChild(option);
+    });
+
+    const selectMaquina = document.getElementById("numeroMaquina");
+    maquinasCatalogo.forEach((m) => {
+      const option = document.createElement("option");
+      option.value = m.numero_maquina;
+      option.textContent = `${m.numero_maquina}${m.descricao ? " - " + m.descricao : ""}`;
+      selectMaquina.appendChild(option);
+    });
+  } catch (erro) {
+    console.error(erro);
+    mostrarMensagem(
+      "Não foi possível carregar os catálogos de peças/máquinas.",
+      "danger",
+    );
+  }
+}
 
 async function carregarOps() {
   const container = document.getElementById("listaOps");
@@ -139,10 +177,9 @@ function montarPayload() {
     lote: opcional("lote"),
     periodo_inicio: document.getElementById("periodoInicio").value,
     periodo_fim: document.getElementById("periodoFim").value,
-    produto_codigo: opcional("produtoCodigo"),
-    produto_descricao: opcional("produtoDescricao"),
+    produto_id: parseInt(document.getElementById("produtoId").value, 10),
     quantidade_a_produzir: parseInt(document.getElementById("quantidadeAProduzir").value, 10),
-    numero_maquina: opcional("numeroMaquina"),
+    numero_maquina: document.getElementById("numeroMaquina").value,
     equipamento_descricao: opcional("equipamentoDescricao"),
     ferramenta_codigo: opcional("ferramentaCodigo"),
     ferramenta_descricao: opcional("ferramentaDescricao"),
@@ -225,8 +262,7 @@ function editarOp(opId) {
   document.getElementById("lote").value = op.lote || "";
   document.getElementById("periodoInicio").value = op.periodo_inicio;
   document.getElementById("periodoFim").value = op.periodo_fim;
-  document.getElementById("produtoCodigo").value = op.produto_codigo || "";
-  document.getElementById("produtoDescricao").value = op.produto_descricao || "";
+  document.getElementById("produtoId").value = op.produto_id || "";
   document.getElementById("quantidadeAProduzir").value = op.quantidade_a_produzir;
   document.getElementById("numeroMaquina").value = op.numero_maquina || "";
   document.getElementById("equipamentoDescricao").value = op.equipamento_descricao || "";
