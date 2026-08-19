@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIAMP — Sistema Integrado de Apontamento, ML e Gestão de Produção</title>
+  <meta name="description" content="Apontamento de turno, OEE em tempo real e acompanhamento de Ordens de Produção para injeção plástica.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/home.css">
+</head>
+<body>
+
+  <div class="grain"></div>
+
+  <header class="topbar">
+    <div class="topbar__inner">
+      <div class="wordmark">
+        <span class="wordmark__mark">SIAMP</span>
+        <span class="wordmark__sub">Injeção · Apontamento · OEE</span>
+      </div>
+      <a href="login.html" class="btn-entrar">
+        Entrar <i class="bi bi-arrow-right"></i>
+      </a>
+    </div>
+  </header>
+
+  <main>
+    <!-- HERO -->
+    <section class="hero">
+      <div class="hero__copy">
+        <p class="eyebrow">Sistema interno de produção</p>
+        <h1>
+          O apontamento de turno,
+          <span class="hero__accent">direto do chão de fábrica</span>
+          pro seu OEE.
+        </h1>
+        <p class="hero__lead">
+          Cada hora, cada injetora, cada peça. O SIAMP registra o que foi
+          produzido, calcula a eficiência automaticamente e mostra onde
+          a meta da Ordem de Produção está — sem planilha, sem atraso.
+        </p>
+        <div class="hero__cta">
+          <a href="login.html" class="btn-entrar btn-entrar--grande">
+            Acessar o sistema <i class="bi bi-arrow-right"></i>
+          </a>
+        </div>
+      </div>
+
+      <div class="hero__painel" aria-hidden="true">
+        <div class="painel">
+          <div class="painel__topo">
+            <span class="painel__led"></span>
+            <span>1º TURNO · INJETORA 6</span>
+          </div>
+          <div class="painel__metricas">
+            <div class="metrica">
+              <span class="metrica__valor">92<small>%</small></span>
+              <span class="metrica__label">OEE</span>
+            </div>
+            <div class="metrica">
+              <span class="metrica__valor">19<small>s</small></span>
+              <span class="metrica__label">Ciclo</span>
+            </div>
+            <div class="metrica">
+              <span class="metrica__valor">1.516</span>
+              <span class="metrica__label">Pçs/hora</span>
+            </div>
+          </div>
+          <div class="painel__tira" id="tiraTurno">
+            <div class="celula preenchida"></div>
+            <div class="celula preenchida"></div>
+            <div class="celula preenchida"></div>
+            <div class="celula ativa"></div>
+            <div class="celula"></div>
+            <div class="celula"></div>
+            <div class="celula"></div>
+            <div class="celula"></div>
+          </div>
+          <div class="painel__horas">
+            <span>05h</span><span>13h</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- O QUE O SISTEMA FAZ -->
+    <section class="recursos">
+      <p class="eyebrow eyebrow--center">O que o SIAMP faz</p>
+      <div class="recursos__grid">
+        <article class="recurso">
+          <i class="bi bi-grid-3x3-gap recurso__icone"></i>
+          <h3>Apontamento por hora</h3>
+          <p>Produção, peças boas, refugo e paradas — programadas ou não —
+            lançados hora a hora, por máquina, direto no turno.</p>
+        </article>
+        <article class="recurso">
+          <i class="bi bi-speedometer2 recurso__icone"></i>
+          <h3>OEE calculado na hora</h3>
+          <p>Índice de produção e qualidade combinados automaticamente.
+            Parada programada não penaliza — só o que realmente parou a
+            linha conta.</p>
+        </article>
+        <article class="recurso">
+          <i class="bi bi-clipboard-data recurso__icone"></i>
+          <h3>Meta x real por Ordem de Produção</h3>
+          <p>Cada OP acompanhada peça a peça, mesmo quando é produzida em
+            mais de uma injetora ao mesmo tempo.</p>
+        </article>
+        <article class="recurso">
+          <i class="bi bi-envelope-paper recurso__icone"></i>
+          <h3>Relatório automático</h3>
+          <p>PDF de fechamento de turno gerado e enviado por e-mail pra
+            quem precisa saber, sem alguém ter que lembrar.</p>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="rodape">
+    <span>SIAMP · Sistema Integrado de Apontamento, Machine Learning e Gestão de Produção</span>
+    <a href="login.html">Entrar no sistema →</a>
+  </footer>
+
+  <script>
+    // Varredura sutil na tira de células, ecoando a grade real de
+    // apontamento horário - puramente decorativo, sem lógica de negócio.
+    const celulas = document.querySelectorAll("#tiraTurno .celula");
+    let indiceAtivo = 3;
+    setInterval(() => {
+      celulas[indiceAtivo]?.classList.remove("ativa");
+      indiceAtivo = (indiceAtivo + 1) % celulas.length;
+      if (!celulas[indiceAtivo].classList.contains("preenchida")) {
+        celulas[indiceAtivo].classList.add("ativa");
+      } else {
+        indiceAtivo = 3;
+        celulas[3].classList.add("ativa");
+      }
+    }, 1400);
+  </script>
+  <script src="js/auth.js"></script>
+  <script>
+    // Se já existe uma sessão válida (cookie httpOnly), pula a landing e
+    // vai direto pro app - mesma checagem que login.html já faz, só que
+    // com o redirecionamento invertido (aqui a ausência de sessão é o
+    // caminho normal, não um erro).
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/auth/me`, {
+          credentials: "include",
+        });
+        if (res.ok) {
+          window.location.href = "index.html";
+        }
+      } catch (erro) {
+        // Sem conexão com a API: deixa a pessoa na landing normalmente.
+      }
+    })();
+  </script>
+</body>
+</html>
