@@ -28,6 +28,12 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
+    # Content-Disposition não está na lista de headers "simples" que o
+    # navegador expõe ao JS por padrão em respostas cross-origin (o
+    # frontend roda em porta diferente do backend). Sem isto, o nome do
+    # arquivo do relatório (definido no header pelo backend) fica
+    # invisível para o histórico.js, mesmo a resposta chegando certa.
+    expose_headers=["Content-Disposition"],
 )
 
 app.include_router(api_router, prefix="/api/v1")

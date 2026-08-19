@@ -36,6 +36,9 @@
           <a href="historico.html" class="btn btn-sm btn-outline-light">
             <i class="bi bi-clock-history me-1"></i>Histórico
           </a>
+          <a href="ordens_producao.html" class="btn btn-sm btn-outline-light">
+            <i class="bi bi-clipboard-data me-1"></i>Ordens de Produção
+          </a>
           <a
             id="linkMaquinas"
             href="maquinas.html"
@@ -56,6 +59,13 @@
             class="btn btn-sm btn-outline-light d-none"
           >
             <i class="bi bi-people me-1"></i>Usuários
+          </a>
+          <a
+            id="linkDestinatarios"
+            href="destinatarios.html"
+            class="btn btn-sm btn-outline-light d-none"
+          >
+            <i class="bi bi-envelope-paper me-1"></i>Destinatários
           </a>
           <button class="btn btn-sm btn-outline-light" onclick="sair()">
             <i class="bi bi-box-arrow-right me-1"></i>Sair
@@ -134,14 +144,15 @@
           >
             <thead class="table-light">
               <tr>
-                <th style="width: 7%">Hora</th>
-                <th style="width: 18%">Peça Produzida</th>
-                <th style="width: 10%">Prod. Executada (pçs)</th>
-                <th style="width: 9%">Peças Boas</th>
-                <th style="width: 9%">Refugo</th>
-                <th style="width: 9%">Parada</th>
-                <th style="width: 9%">Retomada</th>
-                <th style="width: 9%" title="Parada programada (troca de molde, manutenção preventiva, refeição etc.) não penaliza o cálculo do OEE.">
+                <th style="width: 6%">Hora</th>
+                <th style="width: 15%">Peça Produzida</th>
+                <th style="width: 10%">Ordem de Produção</th>
+                <th style="width: 9%">Prod. Executada (pçs)</th>
+                <th style="width: 8%">Peças Boas</th>
+                <th style="width: 8%">Refugo</th>
+                <th style="width: 8%">Parada</th>
+                <th style="width: 8%">Retomada</th>
+                <th style="width: 8%" title="Parada programada (troca de molde, manutenção preventiva, refeição etc.) não penaliza o cálculo do OEE.">
                   Programada?
                 </th>
                 <th style="width: 20%">Motivo Parada</th>

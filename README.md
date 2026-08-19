@@ -92,8 +92,20 @@ SMTP_SERVER=<host do provedor>
 SMTP_PORT=587
 SMTP_USER=<usuário/token do provedor>
 SMTP_PASS=<senha/token do provedor>
+SMTP_FROM=<endereço remetente validado no provedor - opcional>
 REPORT_RECIPIENTS=gerente.producao@empresa.com,supervisao@empresa.com
 ```
+
+> **`SMTP_USER` e `SMTP_FROM` não são sempre o mesmo endereço.** Em
+> provedores transacionais (Brevo, SendGrid etc.), o `SMTP_USER` é só
+> um token técnico de autenticação — usar esse mesmo valor como
+> remetente (`From:`) é rejeitado com um erro do tipo *"Sending has
+> been rejected because the sender you used is not valid"*. Nesses
+> casos, valide um endereço remetente no painel do provedor (no Brevo:
+> *Settings → Senders, Domains & Dedicated IPs → Senders → Add a
+> Sender*, confirmando pelo e-mail que chega) e configure-o em
+> `SMTP_FROM`. Sem `SMTP_FROM` definida, o sistema usa o mesmo valor de
+> `SMTP_USER` (o caso comum do Gmail, onde os dois coincidem).
 
 Depois de editar o `.env`, é preciso **recriar** o container do backend
 para ele reler as variáveis (`docker compose up -d` sozinho às vezes
@@ -122,12 +134,18 @@ real falhar.
 | **[Resend](https://resend.com)** | 100/dia, 3.000/mês | Setup rápido, pensado para desenvolvedores |
 | **[SendGrid](https://sendgrid.com)** | 100/dia | Exige verificação de remetente |
 | **[Mailtrap](https://mailtrap.io) (Sandbox)** | Ilimitado, mas **não entrega e-mail real** | Só para testar em desenvolvimento — os e-mails ficam presos numa caixa de teste no próprio site do Mailtrap. Use o produto "Email Sending" (separado do Sandbox) se quiser entrega real pelo Mailtrap |
-| **Gmail** | Grátis, mas é uma conta pessoal | Exige [senha de app](https://myaccount.google.com/apppasswords) (não a senha normal da conta) — sujeito a bloqueios extras se a conta tiver "Navegação Segura Avançada" ativada. Menos previsível que um provedor transacional dedicado |
+| **Gmail** | Grátis, mas é uma conta pessoal | Único dos grandes provedores que ainda aceita [senha de app](https://myaccount.google.com/apppasswords) + SMTP simples em 2026 (Microsoft aposentou isso para contas Outlook/Hotmail pessoais). Validado em produção no SIAMP — funciona bem para volumes baixos |
 | **Amazon SES** | Barato após o free tier | Exige sair do "sandbox mode" da AWS antes de enviar para destinatários não verificados — mais burocrático |
 
-Para uso real (mandar relatórios de verdade para o time), um provedor
-transacional dedicado (Brevo, Resend, SendGrid) costuma dar menos
-dor de cabeça que uma conta Gmail pessoal.
+Provedores transacionais (Brevo, SendGrid etc.) são pensados para
+negócios com domínio próprio — vários deles (SMTP2GO, Zoho Mail) hoje
+em dia **exigem e-mail em domínio próprio até para criar a conta**, e
+outros (Brevo) tiveram instabilidades pontuais na etapa de validação de
+remetente durante os testes deste projeto. Se você não tem um domínio
+próprio configurado, **o Gmail costuma ser o caminho com menos
+fricção na prática**, apesar de exigir senha de app. Para volumes
+maiores ou múltiplos remetentes/domínio próprio no futuro, vale
+reconsiderar um provedor dedicado.
 
 **Exemplo com Brevo:** painel → *Settings* → *SMTP & API* → aba *SMTP*
 → gerar uma "SMTP key". O host é `smtp-relay.brevo.com`, porta `587`,

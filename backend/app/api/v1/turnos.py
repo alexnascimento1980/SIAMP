@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import exigir_perfil, get_current_user
 from app.core.database import get_db
 from app.models.maquina import Maquina
+from app.models.ordem_producao import OrdemProducao
 from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
 from app.models.turno import Turno
@@ -17,7 +18,13 @@ from app.schemas.turno_schema import (
 )
 from app.services.analytics import calcular_kpis_turno, calcular_kpis_varios_turnos
 from app.services.pdf_generator import gerar_relatorio_turno_pdf
-from app.services.turno_service import buscar_registros_para_relatorio, editar_turno, fechar_turno
+from app.services.turno_service import (
+    buscar_registros_para_relatorio,
+    editar_turno,
+    fechar_turno,
+    montar_nome_arquivo_relatorio,
+    reenviar_email_turno,
+)
 
 
 router = APIRouter(prefix="/turnos", tags=["Turnos"])
@@ -109,9 +116,10 @@ def obter_turno(
         )
 
     registros = (
-        db.query(RegistroHorario, Maquina, Produto)
+        db.query(RegistroHorario, Maquina, Produto, OrdemProducao)
         .join(Maquina, RegistroHorario.maquina_id == Maquina.id)
         .outerjoin(Produto, RegistroHorario.produto_id == Produto.id)
+        .outerjoin(OrdemProducao, RegistroHorario.ordem_producao_id == OrdemProducao.id)
         .filter(RegistroHorario.turno_id == turno_id)
         .order_by(RegistroHorario.hora_referencia)
         .all()
@@ -136,12 +144,14 @@ def obter_turno(
                 produto_id=produto.id if produto else None,
                 produto_codigo=produto.codigo if produto else None,
                 produto_descricao=produto.descricao if produto else None,
+                ordem_producao_id=ordem.id if ordem else None,
+                numero_op=ordem.numero_op if ordem else None,
                 inicio_parada=reg.inicio_parada,
                 retomada=reg.retomada,
                 motivo_parada=reg.motivo_parada,
                 parada_programada=reg.parada_programada,
             )
-            for reg, maq, produto in registros
+            for reg, maq, produto, ordem in registros
         ],
     )
 
@@ -180,6 +190,37 @@ def corrigir_turno(
         ) from exc
 
 
+@router.post("/{turno_id}/reenviar-email")
+def reenviar_email(
+    turno_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(exigir_perfil("ADMIN", "SUPERVISOR")),
+):
+    """
+    Reenvia o relatório do turno por e-mail, sob demanda (ex.: depois de
+    uma correção considerada relevante o suficiente para avisar de
+    novo). Diferente de PATCH /turnos/{id} (correção), isto nunca
+    acontece automaticamente - é sempre uma ação explícita de
+    ADMIN/SUPERVISOR, para não gerar e-mails repetidos a cada ajuste
+    pequeno.
+    """
+    try:
+        return reenviar_email_turno(
+            db=db,
+            turno_id=turno_id,
+            background_tasks=background_tasks,
+        )
+    except ValueError as exc:
+        if "não encontrado" in str(exc):
+            status_code = status.HTTP_404_NOT_FOUND
+        elif "não está configurado" in str(exc):
+            status_code = status.HTTP_409_CONFLICT
+        else:
+            status_code = status.HTTP_400_BAD_REQUEST
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+
+
 @router.get("/{turno_id}/relatorio.pdf")
 def baixar_relatorio_turno(
     turno_id: int,
@@ -206,7 +247,7 @@ def baixar_relatorio_turno(
     registros_pdf = buscar_registros_para_relatorio(db, turno_id)
     pdf_bytes = gerar_relatorio_turno_pdf(dados_turno, kpis, registros_pdf)
 
-    nome_arquivo = f"relatorio_turno_{turno_id}.pdf"
+    nome_arquivo = montar_nome_arquivo_relatorio(turno.nome_turno, turno.data_registro)
     return StreamingResponse(
         iter([pdf_bytes]),
         media_type="application/pdf",

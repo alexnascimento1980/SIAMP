@@ -19,6 +19,11 @@ class RegistroHorarioCreate(BaseModel):
     # (GET /produtos/), não pelo código, já que o frontend já carrega a
     # lista com os ids reais para popular o seletor.
     produto_id: Optional[int] = Field(default=None, gt=0)
+    # Ordem de Produção atendida nessa hora/máquina (opcional). Permite
+    # somar a produção real por OP mesmo quando ela é feita em mais de
+    # uma injetora ao mesmo tempo, e mostrar qual OP foi atendida no
+    # relatório de turno.
+    ordem_producao_id: Optional[int] = Field(default=None, gt=0)
     # Apontamento de qualidade (opcional). Quando informados, entram no
     # cálculo do Índice de Qualidade do OEE (ver app/services/analytics.py).
     pecas_boas: Optional[int] = Field(default=None, ge=0)
@@ -111,6 +116,8 @@ class RegistroHorarioDetail(BaseModel):
     produto_id: Optional[int] = None
     produto_codigo: Optional[str] = None
     produto_descricao: Optional[str] = None
+    ordem_producao_id: Optional[int] = None
+    numero_op: Optional[str] = None
     inicio_parada: Optional[time] = None
     retomada: Optional[time] = None
     motivo_parada: Optional[str] = None

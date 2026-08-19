@@ -103,6 +103,31 @@
           </div>
         </div>
       </div>
+
+      <!-- Linha 2: Produção por Turno e Comparativo de Ordens de Produção -->
+      <div class="row g-4 mt-1">
+        <div class="col-lg-7">
+          <div class="card shadow-sm border-0 p-3">
+            <h5 class="fw-bold text-secondary mb-3">
+              <i class="bi bi-clock-history me-2"></i>Produção por Turno
+              (últimos 10)
+            </h5>
+            <canvas id="graficoTurnosCanvas" height="140"></canvas>
+          </div>
+        </div>
+
+        <div class="col-lg-5">
+          <div class="card shadow-sm border-0 p-3 h-100">
+            <h5 class="fw-bold text-secondary mb-3">
+              <i class="bi bi-clipboard-data me-2"></i>Ordens de Produção -
+              Meta x Real
+            </h5>
+            <div id="listaComparativoOps">
+              <p class="text-secondary text-center py-3 mb-0">Carregando...</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <script src="js/auth.js"></script>

@@ -11,6 +11,7 @@ def _settings_falsas(**overrides):
     base = dict(
         smtp_user="siamp@empresa.com",
         smtp_pass="senha-app",
+        smtp_from="siamp@empresa.com",
         smtp_server="smtp.exemplo.com",
         smtp_port=587,
     )
@@ -53,6 +54,29 @@ def test_envio_bem_sucedido_chama_login_e_send_message():
             mensagem_enviada = mock_smtp.return_value.send_message.call_args[0][0]
             assert mensagem_enviada["To"] == "dest1@empresa.com, dest2@empresa.com"
             assert mensagem_enviada["Subject"] == "Fechamento de turno"
+
+
+def test_from_usa_smtp_from_quando_diferente_do_smtp_user():
+    # Comum em provedores transacionais (Brevo, SendGrid etc.): o
+    # usuário de autenticação (SMTP_USER) é um token técnico, diferente
+    # do remetente validado (SMTP_FROM/From:).
+    fake_settings = _settings_falsas(
+        smtp_user="b610a9001@smtp-brevo.com", smtp_from="siamp@empresa.com"
+    )
+    with patch("app.services.mailer.settings", fake_settings):
+        with patch("smtplib.SMTP") as mock_smtp:
+            mock_smtp.return_value.__enter__.return_value = mock_smtp.return_value
+
+            enviar_relatorio_email(
+                ["dest@empresa.com"], "Assunto", "<p>corpo</p>", b"%PDF-1.4"
+            )
+
+            mensagem_enviada = mock_smtp.return_value.send_message.call_args[0][0]
+            assert mensagem_enviada["From"] == "siamp@empresa.com"
+            # A autenticação continua usando o SMTP_USER, não o remetente.
+            mock_smtp.return_value.login.assert_called_once_with(
+                "b610a9001@smtp-brevo.com", "senha-app"
+            )
 
 
 def test_falha_autenticacao_levanta_envio_email_error():

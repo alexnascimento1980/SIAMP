@@ -63,9 +63,108 @@ async function carregarDashboard() {
         scales: { y: { beginAtZero: true } },
       },
     });
+
+    renderizarGraficoTurnos(dados.producao_por_turno);
+    renderizarComparativoOps(dados.comparativo_ordens_producao);
   } catch (err) {
     console.error("Erro ao carregar dados do dashboard:", err);
     document.getElementById("iaMensagem").innerText =
       "Não foi possível carregar o dashboard. Tente novamente em instantes.";
   }
+}
+
+function renderizarGraficoTurnos(producaoPorTurno) {
+  const ctx = document.getElementById("graficoTurnosCanvas").getContext("2d");
+
+  if (!producaoPorTurno || producaoPorTurno.labels.length === 0) {
+    ctx.canvas.parentElement.innerHTML +=
+      '<p class="text-secondary text-center py-4 mb-0">Nenhum turno encerrado ainda.</p>';
+    ctx.canvas.style.display = "none";
+    return;
+  }
+
+  new Chart(ctx, {
+    data: {
+      labels: producaoPorTurno.labels,
+      datasets: [
+        {
+          type: "bar",
+          label: "Produção (pçs)",
+          data: producaoPorTurno.produzido,
+          backgroundColor: "#0d6efd",
+          borderRadius: 6,
+          yAxisID: "yProducao",
+        },
+        {
+          type: "line",
+          label: "OEE (%)",
+          data: producaoPorTurno.oee,
+          borderColor: "#198754",
+          backgroundColor: "#198754",
+          tension: 0.3,
+          yAxisID: "yOee",
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        yProducao: {
+          type: "linear",
+          position: "left",
+          beginAtZero: true,
+          title: { display: true, text: "Peças" },
+        },
+        yOee: {
+          type: "linear",
+          position: "right",
+          beginAtZero: true,
+          max: 100,
+          grid: { drawOnChartArea: false },
+          title: { display: true, text: "OEE %" },
+        },
+      },
+    },
+  });
+}
+
+function renderizarComparativoOps(comparativos) {
+  const container = document.getElementById("listaComparativoOps");
+  container.innerHTML = "";
+
+  if (!comparativos || comparativos.length === 0) {
+    container.innerHTML =
+      '<p class="text-secondary text-center py-3 mb-0">Nenhuma Ordem de Produção cadastrada ainda. <a href="ordens_producao.html">Cadastrar</a></p>';
+    return;
+  }
+
+  comparativos.forEach((op) => {
+    const percentual = op.percentual_atingido;
+    const corBarra =
+      percentual >= 100 ? "bg-success" : percentual >= 60 ? "bg-primary" : "bg-warning";
+
+    const item = document.createElement("div");
+    item.className = "mb-3";
+    item.innerHTML = `
+      <div class="d-flex justify-content-between small">
+        <span class="fw-bold">${escaparHtml(op.numero_op)}</span>
+        <span class="text-secondary">${percentual}%</span>
+      </div>
+      <div class="text-secondary small mb-1">${escaparHtml(op.produto_descricao || "Produto não informado")}</div>
+      <div class="progress" style="height: 8px;">
+        <div class="progress-bar ${corBarra}" style="width: ${Math.min(percentual, 100)}%"></div>
+      </div>
+      <div class="text-secondary small mt-1">
+        ${op.quantidade_produzida.toLocaleString("pt-BR")} / ${op.quantidade_meta.toLocaleString("pt-BR")} pçs
+      </div>
+    `;
+    container.appendChild(item);
+  });
+}
+
+function escaparHtml(texto) {
+  const div = document.createElement("div");
+  div.textContent = texto;
+  return div.innerHTML;
 }

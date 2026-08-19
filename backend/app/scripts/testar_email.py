@@ -10,18 +10,60 @@ Se SMTP_USER/SMTP_PASS não estiverem configurados no .env, o script
 avisa e não tenta enviar nada (mesmo comportamento do envio real).
 """
 import argparse
+from datetime import datetime
 import sys
 
 from app.core.config import settings
 from app.services.mailer import EnvioEmailError, enviar_relatorio_email
+from app.services.pdf_generator import gerar_relatorio_turno_pdf
+from app.services.turno_service import montar_nome_arquivo_relatorio
 
 
-PDF_MINIMO = (
-    b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
-    b"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
-    b"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 100]>>endobj\n"
-    b"trailer<</Root 1 0 R>>\n%%EOF"
-)
+def _gerar_pdf_de_exemplo() -> bytes:
+    """PDF de exemplo com o mesmo gerador usado no fechamento real de
+    turno, para o e-mail de teste mostrar visualmente como o relatório
+    de verdade se parece (em vez de um PDF em branco, que só validaria
+    o envio, não o conteúdo)."""
+    dados_turno = {
+        "nome_turno": "[EXEMPLO] 1º Turno (05:00 - 13:00)",
+        "responsavel_nome": "Nome do Responsável",
+    }
+    kpis = {
+        "total_produzido": 850,
+        "total_esperado": 960,
+        "minutos_parados": 20,
+        "minutos_parados_programados": 20,
+        "minutos_parados_nao_programados": 0,
+        "total_pecas_boas": 830,
+        "total_refugo": 20,
+        "indice_producao": 88.5,
+        "indice_qualidade": 97.6,
+        "eficiencia_oee": 86.4,
+        "alerta_ia": "Operação normal",
+    }
+    registros = [
+        {
+            "hora_referencia": "05:00",
+            "numero_maquina": "1",
+            "produto_descricao": "Peça de exemplo",
+            "prod_executada": 320,
+            "producao_esperada": 320,
+            "inicio_parada": None,
+            "retomada": None,
+            "parada_programada": False,
+        },
+        {
+            "hora_referencia": "06:00",
+            "numero_maquina": "1",
+            "produto_descricao": "Peça de exemplo",
+            "prod_executada": 530,
+            "producao_esperada": 640,
+            "inicio_parada": "06:00",
+            "retomada": "06:20",
+            "parada_programada": True,
+        },
+    ]
+    return gerar_relatorio_turno_pdf(dados_turno, kpis, registros)
 
 
 def main() -> None:
@@ -42,8 +84,9 @@ def main() -> None:
         )
         raise SystemExit(1)
 
-    print(f"[testar_email] Enviando de {settings.smtp_user} "
-          f"(via {settings.smtp_server}:{settings.smtp_port}) para {args.para}...")
+    print(f"[testar_email] Enviando de {settings.smtp_from} "
+          f"(autenticando como {settings.smtp_user} via "
+          f"{settings.smtp_server}:{settings.smtp_port}) para {args.para}...")
 
     try:
         enviar_relatorio_email(
@@ -53,9 +96,16 @@ def main() -> None:
                 "<p>Este é um e-mail de teste do SIAMP, disparado por "
                 "<code>python -m app.scripts.testar_email</code>.</p>"
                 "<p>Se você recebeu isto, a configuração SMTP está "
-                "funcionando corretamente.</p>"
+                "funcionando corretamente. O PDF em anexo é um "
+                "<b>exemplo com dados fictícios</b>, só para mostrar como "
+                "o relatório real se parece - o relatório de verdade é "
+                "gerado a partir dos dados reais quando um turno é "
+                "fechado.</p>"
             ),
-            pdf_bytes=PDF_MINIMO,
+            pdf_bytes=_gerar_pdf_de_exemplo(),
+            nome_arquivo=montar_nome_arquivo_relatorio(
+                "[EXEMPLO] 1º Turno", datetime.now()
+            ),
         )
     except EnvioEmailError as exc:
         print(f"[testar_email] Falha ao enviar: {exc}", file=sys.stderr)
