@@ -45,36 +45,100 @@ se `SEED_ON_START=true` (padrão no `.env.example`), carrega os dados
 de exemplo em `database/seeds.sql`.
 
 - API: http://localhost:8000 (docs interativos em `/docs`)
-- Frontend: http://localhost:8080
+- Frontend: http://localhost:8090
 
-> **Porta ocupada?** Se `8080` já estiver em uso na sua máquina (ex.:
-> outro serviço local de banco de dados), altere o mapeamento em
-> `docker-compose.yml` (serviço `frontend`, chave `ports`) para outra
-> porta livre, e atualize `CORS_ORIGINS` no `.env` para incluir a nova
-> origem (ex. `http://localhost:8090`).
+> **Porta ocupada?** Se `8090` já estiver em uso na sua máquina, altere
+> o mapeamento em `docker-compose.yml` (serviço `frontend`, chave
+> `ports`) para outra porta livre, e atualize `CORS_ORIGINS` no `.env`
+> para incluir a nova origem (ex. `http://localhost:8091`).
 
 ### Criando o primeiro usuário (administrador)
 
 Não há endpoint público de cadastro (por design — criar contas é uma
-operação sensível). Crie o primeiro usuário (admin) direto no banco:
+operação sensível). Crie o primeiro usuário (admin) com o script
+idempotente `create_admin` (pode rodar mais de uma vez sem risco —
+se o e-mail já existir, ele só avisa e não faz nada):
 
 ```bash
-docker compose exec backend_api python -c "
-from app.core.database import SessionLocal
-from app.core.security import gerar_hash_senha
-from app.models.usuario import Usuario
-
-db = SessionLocal()
-db.add(Usuario(nome='Admin', email='admin@empresa.com',
-                senha_hash=gerar_hash_senha('troque-esta-senha'),
-                perfil='ADMIN'))
-db.commit()
-"
+docker compose exec backend_api python -m app.scripts.create_admin \
+    --nome "Admin" \
+    --email admin@empresa.com \
+    --senha "troque-esta-senha"
 ```
 
-A partir daí, faça login em `http://localhost:8080/login.html` e use a
+A partir daí, faça login em `http://localhost:8090/login.html` e use a
 tela **Usuários** (visível só para ADMIN) para cadastrar os demais
 usuários da equipe — não é mais necessário repetir o comando acima.
+
+> **Perdeu o usuário depois de reiniciar o projeto?** Os dados do
+> Postgres ficam num volume Docker (`pgdata`) que sobrevive a
+> `docker compose down` / `docker compose up` normalmente. Só
+> `docker compose down -v` remove esse volume (e junto, todo o banco,
+> inclusive os usuários) — use `-v` apenas quando quiser mesmo resetar
+> o ambiente do zero.
+
+### Envio de relatório por e-mail (opcional)
+
+Ao fechar um turno, o SIAMP tenta enviar o PDF do relatório por e-mail
+em background (não bloqueia o fechamento do turno em si). Isso só
+acontece se `SMTP_USER`, `SMTP_PASS` e `REPORT_RECIPIENTS` estiverem
+configurados no `.env` — sem eles, o envio é simplesmente pulado (não
+é erro). O código fala SMTP padrão (STARTTLS na porta 587), então
+funciona com qualquer provedor — trocar de provedor é só trocar estas
+4 variáveis, sem mexer em nada mais:
+
+```env
+SMTP_SERVER=<host do provedor>
+SMTP_PORT=587
+SMTP_USER=<usuário/token do provedor>
+SMTP_PASS=<senha/token do provedor>
+REPORT_RECIPIENTS=gerente.producao@empresa.com,supervisao@empresa.com
+```
+
+Depois de editar o `.env`, é preciso **recriar** o container do backend
+para ele reler as variáveis (`docker compose up -d` sozinho às vezes
+reaproveita o container já rodando e ignora o `.env` novo):
+
+```bash
+docker compose up -d --force-recreate backend_api
+```
+
+E validar sem precisar fechar um turno de verdade:
+
+```bash
+docker compose exec backend_api python -m app.scripts.testar_email --para seu-email@empresa.com
+```
+
+Se der erro, o script já indica a causa mais provável — os mesmos
+detalhes também ficam registrados no log do container
+(`docker compose logs backend_api`) sempre que um envio de relatório
+real falhar.
+
+#### Escolhendo um provedor SMTP
+
+| Provedor | Free tier | Observações |
+|---|---|---|
+| **[Brevo](https://www.brevo.com)** (ex-Sendinblue) | 300 e-mails/dia, pra sempre | Recomendado — setup rápido, sem verificação de domínio para volumes pequenos |
+| **[Resend](https://resend.com)** | 100/dia, 3.000/mês | Setup rápido, pensado para desenvolvedores |
+| **[SendGrid](https://sendgrid.com)** | 100/dia | Exige verificação de remetente |
+| **[Mailtrap](https://mailtrap.io) (Sandbox)** | Ilimitado, mas **não entrega e-mail real** | Só para testar em desenvolvimento — os e-mails ficam presos numa caixa de teste no próprio site do Mailtrap. Use o produto "Email Sending" (separado do Sandbox) se quiser entrega real pelo Mailtrap |
+| **Gmail** | Grátis, mas é uma conta pessoal | Exige [senha de app](https://myaccount.google.com/apppasswords) (não a senha normal da conta) — sujeito a bloqueios extras se a conta tiver "Navegação Segura Avançada" ativada. Menos previsível que um provedor transacional dedicado |
+| **Amazon SES** | Barato após o free tier | Exige sair do "sandbox mode" da AWS antes de enviar para destinatários não verificados — mais burocrático |
+
+Para uso real (mandar relatórios de verdade para o time), um provedor
+transacional dedicado (Brevo, Resend, SendGrid) costuma dar menos
+dor de cabeça que uma conta Gmail pessoal.
+
+**Exemplo com Brevo:** painel → *Settings* → *SMTP & API* → aba *SMTP*
+→ gerar uma "SMTP key". O host é `smtp-relay.brevo.com`, porta `587`,
+usuário é o e-mail de cadastro, senha é a chave SMTP gerada.
+
+**Erro `535 Bad Credentials` com Gmail:** normalmente é uma destas
+causas, na ordem mais provável:
+1. `SMTP_PASS` é a senha normal da conta, não uma senha de app
+2. Aspas sobrando na senha dentro do `.env` (não usar aspas: `SMTP_PASS=abc123`, não `SMTP_PASS="abc123"`)
+3. Senha de app gerada numa conta Google diferente da configurada em `SMTP_USER`
+4. Conta com "[Navegação Segura Avançada](https://myaccount.google.com/advanced-protection)" ativada, que bloqueia senha de app
 
 ### Perfis de usuário
 
@@ -101,3 +165,5 @@ cd backend
 pip install -r requirements-dev.txt
 pytest -v
 ```
+
+#teste
