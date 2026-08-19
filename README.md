@@ -134,12 +134,18 @@ real falhar.
 | **[Resend](https://resend.com)** | 100/dia, 3.000/mês | Setup rápido, pensado para desenvolvedores |
 | **[SendGrid](https://sendgrid.com)** | 100/dia | Exige verificação de remetente |
 | **[Mailtrap](https://mailtrap.io) (Sandbox)** | Ilimitado, mas **não entrega e-mail real** | Só para testar em desenvolvimento — os e-mails ficam presos numa caixa de teste no próprio site do Mailtrap. Use o produto "Email Sending" (separado do Sandbox) se quiser entrega real pelo Mailtrap |
-| **Gmail** | Grátis, mas é uma conta pessoal | Exige [senha de app](https://myaccount.google.com/apppasswords) (não a senha normal da conta) — sujeito a bloqueios extras se a conta tiver "Navegação Segura Avançada" ativada. Menos previsível que um provedor transacional dedicado |
+| **Gmail** | Grátis, mas é uma conta pessoal | Único dos grandes provedores que ainda aceita [senha de app](https://myaccount.google.com/apppasswords) + SMTP simples em 2026 (Microsoft aposentou isso para contas Outlook/Hotmail pessoais). Validado em produção no SIAMP — funciona bem para volumes baixos |
 | **Amazon SES** | Barato após o free tier | Exige sair do "sandbox mode" da AWS antes de enviar para destinatários não verificados — mais burocrático |
 
-Para uso real (mandar relatórios de verdade para o time), um provedor
-transacional dedicado (Brevo, Resend, SendGrid) costuma dar menos
-dor de cabeça que uma conta Gmail pessoal.
+Provedores transacionais (Brevo, SendGrid etc.) são pensados para
+negócios com domínio próprio — vários deles (SMTP2GO, Zoho Mail) hoje
+em dia **exigem e-mail em domínio próprio até para criar a conta**, e
+outros (Brevo) tiveram instabilidades pontuais na etapa de validação de
+remetente durante os testes deste projeto. Se você não tem um domínio
+próprio configurado, **o Gmail costuma ser o caminho com menos
+fricção na prática**, apesar de exigir senha de app. Para volumes
+maiores ou múltiplos remetentes/domínio próprio no futuro, vale
+reconsiderar um provedor dedicado.
 
 **Exemplo com Brevo:** painel → *Settings* → *SMTP & API* → aba *SMTP*
 → gerar uma "SMTP key". O host é `smtp-relay.brevo.com`, porta `587`,
