@@ -92,8 +92,20 @@ SMTP_SERVER=<host do provedor>
 SMTP_PORT=587
 SMTP_USER=<usuário/token do provedor>
 SMTP_PASS=<senha/token do provedor>
+SMTP_FROM=<endereço remetente validado no provedor - opcional>
 REPORT_RECIPIENTS=gerente.producao@empresa.com,supervisao@empresa.com
 ```
+
+> **`SMTP_USER` e `SMTP_FROM` não são sempre o mesmo endereço.** Em
+> provedores transacionais (Brevo, SendGrid etc.), o `SMTP_USER` é só
+> um token técnico de autenticação — usar esse mesmo valor como
+> remetente (`From:`) é rejeitado com um erro do tipo *"Sending has
+> been rejected because the sender you used is not valid"*. Nesses
+> casos, valide um endereço remetente no painel do provedor (no Brevo:
+> *Settings → Senders, Domains & Dedicated IPs → Senders → Add a
+> Sender*, confirmando pelo e-mail que chega) e configure-o em
+> `SMTP_FROM`. Sem `SMTP_FROM` definida, o sistema usa o mesmo valor de
+> `SMTP_USER` (o caso comum do Gmail, onde os dois coincidem).
 
 Depois de editar o `.env`, é preciso **recriar** o container do backend
 para ele reler as variáveis (`docker compose up -d` sozinho às vezes

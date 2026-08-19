@@ -19,7 +19,7 @@ def _montar_mensagem(
     destinatarios: list[str], assunto: str, corpo_html: str, pdf_bytes: bytes
 ) -> MIMEMultipart:
     mensagem = MIMEMultipart()
-    mensagem["From"] = settings.smtp_user
+    mensagem["From"] = settings.smtp_from
     mensagem["To"] = ", ".join(destinatarios)
     mensagem["Subject"] = assunto
 

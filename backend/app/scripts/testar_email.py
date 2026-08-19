@@ -42,8 +42,9 @@ def main() -> None:
         )
         raise SystemExit(1)
 
-    print(f"[testar_email] Enviando de {settings.smtp_user} "
-          f"(via {settings.smtp_server}:{settings.smtp_port}) para {args.para}...")
+    print(f"[testar_email] Enviando de {settings.smtp_from} "
+          f"(autenticando como {settings.smtp_user} via "
+          f"{settings.smtp_server}:{settings.smtp_port}) para {args.para}...")
 
     try:
         enviar_relatorio_email(
