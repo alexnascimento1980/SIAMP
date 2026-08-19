@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.destinatario_relatorio import DestinatarioRelatorio
 from app.models.maquina import Maquina
+from app.models.ordem_producao import OrdemProducao
 from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
 from app.models.turno import Turno
@@ -39,12 +40,13 @@ def montar_nome_arquivo_relatorio(nome_turno: str, data_registro: datetime) -> s
 
 def buscar_registros_para_relatorio(db: Session, turno_id: int) -> list[dict]:
     """Registros de um turno formatados para o PDF de fechamento: hora,
-    máquina, peça produzida, produção esperada e detalhe da parada (se
-    houve)."""
+    máquina, peça produzida, Ordem de Produção atendida, produção
+    esperada e detalhe da parada (se houve)."""
     registros = (
-        db.query(RegistroHorario, Maquina, Produto)
+        db.query(RegistroHorario, Maquina, Produto, OrdemProducao)
         .join(Maquina, RegistroHorario.maquina_id == Maquina.id)
         .outerjoin(Produto, RegistroHorario.produto_id == Produto.id)
+        .outerjoin(OrdemProducao, RegistroHorario.ordem_producao_id == OrdemProducao.id)
         .filter(RegistroHorario.turno_id == turno_id)
         .order_by(RegistroHorario.hora_referencia, Maquina.numero_maquina)
         .all()
@@ -54,6 +56,7 @@ def buscar_registros_para_relatorio(db: Session, turno_id: int) -> list[dict]:
             "hora_referencia": reg.hora_referencia.strftime("%H:%M"),
             "numero_maquina": maq.numero_maquina,
             "produto_descricao": produto.descricao if produto else None,
+            "numero_op": ordem.numero_op if ordem else None,
             "prod_executada": reg.prod_executada,
             "producao_esperada": round(
                 calcular_capacidade_esperada_registro(reg, maq, produto)["capacidade_ajustada"]
@@ -62,7 +65,7 @@ def buscar_registros_para_relatorio(db: Session, turno_id: int) -> list[dict]:
             "retomada": reg.retomada.strftime("%H:%M") if reg.retomada else None,
             "parada_programada": reg.parada_programada,
         }
-        for reg, maq, produto in registros
+        for reg, maq, produto, ordem in registros
     ]
 
 
@@ -92,9 +95,30 @@ def _validar_produtos(db: Session, dados: FechamentoTurnoCreate) -> None:
         raise ValueError(f"Peça(s) não encontrada(s): {sorted(ids_invalidos)}.")
 
 
+def _validar_ordens_producao(db: Session, dados: FechamentoTurnoCreate) -> None:
+    """Confere que toda ordem_producao_id informada existe, para retornar
+    um erro 400 claro em vez de uma falha de FK crua vinda do banco."""
+    ids_informados = {
+        reg.ordem_producao_id for reg in dados.registros if reg.ordem_producao_id is not None
+    }
+    if not ids_informados:
+        return
+
+    ids_existentes = {
+        ordem_id
+        for (ordem_id,) in db.query(OrdemProducao.id)
+        .filter(OrdemProducao.id.in_(ids_informados))
+        .all()
+    }
+    ids_invalidos = ids_informados - ids_existentes
+    if ids_invalidos:
+        raise ValueError(f"Ordem(ns) de Produção não encontrada(s): {sorted(ids_invalidos)}.")
+
+
 def _criar_registros(db: Session, turno: Turno, dados: FechamentoTurnoCreate) -> None:
     maquinas_por_numero = _resolver_maquinas(db, dados)
     _validar_produtos(db, dados)
+    _validar_ordens_producao(db, dados)
 
     for reg in dados.registros:
         maquina = maquinas_por_numero.get(reg.numero_maquina)
@@ -105,6 +129,7 @@ def _criar_registros(db: Session, turno: Turno, dados: FechamentoTurnoCreate) ->
             turno_id=turno.id,
             maquina_id=maquina.id,
             produto_id=reg.produto_id,
+            ordem_producao_id=reg.ordem_producao_id,
             hora_referencia=time.fromisoformat(reg.hora_referencia),
             prod_executada=reg.prod_executada,
             pecas_boas=reg.pecas_boas,

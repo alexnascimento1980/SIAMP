@@ -355,3 +355,71 @@ def test_assunto_do_email_inclui_data_dd_mm_aa(client, db_session, usuario_teste
 
     assert re.search(r"\d{2}/\d{2}/\d{2}$", mensagem_enviada["Subject"])
     assert "1º Turno" in mensagem_enviada["Subject"]
+
+
+def test_fechamento_com_ordem_producao_aparece_no_detalhe_e_pdf(client, db_session, usuario_teste):
+    from app.models.ordem_producao import OrdemProducao
+    from datetime import date
+
+    _login(client, usuario_teste)
+    maquina, _peca = _criar_maquina_e_peca(db_session)
+
+    ordem = OrdemProducao(
+        numero_op="2817-2026",
+        periodo_inicio=date(2026, 8, 18),
+        periodo_fim=date(2026, 8, 20),
+        produto_descricao="CLIP TUBE - BRESIL",
+        quantidade_a_produzir=48000,
+    )
+    db_session.add(ordem)
+    db_session.commit()
+    db_session.refresh(ordem)
+
+    payload = {
+        "nome_turno": "1º Turno (05:00 - 13:00)",
+        "responsavel_nome": "Líder Teste",
+        "registros": [
+            {
+                "numero_maquina": maquina.numero_maquina,
+                "hora_referencia": "05:00",
+                "prod_executada": 500,
+                "ordem_producao_id": ordem.id,
+            },
+        ],
+    }
+    res = client.post("/api/v1/turnos/fechamento", json=payload)
+    assert res.status_code == 201, res.text
+    turno_id = res.json()["turno_id"]
+
+    detalhe = client.get(f"/api/v1/turnos/{turno_id}").json()
+    assert detalhe["registros"][0]["numero_op"] == "2817-2026"
+
+    from app.services.turno_service import buscar_registros_para_relatorio
+
+    registros_pdf = buscar_registros_para_relatorio(db_session, turno_id)
+    assert registros_pdf[0]["numero_op"] == "2817-2026"
+
+    pdf_res = client.get(f"/api/v1/turnos/{turno_id}/relatorio.pdf")
+    assert pdf_res.status_code == 200
+    assert pdf_res.content[:4] == b"%PDF"
+
+
+def test_fechamento_com_ordem_producao_inexistente_e_rejeitado(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, _peca = _criar_maquina_e_peca(db_session)
+
+    payload = {
+        "nome_turno": "1º Turno (05:00 - 13:00)",
+        "responsavel_nome": "Líder Teste",
+        "registros": [
+            {
+                "numero_maquina": maquina.numero_maquina,
+                "hora_referencia": "05:00",
+                "prod_executada": 500,
+                "ordem_producao_id": 99999,
+            },
+        ],
+    }
+    res = client.post("/api/v1/turnos/fechamento", json=payload)
+    assert res.status_code == 400
+    assert "ordem" in res.json()["detail"].lower()

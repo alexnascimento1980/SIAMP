@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import exigir_perfil, get_current_user
 from app.core.database import get_db
 from app.models.maquina import Maquina
+from app.models.ordem_producao import OrdemProducao
 from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
 from app.models.turno import Turno
@@ -115,9 +116,10 @@ def obter_turno(
         )
 
     registros = (
-        db.query(RegistroHorario, Maquina, Produto)
+        db.query(RegistroHorario, Maquina, Produto, OrdemProducao)
         .join(Maquina, RegistroHorario.maquina_id == Maquina.id)
         .outerjoin(Produto, RegistroHorario.produto_id == Produto.id)
+        .outerjoin(OrdemProducao, RegistroHorario.ordem_producao_id == OrdemProducao.id)
         .filter(RegistroHorario.turno_id == turno_id)
         .order_by(RegistroHorario.hora_referencia)
         .all()
@@ -142,12 +144,14 @@ def obter_turno(
                 produto_id=produto.id if produto else None,
                 produto_codigo=produto.codigo if produto else None,
                 produto_descricao=produto.descricao if produto else None,
+                ordem_producao_id=ordem.id if ordem else None,
+                numero_op=ordem.numero_op if ordem else None,
                 inicio_parada=reg.inicio_parada,
                 retomada=reg.retomada,
                 motivo_parada=reg.motivo_parada,
                 parada_programada=reg.parada_programada,
             )
-            for reg, maq, produto in registros
+            for reg, maq, produto, ordem in registros
         ],
     )
 

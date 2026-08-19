@@ -1,4 +1,4 @@
-from datetime import date, datetime, time
+from datetime import date
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 from app.models.maquina import Maquina
 from app.models.ordem_producao import OrdemProducao
 from app.models.registro_turno import RegistroHorario
-from app.models.turno import Turno
 from app.schemas.ordem_producao_schema import (
     OrdemProducaoComparativo,
     OrdemProducaoCreate,
@@ -125,27 +124,24 @@ def atualizar_ordem_producao(
 
 
 def calcular_comparativo(db: Session, ordem_id: int) -> OrdemProducaoComparativo:
-    """Compara a meta da OP com a produção real apontada nos turnos, no
-    período programado. A comparação é feita por máquina (não por
-    peça, já que o catálogo de peças do apontamento usa um código
-    diferente do código de produto do ERP) - por isso só é possível
-    quando a OP tem uma máquina vinculada."""
+    """Compara a meta da OP com a produção real apontada nos turnos.
+
+    Soma RegistroHorario.prod_executada de todos os registros marcados
+    explicitamente com esta ordem_producao_id, em qualquer máquina -
+    diferente de somar por máquina+período, isto funciona corretamente
+    mesmo quando a mesma OP é produzida em mais de uma injetora ao
+    mesmo tempo.
+    """
     ordem = db.query(OrdemProducao).filter(OrdemProducao.id == ordem_id).first()
     if ordem is None:
         raise ValueError("Ordem de Produção não encontrada.")
 
-    quantidade_produzida = 0
-    if ordem.maquina_id is not None:
-        inicio_dt = datetime.combine(ordem.periodo_inicio, time.min)
-        fim_dt = datetime.combine(ordem.periodo_fim, time.max)
-        total = (
-            db.query(func.coalesce(func.sum(RegistroHorario.prod_executada), 0))
-            .join(Turno, RegistroHorario.turno_id == Turno.id)
-            .filter(RegistroHorario.maquina_id == ordem.maquina_id)
-            .filter(Turno.data_registro >= inicio_dt, Turno.data_registro <= fim_dt)
-            .scalar()
-        )
-        quantidade_produzida = int(total or 0)
+    total = (
+        db.query(func.coalesce(func.sum(RegistroHorario.prod_executada), 0))
+        .filter(RegistroHorario.ordem_producao_id == ordem.id)
+        .scalar()
+    )
+    quantidade_produzida = int(total or 0)
 
     percentual = (
         round((quantidade_produzida / ordem.quantidade_a_produzir) * 100, 1)

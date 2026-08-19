@@ -153,51 +153,74 @@ def test_comparativo_sem_producao_real(client, db_session):
     assert comparativo["percentual_atingido"] == 0.0
 
 
-def test_comparativo_soma_producao_real_dentro_do_periodo(client, db_session):
+def test_comparativo_soma_producao_de_multiplas_maquinas(client, db_session):
+    # Cenário real: a mesma OP é produzida em duas injetoras ao mesmo
+    # tempo - o comparativo deve somar as duas, e ignorar produção de
+    # outras OPs feita na mesma máquina.
     admin = _criar_admin(db_session)
-    maquina = Maquina(numero_maquina="6", descricao="Injetora", cavidades=8, ciclo_padrao=19.0)
-    db_session.add(maquina)
+    maquina_a = Maquina(numero_maquina="6", descricao="Injetora A", cavidades=8, ciclo_padrao=19.0)
+    maquina_b = Maquina(numero_maquina="7", descricao="Injetora B", cavidades=4, ciclo_padrao=15.0)
+    db_session.add_all([maquina_a, maquina_b])
     db_session.commit()
-    db_session.refresh(maquina)
+    db_session.refresh(maquina_a)
+    db_session.refresh(maquina_b)
 
     _login(client, admin)
     ordem_id = client.post(
         "/api/v1/ordens-producao/", json=_payload_op_exemplo()
     ).json()["id"]
 
-    # Turno dentro do período (18 a 20/08/2026) - deve contar.
-    turno_dentro = Turno(
+    # Outra OP, para confirmar que não entra na soma.
+    outra_ordem_id = client.post(
+        "/api/v1/ordens-producao/",
+        json=_payload_op_exemplo(numero_op="9999-2026", numero_maquina="6"),
+    ).json()["id"]
+
+    turno = Turno(
         nome_turno="1º Turno",
         responsavel_nome="Teste",
         status_assinatura="ASSINADO_DIGITALMENTE",
-        data_registro=datetime(2026, 8, 19, 8, 0, 0),
     )
-    db_session.add(turno_dentro)
+    db_session.add(turno)
     db_session.flush()
+
+    # Máquina A, apontado para a OP em teste.
     db_session.add(
         RegistroHorario(
-            turno_id=turno_dentro.id,
-            maquina_id=maquina.id,
+            turno_id=turno.id,
+            maquina_id=maquina_a.id,
             hora_referencia=time(8, 0),
             prod_executada=10000,
+            ordem_producao_id=ordem_id,
         )
     )
-
-    # Turno fora do período - não deve contar.
-    turno_fora = Turno(
-        nome_turno="1º Turno",
-        responsavel_nome="Teste",
-        status_assinatura="ASSINADO_DIGITALMENTE",
-        data_registro=datetime(2026, 8, 25, 8, 0, 0),
-    )
-    db_session.add(turno_fora)
-    db_session.flush()
+    # Máquina B, mesma OP - produção simultânea em duas injetoras.
     db_session.add(
         RegistroHorario(
-            turno_id=turno_fora.id,
-            maquina_id=maquina.id,
+            turno_id=turno.id,
+            maquina_id=maquina_b.id,
             hora_referencia=time(8, 0),
+            prod_executada=5000,
+            ordem_producao_id=ordem_id,
+        )
+    )
+    # Máquina A de novo, mas para a OUTRA ordem - não deve contar.
+    db_session.add(
+        RegistroHorario(
+            turno_id=turno.id,
+            maquina_id=maquina_a.id,
+            hora_referencia=time(9, 0),
             prod_executada=99999,
+            ordem_producao_id=outra_ordem_id,
+        )
+    )
+    # Registro sem nenhuma OP vinculada - também não deve contar.
+    db_session.add(
+        RegistroHorario(
+            turno_id=turno.id,
+            maquina_id=maquina_a.id,
+            hora_referencia=time(10, 0),
+            prod_executada=77777,
         )
     )
     db_session.commit()
@@ -205,5 +228,5 @@ def test_comparativo_soma_producao_real_dentro_do_periodo(client, db_session):
     res = client.get(f"/api/v1/ordens-producao/{ordem_id}/comparativo")
     assert res.status_code == 200
     comparativo = res.json()
-    assert comparativo["quantidade_produzida"] == 10000
-    assert comparativo["percentual_atingido"] == round(10000 / 48000 * 100, 1)
+    assert comparativo["quantidade_produzida"] == 15000
+    assert comparativo["percentual_atingido"] == round(15000 / 48000 * 100, 1)
