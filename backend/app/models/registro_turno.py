@@ -25,6 +25,15 @@ class RegistroHorario(Base):
         nullable=True,
         index=True,
     )
+    # Ordem de Produção atendida por este apontamento (opcional). Permite
+    # somar a produção real de uma OP mesmo quando ela é feita em mais de
+    # uma injetora ao mesmo tempo - ver
+    # app/services/ordem_producao_service.py.
+    ordem_producao_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ordens_producao.id"),
+        nullable=True,
+        index=True,
+    )
     hora_referencia: Mapped[time] = mapped_column(Time, nullable=False)
     prod_executada: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     pecas_boas: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -44,3 +53,4 @@ class RegistroHorario(Base):
     turno = relationship("Turno", back_populates="registros")
     maquina = relationship("Maquina", back_populates="registros")
     produto = relationship("Produto", back_populates="registros")
+    ordem_producao = relationship("OrdemProducao")

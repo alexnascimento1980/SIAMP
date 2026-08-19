@@ -13,6 +13,7 @@ class Settings:
     smtp_port: int
     smtp_user: str
     smtp_pass: str
+    smtp_from: str
     report_recipients: list[str]
     jwt_secret_key: str
     jwt_algorithm: str
@@ -39,12 +40,21 @@ def _build_settings() -> Settings:
             "forte na variável de ambiente JWT_SECRET_KEY."
         )
 
+    smtp_user_value = os.getenv("SMTP_USER", "")
+
     return Settings(
         cors_origins=_parse_origins(cors_value),
         smtp_server=os.getenv("SMTP_SERVER", "smtp.gmail.com"),
         smtp_port=int(os.getenv("SMTP_PORT", "587")),
-        smtp_user=os.getenv("SMTP_USER", ""),
+        smtp_user=smtp_user_value,
         smtp_pass=os.getenv("SMTP_PASS", ""),
+        # Em provedores transacionais (Brevo, SendGrid etc.), o usuário
+        # de autenticação (SMTP_USER) costuma ser só um token/login
+        # técnico, diferente do endereço que precisa ser validado como
+        # remetente (From:) - por isso são variáveis separadas. Sem
+        # SMTP_FROM definida, cai no SMTP_USER (comportamento do Gmail,
+        # onde os dois são o mesmo endereço).
+        smtp_from=os.getenv("SMTP_FROM", "") or smtp_user_value,
         report_recipients=_parse_origins(recipients_value),
         jwt_secret_key=jwt_secret_key,
         jwt_algorithm=os.getenv("JWT_ALGORITHM", "HS256"),

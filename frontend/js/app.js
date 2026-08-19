@@ -21,6 +21,8 @@ let maquinasDisponiveis = [];
 let maquinaAtiva = null; // guarda o numero_maquina (string) selecionado
 // Catálogo de peças (GET /produtos/): { id, codigo, descricao, ciclo_padrao, cavidades }
 let pecasDisponiveis = [];
+// Ordens de Produção cadastradas (GET /ordens-producao/): { id, numero_op, produto_descricao, ... }
+let ordensProducaoDisponiveis = [];
 // Estado centralizado dos apontamentos: dados[numero_maquina][hora] = { prod, pecasBoas, refugo, inicio, retomada, motivo, produtoId, paradaProgramada }
 let registrosState = {};
 
@@ -37,6 +39,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const perfil = sessao.perfil;
   if (perfil === "ADMIN") {
     document.getElementById("linkUsuarios").classList.remove("d-none");
+    document.getElementById("linkDestinatarios").classList.remove("d-none");
   }
   if (perfil === "ADMIN" || perfil === "SUPERVISOR") {
     document.getElementById("linkMaquinas").classList.remove("d-none");
@@ -64,7 +67,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Em modo de edição, inclui também máquinas já desativadas, para que
   // os registros históricos delas continuem visíveis e editáveis.
-  await Promise.all([carregarMaquinas(!!turnoEditandoId), carregarPecas()]);
+  await Promise.all([
+    carregarMaquinas(!!turnoEditandoId),
+    carregarPecas(),
+    carregarOrdensProducao(),
+  ]);
 
   if (turnoEditandoId) {
     await carregarTurnoParaEdicao(turnoEditandoId);
@@ -128,6 +135,7 @@ async function carregarTurnoParaEdicao(turnoId) {
         retomada: reg.retomada ? reg.retomada.slice(0, 5) : "",
         motivo: reg.motivo_parada || "",
         produtoId: reg.produto_id ?? "",
+        ordemProducaoId: reg.ordem_producao_id ?? "",
         paradaProgramada: !!reg.parada_programada,
       };
     });
@@ -148,6 +156,17 @@ async function carregarPecas() {
     // Não bloqueia o apontamento: sem o catálogo carregado, o seletor de
     // peça fica só com a opção em branco, mas o resto da tela funciona.
     pecasDisponiveis = [];
+  }
+}
+
+async function carregarOrdensProducao() {
+  try {
+    const res = await chamarApi("/ordens-producao/");
+    if (!res.ok) throw new Error("Não foi possível carregar as ordens de produção.");
+    ordensProducaoDisponiveis = await res.json();
+  } catch (erro) {
+    console.error(erro);
+    ordensProducaoDisponiveis = [];
   }
 }
 
@@ -258,6 +277,13 @@ function renderizarTabela() {
     )
     .join("");
 
+  const opcoesOps = ordensProducaoDisponiveis
+    .map(
+      (o) =>
+        `<option value="${o.id}">${escaparHtml(o.numero_op)}${o.produto_descricao ? " - " + escaparHtml(o.produto_descricao) : ""}</option>`,
+    )
+    .join("");
+
   horas.forEach((hora) => {
     const salvo = (registrosState[maquinaAtiva] || {})[hora] || {
       prod: "",
@@ -267,6 +293,7 @@ function renderizarTabela() {
       retomada: "",
       motivo: "",
       produtoId: "",
+      ordemProducaoId: "",
       paradaProgramada: false,
     };
 
@@ -274,9 +301,15 @@ function renderizarTabela() {
     tr.innerHTML = `
       <td class="fw-bold fs-5 text-secondary">${hora}</td>
       <td>
-        <select class="form-select" onchange="salvarValor('${hora}', 'produtoId', this.value)">
+        <select class="form-select select-peca" onchange="salvarValor('${hora}', 'produtoId', this.value)">
           <option value="" ${salvo.produtoId ? "" : "selected"}>— Selecionar —</option>
           ${opcoesPecas}
+        </select>
+      </td>
+      <td>
+        <select class="form-select select-op" onchange="salvarValor('${hora}', 'ordemProducaoId', this.value)">
+          <option value="" ${salvo.ordemProducaoId ? "" : "selected"}>— Nenhuma —</option>
+          ${opcoesOps}
         </select>
       </td>
       <td>
@@ -310,11 +343,14 @@ function renderizarTabela() {
       </td>
     `;
 
-    // Restaura a peça selecionada (o innerHTML acima recria o <select>
-    // do zero, então marcar "selected" na string dificultaria escapar o
-    // id corretamente - fazemos pela API do DOM em vez disso).
+    // Restaura os selects (o innerHTML acima recria os <select> do zero,
+    // então marcar "selected" na string dificultaria escapar o id
+    // corretamente - fazemos pela API do DOM em vez disso).
     if (salvo.produtoId) {
-      tr.querySelector("select").value = String(salvo.produtoId);
+      tr.querySelector(".select-peca").value = String(salvo.produtoId);
+    }
+    if (salvo.ordemProducaoId) {
+      tr.querySelector(".select-op").value = String(salvo.ordemProducaoId);
     }
     tbody.appendChild(tr);
   });
@@ -333,6 +369,7 @@ function salvarValor(hora, campo, valor) {
       retomada: "",
       motivo: "",
       produtoId: "",
+      ordemProducaoId: "",
       paradaProgramada: false,
     };
   }
@@ -375,6 +412,7 @@ function montarPayloadFechamento() {
           hora_referencia: hora,
           prod_executada: parseInt(dados.prod || 0),
           produto_id: dados.produtoId ? parseInt(dados.produtoId) : null,
+          ordem_producao_id: dados.ordemProducaoId ? parseInt(dados.ordemProducaoId) : null,
           pecas_boas: dados.pecasBoas !== "" ? parseInt(dados.pecasBoas) : null,
           refugo: dados.refugo !== "" ? parseInt(dados.refugo) : null,
           inicio_parada: dados.inicio || null,
