@@ -5,6 +5,7 @@ from app.api.v1 import (
     dashboard,
     destinatarios,
     maquinas,
+    ordens_producao,
     paradas,
     predictions,
     produtos,
@@ -18,6 +19,7 @@ api_router.include_router(usuarios.router)
 api_router.include_router(maquinas.router)
 api_router.include_router(produtos.router)
 api_router.include_router(destinatarios.router)
+api_router.include_router(ordens_producao.router)
 api_router.include_router(turnos.router)
 api_router.include_router(paradas.router)
 api_router.include_router(dashboard.router)
