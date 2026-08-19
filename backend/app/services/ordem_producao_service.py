@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models.maquina import Maquina
 from app.models.ordem_producao import OrdemProducao
+from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
 from app.schemas.ordem_producao_schema import (
     OrdemProducaoComparativo,
@@ -36,8 +37,25 @@ def _resolver_maquina(db: Session, numero_maquina: str | None) -> Maquina | None
 
     raise ValueError(
         f"Máquina '{numero_maquina}' não encontrada. Cadastre-a em "
-        "Máquinas antes, ou deixe o campo em branco para vincular depois."
+        "Máquinas antes de vincular a uma Ordem de Produção."
     )
+
+
+def _resolver_produto(db: Session, produto_id: int | None) -> Produto | None:
+    """Resolve a peça selecionada (id do catálogo de Peças, GET
+    /produtos/). Diferente da máquina, aqui não há normalização - o
+    frontend só permite selecionar via dropdown, então o id sempre
+    corresponde a um registro real quando enviado."""
+    if produto_id is None:
+        return None
+
+    produto = db.query(Produto).filter(Produto.id == produto_id).first()
+    if produto is None:
+        raise ValueError(
+            f"Peça (id={produto_id}) não encontrada. Cadastre-a em Peças "
+            "antes de vincular a uma Ordem de Produção."
+        )
+    return produto
 
 
 def montar_response_ordem(ordem: OrdemProducao) -> OrdemProducaoResponse:
@@ -50,6 +68,7 @@ def montar_response_ordem(ordem: OrdemProducao) -> OrdemProducaoResponse:
         lote=ordem.lote,
         periodo_inicio=ordem.periodo_inicio,
         periodo_fim=ordem.periodo_fim,
+        produto_id=ordem.produto_id,
         produto_codigo=ordem.produto_codigo,
         produto_descricao=ordem.produto_descricao,
         quantidade_a_produzir=ordem.quantidade_a_produzir,
@@ -84,12 +103,16 @@ def criar_ordem_producao(
         raise ValueError("Já existe uma Ordem de Produção cadastrada com este número.")
 
     maquina = _resolver_maquina(db, dados.numero_maquina)
+    produto = _resolver_produto(db, dados.produto_id)
 
-    payload = dados.model_dump(exclude={"numero_maquina"})
+    payload = dados.model_dump(exclude={"numero_maquina", "produto_id"})
     nova = OrdemProducao(
         **payload,
         maquina_id=maquina.id if maquina else None,
         equipamento_codigo=dados.numero_maquina,
+        produto_id=produto.id if produto else None,
+        produto_codigo=produto.codigo if produto else None,
+        produto_descricao=produto.descricao if produto else None,
         criado_por_id=usuario_id,
     )
     db.add(nova)
@@ -111,6 +134,13 @@ def atualizar_ordem_producao(
         maquina = _resolver_maquina(db, numero_maquina)
         ordem.maquina_id = maquina.id if maquina else None
         ordem.equipamento_codigo = numero_maquina
+
+    if "produto_id" in dados_dict:
+        produto_id = dados_dict.pop("produto_id")
+        produto = _resolver_produto(db, produto_id)
+        ordem.produto_id = produto.id if produto else None
+        ordem.produto_codigo = produto.codigo if produto else None
+        ordem.produto_descricao = produto.descricao if produto else None
 
     for campo, valor in dados_dict.items():
         setattr(ordem, campo, valor)

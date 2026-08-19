@@ -2,6 +2,7 @@ from datetime import date, datetime, time
 
 from app.core.security import gerar_hash_senha
 from app.models.maquina import Maquina
+from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
 from app.models.turno import Turno
 from app.models.usuario import Usuario
@@ -29,7 +30,15 @@ def _criar_admin(db_session, email="admin-op@siamp.test"):
     return admin
 
 
-def _payload_op_exemplo(**overrides):
+def _seed_produto(db_session, codigo="34-7506-00BR"):
+    produto = Produto(codigo=codigo, descricao="CLIP TUBE - BRESIL - UN")
+    db_session.add(produto)
+    db_session.commit()
+    db_session.refresh(produto)
+    return produto
+
+
+def _payload_op_exemplo(produto_id, **overrides):
     # Dados baseados na Ordem de Produção 2817-2026 (exemplo real
     # fornecido: CLIP TUBE - BRESIL, Injetora 06-120T).
     payload = {
@@ -40,8 +49,7 @@ def _payload_op_exemplo(**overrides):
         "lote": "20260817/2817",
         "periodo_inicio": "2026-08-18",
         "periodo_fim": "2026-08-20",
-        "produto_codigo": "34-7506-00BR",
-        "produto_descricao": "CLIP TUBE - BRESIL - UN",
+        "produto_id": produto_id,
         "quantidade_a_produzir": 48000,
         "numero_maquina": "06",
         "equipamento_descricao": "INJETORA 06-120T",
@@ -74,17 +82,19 @@ def _seed_maquina(db_session, numero="6"):
     return maquina
 
 
-def test_operador_nao_pode_criar_ordem(client, usuario_teste):
+def test_operador_nao_pode_criar_ordem(client, db_session, usuario_teste):
+    produto = _seed_produto(db_session)
     _login(client, usuario_teste)
-    res = client.post("/api/v1/ordens-producao/", json=_payload_op_exemplo())
+    res = client.post("/api/v1/ordens-producao/", json=_payload_op_exemplo(produto.id))
     assert res.status_code == 403
 
 
 def test_operador_pode_listar_e_ver_ordem(client, db_session, usuario_teste):
     admin = _criar_admin(db_session)
     _seed_maquina(db_session)
+    produto = _seed_produto(db_session)
     _login(client, admin)
-    res_criacao = client.post("/api/v1/ordens-producao/", json=_payload_op_exemplo())
+    res_criacao = client.post("/api/v1/ordens-producao/", json=_payload_op_exemplo(produto.id))
     assert res_criacao.status_code == 201, res_criacao.text
 
     _login(client, usuario_teste)
@@ -101,29 +111,44 @@ def test_criar_ordem_resolve_maquina_com_zero_a_esquerda(client, db_session):
         Maquina(numero_maquina="6", descricao="Injetora 06-120T", cavidades=8, ciclo_padrao=19.0)
     )
     db_session.commit()
+    produto = _seed_produto(db_session)
 
     _login(client, admin)
-    res = client.post("/api/v1/ordens-producao/", json=_payload_op_exemplo())
+    res = client.post("/api/v1/ordens-producao/", json=_payload_op_exemplo(produto.id))
     assert res.status_code == 201, res.text
     assert res.json()["numero_maquina"] == "6"
+    assert res.json()["produto_id"] == produto.id
 
 
 def test_numero_op_duplicado_e_rejeitado(client, db_session):
     admin = _criar_admin(db_session)
     _seed_maquina(db_session)
+    produto = _seed_produto(db_session)
     _login(client, admin)
-    res1 = client.post("/api/v1/ordens-producao/", json=_payload_op_exemplo())
+    res1 = client.post("/api/v1/ordens-producao/", json=_payload_op_exemplo(produto.id))
     assert res1.status_code == 201, res1.text
-    res = client.post("/api/v1/ordens-producao/", json=_payload_op_exemplo())
+    res = client.post("/api/v1/ordens-producao/", json=_payload_op_exemplo(produto.id))
     assert res.status_code == 409
 
 
 def test_periodo_fim_antes_do_inicio_e_rejeitado(client, db_session):
     admin = _criar_admin(db_session)
+    _seed_maquina(db_session)
+    produto = _seed_produto(db_session)
     _login(client, admin)
-    payload = _payload_op_exemplo(periodo_inicio="2026-08-20", periodo_fim="2026-08-18")
+    payload = _payload_op_exemplo(
+        produto.id, periodo_inicio="2026-08-20", periodo_fim="2026-08-18"
+    )
     res = client.post("/api/v1/ordens-producao/", json=payload)
     assert res.status_code == 422
+
+
+def test_produto_inexistente_e_rejeitado(client, db_session):
+    admin = _criar_admin(db_session)
+    _seed_maquina(db_session)
+    _login(client, admin)
+    res = client.post("/api/v1/ordens-producao/", json=_payload_op_exemplo(99999))
+    assert res.status_code == 400
 
 
 def test_editar_ordem_inexistente_retorna_404(client, db_session):
@@ -139,10 +164,11 @@ def test_comparativo_sem_producao_real(client, db_session):
         Maquina(numero_maquina="6", descricao="Injetora", cavidades=8, ciclo_padrao=19.0)
     )
     db_session.commit()
+    produto = _seed_produto(db_session)
 
     _login(client, admin)
     ordem_id = client.post(
-        "/api/v1/ordens-producao/", json=_payload_op_exemplo()
+        "/api/v1/ordens-producao/", json=_payload_op_exemplo(produto.id)
     ).json()["id"]
 
     res = client.get(f"/api/v1/ordens-producao/{ordem_id}/comparativo")
@@ -164,16 +190,18 @@ def test_comparativo_soma_producao_de_multiplas_maquinas(client, db_session):
     db_session.commit()
     db_session.refresh(maquina_a)
     db_session.refresh(maquina_b)
+    produto = _seed_produto(db_session)
+    outro_produto = _seed_produto(db_session, codigo="OUTRO-COD")
 
     _login(client, admin)
     ordem_id = client.post(
-        "/api/v1/ordens-producao/", json=_payload_op_exemplo()
+        "/api/v1/ordens-producao/", json=_payload_op_exemplo(produto.id)
     ).json()["id"]
 
     # Outra OP, para confirmar que não entra na soma.
     outra_ordem_id = client.post(
         "/api/v1/ordens-producao/",
-        json=_payload_op_exemplo(numero_op="9999-2026", numero_maquina="6"),
+        json=_payload_op_exemplo(outro_produto.id, numero_op="9999-2026", numero_maquina="6"),
     ).json()["id"]
 
     turno = Turno(

@@ -13,14 +13,18 @@ class OrdemProducaoBase(BaseModel):
     periodo_inicio: date
     periodo_fim: date
 
-    produto_codigo: str | None = Field(default=None, max_length=50)
-    produto_descricao: str | None = Field(default=None, max_length=200)
+    # Exige selecionar uma peça já cadastrada no catálogo (GET
+    # /produtos/) - evita erro de digitação de código/descrição. O
+    # backend resolve para código/descrição no momento do cadastro e
+    # guarda como retrato (histórico independe de futuras edições da
+    # peça).
+    produto_id: int = Field(..., gt=0)
     quantidade_a_produzir: int = Field(..., gt=0)
 
-    # Aceita o número do equipamento (ex.: "06") e resolve para
-    # maquina_id no backend, igual ao numero_maquina já usado no
-    # apontamento - não expõe o id interno para quem preenche o form.
-    numero_maquina: str | None = Field(default=None, max_length=30)
+    # Exige selecionar uma máquina já cadastrada (pelo numero_maquina,
+    # ex.: "6") - igual ao numero_maquina já usado no apontamento. Não
+    # expõe o id interno para quem preenche o formulário.
+    numero_maquina: str = Field(..., min_length=1, max_length=30)
     equipamento_descricao: str | None = Field(default=None, max_length=150)
 
     ferramenta_codigo: str | None = Field(default=None, max_length=50)
@@ -59,8 +63,7 @@ class OrdemProducaoUpdate(BaseModel):
     lote: str | None = Field(default=None, max_length=50)
     periodo_inicio: date | None = None
     periodo_fim: date | None = None
-    produto_codigo: str | None = Field(default=None, max_length=50)
-    produto_descricao: str | None = Field(default=None, max_length=200)
+    produto_id: int | None = Field(default=None, gt=0)
     quantidade_a_produzir: int | None = Field(default=None, gt=0)
     numero_maquina: str | None = Field(default=None, max_length=30)
     equipamento_descricao: str | None = Field(default=None, max_length=150)
@@ -90,6 +93,7 @@ class OrdemProducaoResponse(BaseModel):
     lote: str | None
     periodo_inicio: date
     periodo_fim: date
+    produto_id: int | None
     produto_codigo: str | None
     produto_descricao: str | None
     quantidade_a_produzir: int

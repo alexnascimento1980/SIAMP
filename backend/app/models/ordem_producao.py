@@ -29,11 +29,14 @@ class OrdemProducao(Base):
     periodo_inicio: Mapped[date] = mapped_column(Date, nullable=False)
     periodo_fim: Mapped[date] = mapped_column(Date, nullable=False)
 
-    # Produto a produzir. Sem FK para app.models.produto.Produto: o
-    # código de produto da OP (ex. "34-7506-00BR", do ERP) usa um
-    # padrão diferente do catálogo de peças/ciclo já cadastrado no
-    # SIAMP - forçar um vínculo exigiria uma tabela de mapeamento entre
-    # os dois catálogos que ainda não existe.
+    # Produto a produzir. Antes ficava como texto livre porque o código
+    # de produto do ERP (ex. "34-7506-00BR") usa um padrão diferente do
+    # catálogo de peças/ciclo já cadastrado - mas o cadastro de OP agora
+    # exige selecionar uma peça já cadastrada (evita erro de digitação),
+    # então vinculamos por FK e guardamos código/descrição como um
+    # retrato (snapshot) no momento do cadastro, preservando o histórico
+    # mesmo que a peça seja editada ou desativada depois.
+    produto_id: Mapped[int | None] = mapped_column(ForeignKey("produtos.id"), nullable=True)
     produto_codigo: Mapped[str | None] = mapped_column(String(50), nullable=True)
     produto_descricao: Mapped[str | None] = mapped_column(String(200), nullable=True)
     quantidade_a_produzir: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -68,4 +71,5 @@ class OrdemProducao(Base):
     )
 
     maquina = relationship("Maquina")
+    produto = relationship("Produto")
     criado_por = relationship("Usuario", foreign_keys=[criado_por_id])
