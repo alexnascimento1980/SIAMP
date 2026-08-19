@@ -37,6 +37,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const perfil = sessao.perfil;
   if (perfil === "ADMIN") {
     document.getElementById("linkUsuarios").classList.remove("d-none");
+    document.getElementById("linkDestinatarios").classList.remove("d-none");
   }
   if (perfil === "ADMIN" || perfil === "SUPERVISOR") {
     document.getElementById("linkMaquinas").classList.remove("d-none");
