@@ -262,3 +262,23 @@ def test_producao_esperada_por_linha_no_relatorio(client, db_session, usuario_te
     assert por_hora["05:00"]["producao_esperada"] == 1440
     # 30 min de parada programada -> metade da capacidade = 720.
     assert por_hora["06:00"]["producao_esperada"] == 720
+
+
+def test_destinatarios_do_banco_tem_prioridade_sobre_env(client, db_session, usuario_teste, monkeypatch):
+    from app.models.destinatario_relatorio import DestinatarioRelatorio
+    from app.services.turno_service import _resolver_destinatarios
+
+    # Sem nada cadastrado no banco -> cai para REPORT_RECIPIENTS do .env.
+    import app.services.turno_service as turno_service_mod
+    from types import SimpleNamespace
+
+    fake_settings = SimpleNamespace(report_recipients=["env@empresa.com"])
+    monkeypatch.setattr(turno_service_mod, "settings", fake_settings)
+    assert _resolver_destinatarios(db_session) == ["env@empresa.com"]
+
+    # Com destinatários ativos no banco -> usa a lista do banco, ignora o .env.
+    db_session.add(DestinatarioRelatorio(email="ativo@empresa.com", ativo=True))
+    db_session.add(DestinatarioRelatorio(email="inativo@empresa.com", ativo=False))
+    db_session.commit()
+
+    assert _resolver_destinatarios(db_session) == ["ativo@empresa.com"]

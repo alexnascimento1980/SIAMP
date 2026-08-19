@@ -4,6 +4,7 @@ from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.models.destinatario_relatorio import DestinatarioRelatorio
 from app.models.maquina import Maquina
 from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
@@ -98,6 +99,21 @@ def _criar_registros(db: Session, turno: Turno, dados: FechamentoTurnoCreate) ->
         db.add(registro_db)
 
 
+def _resolver_destinatarios(db: Session) -> list[str]:
+    """Lista de e-mails que recebem o relatório de fechamento de turno.
+    Prioriza os cadastrados na tela Destinatários (banco de dados); se
+    nenhum estiver ativo lá, cai para REPORT_RECIPIENTS do .env
+    (retrocompatibilidade, para ambientes que ainda não migraram para
+    a tela)."""
+    emails_db = [
+        email
+        for (email,) in db.query(DestinatarioRelatorio.email)
+        .filter(DestinatarioRelatorio.ativo.is_(True))
+        .all()
+    ]
+    return emails_db if emails_db else settings.report_recipients
+
+
 def _agendar_email_relatorio(
     db: Session,
     turno: Turno,
@@ -105,9 +121,10 @@ def _agendar_email_relatorio(
     background_tasks: BackgroundTasks,
 ) -> bool:
     """Monta o PDF e agenda o envio do relatório em background. Retorna
-    True se o envio foi agendado (SMTP configurado), False se foi
-    pulado (sem SMTP_USER/SMTP_PASS/REPORT_RECIPIENTS no .env)."""
-    if not (settings.smtp_user and settings.smtp_pass and settings.report_recipients):
+    True se o envio foi agendado (SMTP configurado e há pelo menos um
+    destinatário), False se foi pulado."""
+    destinatarios = _resolver_destinatarios(db)
+    if not (settings.smtp_user and settings.smtp_pass and destinatarios):
         return False
 
     dados_turno = {
@@ -125,7 +142,7 @@ def _agendar_email_relatorio(
 
     background_tasks.add_task(
         enviar_relatorio_email,
-        settings.report_recipients,
+        destinatarios,
         assunto,
         corpo,
         pdf_bytes,
@@ -234,8 +251,10 @@ def reenviar_email_turno(
 
     if not email_agendado:
         raise ValueError(
-            "Envio de e-mail não está configurado (SMTP_USER/SMTP_PASS/"
-            "REPORT_RECIPIENTS ausentes no .env)."
+            "Envio de e-mail não está configurado: confira se SMTP_USER/"
+            "SMTP_PASS estão definidos no .env e se há pelo menos um "
+            "destinatário ativo cadastrado (tela Destinatários) ou em "
+            "REPORT_RECIPIENTS."
         )
 
     return {
