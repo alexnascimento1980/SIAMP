@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import exigir_perfil, get_current_user
 from app.core.database import get_db
 from app.models.produto import Produto
 from app.models.usuario import Usuario
-from app.schemas.produto_schema import ProdutoResponse
+from app.schemas.produto_schema import ProdutoCreate, ProdutoResponse, ProdutoUpdate
 
 router = APIRouter(prefix="/produtos", tags=["Produtos"])
 
@@ -25,3 +25,45 @@ def listar_produtos(
     if not incluir_inativas:
         query = query.filter(Produto.ativo.is_(True))
     return query.order_by(Produto.codigo).all()
+
+
+@router.post("/", response_model=ProdutoResponse, status_code=status.HTTP_201_CREATED)
+def criar_produto(
+    dados: ProdutoCreate,
+    db: Session = Depends(get_db),
+    usuario_atual: Usuario = Depends(exigir_perfil("ADMIN", "SUPERVISOR")),
+):
+    ja_existe = db.query(Produto).filter(Produto.codigo == dados.codigo).first()
+    if ja_existe:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Já existe uma peça cadastrada com este código.",
+        )
+
+    novo_produto = Produto(**dados.model_dump())
+    db.add(novo_produto)
+    db.commit()
+    db.refresh(novo_produto)
+    return novo_produto
+
+
+@router.patch("/{produto_id}", response_model=ProdutoResponse)
+def atualizar_produto(
+    produto_id: int,
+    dados: ProdutoUpdate,
+    db: Session = Depends(get_db),
+    usuario_atual: Usuario = Depends(exigir_perfil("ADMIN", "SUPERVISOR")),
+):
+    produto = db.query(Produto).filter(Produto.id == produto_id).first()
+    if produto is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Peça não encontrada.",
+        )
+
+    for campo, valor in dados.model_dump(exclude_unset=True).items():
+        setattr(produto, campo, valor)
+
+    db.commit()
+    db.refresh(produto)
+    return produto
