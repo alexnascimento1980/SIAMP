@@ -26,6 +26,10 @@ Plataforma desenvolvida para digitalização e automação do processo de fecham
 
 ## 🏁 Como Executar o Projeto
 
+> Quer publicar numa URL pública em vez de rodar só localmente? Veja
+> **[DEPLOY.md](DEPLOY.md)** para o passo a passo de deploy no Render
+> com banco Supabase.
+
 ```bash
 # 1. Clone o repositório
 git clone https://github.com/alexnascimento1980/siamp.git

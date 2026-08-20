@@ -55,7 +55,7 @@ function renderizarTurnos(turnos) {
       ? ' <i class="bi bi-pencil-fill text-secondary" title="Turno corrigido"></i>'
       : "";
     const botaoEditar = podeEditar
-      ? `<a href="index.html?editar=${t.id}" class="btn btn-sm btn-outline-secondary" title="Corrigir este turno">
+      ? `<a href="apontamento.html?editar=${t.id}" class="btn btn-sm btn-outline-secondary" title="Corrigir este turno">
            <i class="bi bi-pencil-square"></i>
          </a>`
       : "";

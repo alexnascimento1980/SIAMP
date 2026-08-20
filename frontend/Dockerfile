@@ -8,4 +8,14 @@ COPY *.html /usr/share/nginx/html/
 COPY css/ /usr/share/nginx/html/css/
 COPY js/ /usr/share/nginx/html/js/
 
+# nginx.conf.template fica em /etc/nginx/templates/ - a imagem oficial do
+# nginx roda envsubst nele automaticamente na inicialização do container,
+# gerando /etc/nginx/conf.d/default.conf. NGINX_ENVSUBST_FILTER restringe
+# a substituição só a BACKEND_INTERNAL_URL, para não corromper as
+# variáveis do próprio nginx no arquivo (ex.: $host, $uri) - sem o
+# filtro, o envsubst tentaria substituir todo "$algumacoisa" que
+# encontrasse, inclusive essas.
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+ENV NGINX_ENVSUBST_FILTER=BACKEND_INTERNAL_URL
+
 EXPOSE 80
