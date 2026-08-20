@@ -104,6 +104,29 @@ Depois disso, acessa a URL pública que o Render te deu (algo como
 - Todo `git push` na branch conectada dispara um novo deploy
   automaticamente (auto-deploy vem ligado por padrão).
 
+## 5. Levar máquinas/peças customizadas do ambiente local
+
+Se você já cadastrou máquinas ou peças reais (além das que vêm no
+`database/seeds.sql` genérico) no seu ambiente local, dá para exportar
+esses dados e aplicar no Supabase, em vez de digitar tudo de novo pela
+tela:
+
+```powershell
+cd backend
+
+# 1. Exporta do banco de ORIGEM (local)
+$env:DATABASE_URL="postgresql+psycopg2://siamp_user:<senha-local>@localhost:5432/siamp_db"
+python -m app.scripts.exportar_catalogos
+
+# 2. Aplica no banco de DESTINO (Supabase)
+$env:DATABASE_URL="<connection string do Supabase>"
+$env:SEEDS_FILE="../database/exportado_catalogos.sql"
+python -m app.scripts.seed_db
+```
+
+Gera um `.sql` com `ON CONFLICT DO NOTHING` (mesmo formato do
+`seeds.sql`) - seguro rodar mais de uma vez sem duplicar nada.
+
 ## Limitações do plano gratuito, para não ser surpresa
 
 - **Cold start**: o serviço "dorme" depois de 15 minutos sem tráfego;
