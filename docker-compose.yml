@@ -60,6 +60,13 @@ services:
       dockerfile: Dockerfile
     container_name: siamp_frontend
     restart: unless-stopped
+    environment:
+      # Mesmo mecanismo usado no Render: o nginx do frontend repassa
+      # /api/ para o backend por este endereço, nunca expondo o
+      # host/porta do backend direto ao navegador (ver
+      # nginx.conf.template). Localmente, "backend_api" é resolvido
+      # pela rede interna do próprio Compose.
+      BACKEND_INTERNAL_URL: http://backend_api:8000
     ports:
       - "8090:80"
     depends_on:
