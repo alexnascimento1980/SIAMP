@@ -22,3 +22,8 @@ build/
 # Banco de dados local
 *.sqlite3
 *.db
+
+# Artefatos gerados por scripts de migração de dados entre ambientes
+# (ex.: app.scripts.exportar_catalogos) - específicos de uma
+# transferência pontual, não fazem parte do código-fonte do projeto.
+database/exportado_*.sql
