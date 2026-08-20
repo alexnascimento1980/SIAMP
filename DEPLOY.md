@@ -23,8 +23,8 @@ ficar exposto fora dele. Para o navegador, é tudo uma origem só.
 > **Tem um plano pago do Render e prefere dois serviços separados?**
 > `frontend/nginx.conf.template` já suporta isso via a variável
 > `BACKEND_INTERNAL_URL` (é o que o `docker-compose.yml` local usa) -
-> crie o backend como *Private Service*, pegue o endereço interno dele
-> em *Connect → Internal* e use como `BACKEND_INTERNAL_URL` no
+> crie o backend como _Private Service_, pegue o endereço interno dele
+> em _Connect → Internal_ e use como `BACKEND_INTERNAL_URL` no
 > frontend. Para a maioria dos casos de teste, o serviço único do
 > `deploy/Dockerfile` é mais simples e já resolve.
 
@@ -39,7 +39,7 @@ ficar exposto fora dele. Para o navegador, é tudo uma origem só.
 4. Copie a connection string completa (formato
    `postgresql://postgres.xxxx:SENHA@aws-x-regiao.pooler.supabase.com:5432/postgres`)
    - já vem com a senha do banco preenchida (a que você definiu ao
-   criar o projeto). Guarde essa string - é o `DATABASE_URL`.
+     criar o projeto). Guarde essa string - é o `DATABASE_URL`.
 
 > Não é necessário adicionar `+psycopg2` na string - o SQLAlchemy já
 > usa o psycopg2 automaticamente para URLs `postgresql://`.
@@ -59,16 +59,16 @@ ficar exposto fora dele. Para o navegador, é tudo uma origem só.
 4. Variáveis de ambiente (**Environment**), as mesmas que já existem
    no `.env` local, com os valores certos para produção:
 
-   | Variável | Valor |
-   |---|---|
-   | `DATABASE_URL` | A connection string do Supabase (passo 1) |
-   | `JWT_SECRET_KEY` | Gere uma nova - **não reaproveite** a do `.env` local. Rode `python -c "import secrets; print(secrets.token_urlsafe(64))"` |
-   | `COOKIE_SECURE` | `true` (o Render serve tudo via HTTPS) |
-   | `CORS_ORIGINS` | A URL pública do próprio serviço (ex.: `https://siamp.onrender.com`) - você só sabe isso depois do primeiro deploy; pode deixar em branco e voltar aqui para preencher depois |
-   | `SMTP_FROM` | O e-mail remetente validado no Brevo |
-   | `BREVO_API_KEY` | Chave da **API** do Brevo (Settings → SMTP & API → API Keys) - **não** a chave SMTP |
-   | `REPORT_RECIPIENTS` | Opcional - prefira cadastrar pela tela Destinatários depois do primeiro login |
-   | `SEED_ON_START` | `true` no primeiro deploy (carrega as 102 peças e as 6 máquinas de exemplo); pode deixar `true` sempre, é seguro repetir (usa `ON CONFLICT DO NOTHING`) |
+   | Variável            | Valor                                                                                                                                                                         |
+   | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `DATABASE_URL`      | A connection string do Supabase (passo 1)                                                                                                                                     |
+   | `JWT_SECRET_KEY`    | Gere uma nova - **não reaproveite** a do `.env` local. Rode `python -c "import secrets; print(secrets.token_urlsafe(64))"`                                                    |
+   | `COOKIE_SECURE`     | `true` (o Render serve tudo via HTTPS)                                                                                                                                        |
+   | `CORS_ORIGINS`      | A URL pública do próprio serviço (ex.: `https://siamp.onrender.com`) - você só sabe isso depois do primeiro deploy; pode deixar em branco e voltar aqui para preencher depois |
+   | `SMTP_FROM`         | O e-mail remetente validado no Brevo                                                                                                                                          |
+   | `BREVO_API_KEY`     | Chave da **API** do Brevo (Settings → SMTP & API → API Keys) - **não** a chave SMTP                                                                                           |
+   | `REPORT_RECIPIENTS` | Opcional - prefira cadastrar pela tela Destinatários depois do primeiro login                                                                                                 |
+   | `SEED_ON_START`     | `true` no primeiro deploy (carrega as 102 peças e as 6 máquinas de exemplo); pode deixar `true` sempre, é seguro repetir (usa `ON CONFLICT DO NOTHING`)                       |
 
 5. Clica em **Create Web Service**. O primeiro build demora alguns
    minutos (instala dependências Python + nginx).
@@ -82,6 +82,8 @@ ficar exposto fora dele. Para o navegador, é tudo uma origem só.
 > `BREVO_API_KEY` usa a API HTTPS do Brevo (porta 443, não afetada
 > por esse bloqueio) em vez de SMTP. Sem essa variável definida, o
 > sistema volta a usar SMTP normalmente (é o que acontece localmente).
+> **Confirmado em produção**: com `BREVO_API_KEY` configurada no
+> Render, o e-mail de fechamento de turno chega normalmente.
 
 ## 3. Primeiro acesso
 
@@ -120,16 +122,19 @@ Depois disso, acessa a URL pública que o Render te deu (algo como
 Se você já cadastrou máquinas ou peças reais (além das que vêm no
 `database/seeds.sql` genérico) no seu ambiente local, dá para exportar
 esses dados e aplicar no Supabase, em vez de digitar tudo de novo pela
-tela:
+tela.
+
+O volume `database/` dentro do container é montado somente leitura, então
+o arquivo precisa ser gerado num caminho gravável (`/tmp`) e depois
+copiado para fora:
 
 ```powershell
+# 1. Exporta do banco de ORIGEM (local), de dentro do container
+docker compose exec backend_api sh -c "EXPORT_FILE=/tmp/exportado_catalogos.sql python -m app.scripts.exportar_catalogos"
+docker compose cp backend_api:/tmp/exportado_catalogos.sql database/exportado_catalogos.sql
+
+# 2. Aplica no banco de DESTINO (Supabase), da sua máquina
 cd backend
-
-# 1. Exporta do banco de ORIGEM (local)
-$env:DATABASE_URL="postgresql+psycopg2://siamp_user:<senha-local>@localhost:5432/siamp_db"
-python -m app.scripts.exportar_catalogos
-
-# 2. Aplica no banco de DESTINO (Supabase)
 $env:DATABASE_URL="<connection string do Supabase>"
 $env:SEEDS_FILE="../database/exportado_catalogos.sql"
 python -m app.scripts.seed_db
