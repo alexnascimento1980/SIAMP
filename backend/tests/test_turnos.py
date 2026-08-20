@@ -187,6 +187,7 @@ def test_reenviar_email_bem_sucedido_com_smtp_configurado(client, db_session, us
         smtp_from="siamp@empresa.com",
         smtp_server="smtp.exemplo.com",
         smtp_port=587,
+        brevo_api_key="",
         report_recipients=["gerente@empresa.com"],
     )
     with patch("app.services.turno_service.settings", fake_settings), patch(
@@ -339,6 +340,7 @@ def test_assunto_do_email_inclui_data_dd_mm_aa(client, db_session, usuario_teste
         smtp_from="siamp@empresa.com",
         smtp_server="smtp.exemplo.com",
         smtp_port=587,
+        brevo_api_key="",
         report_recipients=["gerente@empresa.com"],
     )
     with patch("app.services.turno_service.settings", fake_settings), patch(

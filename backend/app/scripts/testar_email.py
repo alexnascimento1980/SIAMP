@@ -75,18 +75,24 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if not settings.smtp_user or not settings.smtp_pass:
+    if not settings.brevo_api_key and not (settings.smtp_user and settings.smtp_pass):
         print(
-            "[testar_email] SMTP_USER/SMTP_PASS não configurados no .env - "
-            "nada a testar. Defina-os e rode `docker compose up -d "
-            "backend_api` para recarregar antes de tentar de novo.",
+            "[testar_email] Nenhum provedor de e-mail configurado no .env - "
+            "nada a testar. Defina BREVO_API_KEY (recomendado em hospedagens "
+            "que bloqueiam portas SMTP, ex. Render) ou SMTP_USER/SMTP_PASS, e "
+            "rode `docker compose up -d backend_api` para recarregar antes "
+            "de tentar de novo.",
             file=sys.stderr,
         )
         raise SystemExit(1)
 
-    print(f"[testar_email] Enviando de {settings.smtp_from} "
-          f"(autenticando como {settings.smtp_user} via "
-          f"{settings.smtp_server}:{settings.smtp_port}) para {args.para}...")
+    if settings.brevo_api_key:
+        print(f"[testar_email] Enviando de {settings.smtp_from} via API do "
+              f"Brevo para {args.para}...")
+    else:
+        print(f"[testar_email] Enviando de {settings.smtp_from} "
+              f"(autenticando como {settings.smtp_user} via "
+              f"{settings.smtp_server}:{settings.smtp_port}) para {args.para}...")
 
     try:
         enviar_relatorio_email(
@@ -109,13 +115,21 @@ def main() -> None:
         )
     except EnvioEmailError as exc:
         print(f"[testar_email] Falha ao enviar: {exc}", file=sys.stderr)
-        print(
-            "[testar_email] Confira SMTP_SERVER/SMTP_PORT/SMTP_USER/"
-            "SMTP_PASS no .env. Para Gmail, lembre que é necessário usar "
-            "uma 'senha de app' (App Password), não a senha normal da "
-            "conta - veja https://myaccount.google.com/apppasswords",
-            file=sys.stderr,
-        )
+        if settings.brevo_api_key:
+            print(
+                "[testar_email] Confira BREVO_API_KEY no .env, e se o "
+                "remetente (SMTP_FROM) está validado no painel do Brevo "
+                "(Settings > Senders, Domains & Dedicated IPs).",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                "[testar_email] Confira SMTP_SERVER/SMTP_PORT/SMTP_USER/"
+                "SMTP_PASS no .env. Para Gmail, lembre que é necessário usar "
+                "uma 'senha de app' (App Password), não a senha normal da "
+                "conta - veja https://myaccount.google.com/apppasswords",
+                file=sys.stderr,
+            )
         raise SystemExit(1) from exc
 
     print("[testar_email] Enviado com sucesso! Confira a caixa de entrada de", args.para)

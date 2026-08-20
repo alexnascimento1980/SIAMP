@@ -155,6 +155,12 @@ reconsiderar um provedor dedicado.
 → gerar uma "SMTP key". O host é `smtp-relay.brevo.com`, porta `587`,
 usuário é o e-mail de cadastro, senha é a chave SMTP gerada.
 
+> **Hospedando em algo como o Render?** O plano gratuito do Render
+> bloqueia portas SMTP de saída (25/465/587) desde set/2025. Nesse
+> caso, use `BREVO_API_KEY` em vez de `SMTP_USER`/`SMTP_PASS` - o
+> sistema passa a falar com o Brevo via API HTTPS (não afetada por
+> esse bloqueio) em vez de SMTP. Ver `DEPLOY.md`.
+
 **Erro `535 Bad Credentials` com Gmail:** normalmente é uma destas
 causas, na ordem mais provável:
 1. `SMTP_PASS` é a senha normal da conta, não uma senha de app
