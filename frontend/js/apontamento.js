@@ -27,7 +27,7 @@ let ordensProducaoDisponiveis = [];
 let registrosState = {};
 
 // Preenchido quando a tela está em modo de correção de um turno já
-// fechado (via index.html?editar=<id>). null = modo normal (novo turno).
+// fechado (via apontamento.html?editar=<id>). null = modo normal (novo turno).
 let turnoEditandoId = null;
 
 // Inicialização
