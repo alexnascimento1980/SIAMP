@@ -14,6 +14,7 @@ class Settings:
     smtp_user: str
     smtp_pass: str
     smtp_from: str
+    brevo_api_key: str
     report_recipients: list[str]
     jwt_secret_key: str
     jwt_algorithm: str
@@ -55,6 +56,13 @@ def _build_settings() -> Settings:
         # SMTP_FROM definida, cai no SMTP_USER (comportamento do Gmail,
         # onde os dois são o mesmo endereço).
         smtp_from=os.getenv("SMTP_FROM", "") or smtp_user_value,
+        # Chave da API HTTP do Brevo (porta 443) - caminho preferido
+        # quando definida. Hospedagens com plano gratuito (ex.: Render)
+        # costumam bloquear tráfego de saída para portas SMTP
+        # (25/465/587), mas não para HTTPS comum - ver
+        # app/services/mailer.py e DEPLOY.md. Sem esta variável, cai
+        # para SMTP tradicional (bom para desenvolvimento local).
+        brevo_api_key=os.getenv("BREVO_API_KEY", ""),
         report_recipients=_parse_origins(recipients_value),
         jwt_secret_key=jwt_secret_key,
         jwt_algorithm=os.getenv("JWT_ALGORITHM", "HS256"),

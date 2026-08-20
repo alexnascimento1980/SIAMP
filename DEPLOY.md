@@ -65,12 +65,23 @@ ficar exposto fora dele. Para o navegador, é tudo uma origem só.
    | `JWT_SECRET_KEY` | Gere uma nova - **não reaproveite** a do `.env` local. Rode `python -c "import secrets; print(secrets.token_urlsafe(64))"` |
    | `COOKIE_SECURE` | `true` (o Render serve tudo via HTTPS) |
    | `CORS_ORIGINS` | A URL pública do próprio serviço (ex.: `https://siamp.onrender.com`) - você só sabe isso depois do primeiro deploy; pode deixar em branco e voltar aqui para preencher depois |
-   | `SMTP_SERVER`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Mesmos valores do provedor que você já validou (ver seção de e-mail do `README.md`) |
+   | `SMTP_FROM` | O e-mail remetente validado no Brevo |
+   | `BREVO_API_KEY` | Chave da **API** do Brevo (Settings → SMTP & API → API Keys) - **não** a chave SMTP |
    | `REPORT_RECIPIENTS` | Opcional - prefira cadastrar pela tela Destinatários depois do primeiro login |
    | `SEED_ON_START` | `true` no primeiro deploy (carrega as 102 peças e as 6 máquinas de exemplo); pode deixar `true` sempre, é seguro repetir (usa `ON CONFLICT DO NOTHING`) |
 
 5. Clica em **Create Web Service**. O primeiro build demora alguns
    minutos (instala dependências Python + nginx).
+
+> **Por que Brevo via API, e não SMTP com Gmail?** Desde setembro de
+> 2025, o Render **bloqueia tráfego de saída para as portas SMTP
+> (25, 465, 587) em serviços gratuitos** ([changelog
+> oficial](https://render.com/changelog/free-web-services-will-no-longer-allow-outbound-traffic-to-smtp-ports)).
+> O SMTP local (ex.: Gmail) continua funcionando normalmente no seu
+> `docker-compose.yml`, mas não funcionaria no Render gratuito -
+> `BREVO_API_KEY` usa a API HTTPS do Brevo (porta 443, não afetada
+> por esse bloqueio) em vez de SMTP. Sem essa variável definida, o
+> sistema volta a usar SMTP normalmente (é o que acontece localmente).
 
 ## 3. Primeiro acesso
 
@@ -103,6 +114,29 @@ Depois disso, acessa a URL pública que o Render te deu (algo como
   com a URL pública real, agora que você já sabe qual é.
 - Todo `git push` na branch conectada dispara um novo deploy
   automaticamente (auto-deploy vem ligado por padrão).
+
+## 5. Levar máquinas/peças customizadas do ambiente local
+
+Se você já cadastrou máquinas ou peças reais (além das que vêm no
+`database/seeds.sql` genérico) no seu ambiente local, dá para exportar
+esses dados e aplicar no Supabase, em vez de digitar tudo de novo pela
+tela:
+
+```powershell
+cd backend
+
+# 1. Exporta do banco de ORIGEM (local)
+$env:DATABASE_URL="postgresql+psycopg2://siamp_user:<senha-local>@localhost:5432/siamp_db"
+python -m app.scripts.exportar_catalogos
+
+# 2. Aplica no banco de DESTINO (Supabase)
+$env:DATABASE_URL="<connection string do Supabase>"
+$env:SEEDS_FILE="../database/exportado_catalogos.sql"
+python -m app.scripts.seed_db
+```
+
+Gera um `.sql` com `ON CONFLICT DO NOTHING` (mesmo formato do
+`seeds.sql`) - seguro rodar mais de uma vez sem duplicar nada.
 
 ## Limitações do plano gratuito, para não ser surpresa
 
