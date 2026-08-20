@@ -4,7 +4,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   if (sessao.perfil !== "ADMIN" && sessao.perfil !== "SUPERVISOR") {
     alert("Apenas administradores e supervisores podem acessar esta página.");
-    window.location.href = "index.html";
+    window.location.href = "home.html";
     return;
   }
 
