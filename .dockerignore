@@ -1,0 +1,22 @@
+# Segredos locais - nunca devem entrar em uma imagem Docker, mesmo que
+# alguém rode `docker build` fora do fluxo normal (Render builda a
+# partir do Git, onde .env já não existe por causa do .gitignore - isto
+# aqui é uma segunda camada de proteção para builds locais).
+.env
+backend/.env
+
+# Metadados de versionamento e ambiente local
+.git
+.github
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+node_modules
+
+# Bancos de dados locais / arquivos temporários
+*.sqlite3
+*.db
+*.log
+.DS_Store

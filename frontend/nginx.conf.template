@@ -1,0 +1,34 @@
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+
+    # login.html é a primeira página acessada ("/"). Depois do login,
+    # login.js redireciona para home.html (o hub com o resumo de cada
+    # tela) - ver frontend/js/login.js.
+    index login.html;
+
+    # Repassa toda chamada de API para o backend, sempre pela mesma
+    # origem do navegador (nunca direto para o host/porta do backend).
+    # Isso é essencial, não só conveniência: onrender.com está na
+    # Public Suffix List, então dois serviços "algo.onrender.com"
+    # diferentes contam como sites diferentes para o navegador, e o
+    # cookie de sessão (SameSite=Lax) simplesmente não seria enviado
+    # entre eles. Com o proxy, backend e frontend são sempre a mesma
+    # origem - em produção (Render) e em desenvolvimento (docker
+    # compose) igualmente. BACKEND_INTERNAL_URL é substituído em tempo
+    # de execução (ver Dockerfile / docker-compose.yml) - nunca
+    # exposto ao navegador.
+    location /api/ {
+        proxy_pass ${BACKEND_INTERNAL_URL}/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}

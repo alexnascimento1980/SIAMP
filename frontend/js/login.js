@@ -5,7 +5,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       credentials: "include",
     });
     if (res.ok) {
-      window.location.href = "index.html";
+      window.location.href = "home.html";
       return;
     }
   } catch (erro) {
@@ -59,7 +59,7 @@ async function onSubmit(evento) {
       return;
     }
 
-    window.location.href = "index.html";
+    window.location.href = "home.html";
   } catch (error) {
     console.error("Erro no login:", error);
     mostrarErro(

@@ -7,7 +7,7 @@
 // consegue ler ou exfiltrar o token de um cookie httpOnly.
 //
 // Este arquivo deve ser incluído (via <script>) ANTES do script
-// específico de cada página (app.js, dashboard.js, historico.js,
+// específico de cada página (apontamento.js, dashboard.js, historico.js,
 // maquinas.js, usuarios.js).
 
 const API_BASE_URL =
