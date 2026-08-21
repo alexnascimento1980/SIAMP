@@ -23,7 +23,7 @@ let maquinaAtiva = null; // guarda o numero_maquina (string) selecionado
 let pecasDisponiveis = [];
 // Ordens de Produção cadastradas (GET /ordens-producao/): { id, numero_op, produto_descricao, ... }
 let ordensProducaoDisponiveis = [];
-// Estado centralizado dos apontamentos: dados[numero_maquina][hora] = { prod, pecasBoas, refugo, inicio, retomada, motivo, produtoId, paradaProgramada }
+// Estado centralizado dos apontamentos: dados[numero_maquina][hora] = { prod, inicio, retomada, motivo, produtoId, ordemProducaoId, paradaProgramada, cicloInformado, contadorParada, contadorRetomada }
 let registrosState = {};
 
 // Preenchido quando a tela está em modo de correção de um turno já
@@ -121,6 +121,7 @@ async function carregarTurnoParaEdicao(turnoId) {
     }
 
     document.getElementById("nomeLider").value = turno.responsavel_nome || "";
+    document.getElementById("nomeRegulador").value = turno.regulador_nome || "";
     document.getElementById("observacoesTurno").value = turno.observacoes || "";
 
     turno.registros.forEach((reg) => {
@@ -129,14 +130,15 @@ async function carregarTurnoParaEdicao(turnoId) {
       }
       registrosState[reg.numero_maquina][reg.hora_referencia] = {
         prod: reg.prod_executada ?? "",
-        pecasBoas: reg.pecas_boas ?? "",
-        refugo: reg.refugo ?? "",
         inicio: reg.inicio_parada ? reg.inicio_parada.slice(0, 5) : "",
         retomada: reg.retomada ? reg.retomada.slice(0, 5) : "",
         motivo: reg.motivo_parada || "",
         produtoId: reg.produto_id ?? "",
         ordemProducaoId: reg.ordem_producao_id ?? "",
         paradaProgramada: !!reg.parada_programada,
+        cicloInformado: reg.ciclo_informado ?? "",
+        contadorParada: reg.contador_parada ?? "",
+        contadorRetomada: reg.contador_retomada ?? "",
       };
     });
   } catch (erro) {
@@ -255,8 +257,12 @@ function selecionarMaquina(numeroMaquina) {
   if (info) {
     document.getElementById("tituloMaquina").innerText =
       info.descricao || `Injetora ${info.numero_maquina}`;
-    document.getElementById("badgeDetalheMaquina").innerText =
-      `Cavidades: ${info.cavidades} | Ciclo: ${info.ciclo_padrao}s`;
+    const badge = document.getElementById("badgeDetalheMaquina");
+    if (info.cavidades && info.ciclo_padrao) {
+      badge.innerText = `Cavidades: ${info.cavidades} | Ciclo: ${info.ciclo_padrao}s (padrão da máquina)`;
+    } else {
+      badge.innerText = "Sem cavidades/ciclo padrão cadastrados - defina pela peça";
+    }
   }
 
   renderizarTabela();
@@ -287,21 +293,22 @@ function renderizarTabela() {
   horas.forEach((hora) => {
     const salvo = (registrosState[maquinaAtiva] || {})[hora] || {
       prod: "",
-      pecasBoas: "",
-      refugo: "",
       inicio: "",
       retomada: "",
       motivo: "",
       produtoId: "",
       ordemProducaoId: "",
       paradaProgramada: false,
+      cicloInformado: "",
+      contadorParada: "",
+      contadorRetomada: "",
     };
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td class="fw-bold fs-5 text-secondary">${hora}</td>
       <td>
-        <select class="form-select select-peca" onchange="salvarValor('${hora}', 'produtoId', this.value)">
+        <select class="form-select select-peca" onchange="onPecaSelecionada('${hora}', this.value)">
           <option value="" ${salvo.produtoId ? "" : "selected"}>— Selecionar —</option>
           ${opcoesPecas}
         </select>
@@ -317,20 +324,20 @@ function renderizarTabela() {
           value="${salvo.prod}" onchange="salvarValor('${hora}', 'prod', this.value)">
       </td>
       <td>
-        <input type="number" min="0" class="form-control" placeholder="opcional" 
-          value="${salvo.pecasBoas}" onchange="salvarValor('${hora}', 'pecasBoas', this.value)">
+        <input type="number" min="0.1" step="0.1" class="form-control" placeholder="ciclo (s)"
+          value="${salvo.cicloInformado}" onchange="salvarValor('${hora}', 'cicloInformado', this.value)">
       </td>
       <td>
-        <input type="number" min="0" class="form-control" placeholder="opcional" 
-          value="${salvo.refugo}" onchange="salvarValor('${hora}', 'refugo', this.value)">
-      </td>
-      <td>
-        <input type="time" class="form-control" 
+        <input type="time" class="form-control mb-1" 
           value="${salvo.inicio}" onchange="salvarValor('${hora}', 'inicio', this.value)">
+        <input type="number" min="0" class="form-control form-control-sm" placeholder="contador"
+          value="${salvo.contadorParada}" onchange="salvarValor('${hora}', 'contadorParada', this.value)">
       </td>
       <td>
-        <input type="time" class="form-control" 
+        <input type="time" class="form-control mb-1" 
           value="${salvo.retomada}" onchange="salvarValor('${hora}', 'retomada', this.value)">
+        <input type="number" min="0" class="form-control form-control-sm" placeholder="contador"
+          value="${salvo.contadorRetomada}" onchange="salvarValor('${hora}', 'contadorRetomada', this.value)">
       </td>
       <td>
         <input type="checkbox" class="form-check-input" title="Parada programada (não penaliza o OEE)"
@@ -356,6 +363,24 @@ function renderizarTabela() {
   });
 }
 
+// Ao trocar a peça selecionada, pré-preenche o campo de ciclo com o
+// ciclo médio cadastrado na peça (só quando o campo ainda estiver
+// vazio, para não sobrescrever um valor que o operador já corrigiu
+// manualmente) - deixa visível qual ciclo está sendo assumido, e
+// ainda editável caso o molde esteja regulado diferente.
+function onPecaSelecionada(hora, produtoId) {
+  salvarValor(hora, "produtoId", produtoId);
+
+  const registro = registrosState[maquinaAtiva][hora];
+  if (!registro.cicloInformado && produtoId) {
+    const peca = pecasDisponiveis.find((p) => String(p.id) === String(produtoId));
+    if (peca && peca.ciclo_padrao) {
+      registro.cicloInformado = peca.ciclo_padrao;
+      renderizarTabela();
+    }
+  }
+}
+
 function salvarValor(hora, campo, valor) {
   if (!registrosState[maquinaAtiva]) {
     registrosState[maquinaAtiva] = {};
@@ -363,14 +388,15 @@ function salvarValor(hora, campo, valor) {
   if (!registrosState[maquinaAtiva][hora]) {
     registrosState[maquinaAtiva][hora] = {
       prod: "",
-      pecasBoas: "",
-      refugo: "",
       inicio: "",
       retomada: "",
       motivo: "",
       produtoId: "",
       ordemProducaoId: "",
       paradaProgramada: false,
+      cicloInformado: "",
+      contadorParada: "",
+      contadorRetomada: "",
     };
   }
 
@@ -393,10 +419,12 @@ function escaparHtml(texto) {
 
 function montarPayloadFechamento() {
   const lider = document.getElementById("nomeLider").value.trim();
+  const regulador = document.getElementById("nomeRegulador").value.trim();
   const turnoSelect = document.getElementById("selectTurno");
   const payload = {
     nome_turno: turnoSelect.options[turnoSelect.selectedIndex].text,
     responsavel_nome: lider,
+    regulador_nome: regulador || null,
     observacoes: document.getElementById("observacoesTurno").value,
     registros: [],
   };
@@ -413,12 +441,13 @@ function montarPayloadFechamento() {
           prod_executada: parseInt(dados.prod || 0),
           produto_id: dados.produtoId ? parseInt(dados.produtoId) : null,
           ordem_producao_id: dados.ordemProducaoId ? parseInt(dados.ordemProducaoId) : null,
-          pecas_boas: dados.pecasBoas !== "" ? parseInt(dados.pecasBoas) : null,
-          refugo: dados.refugo !== "" ? parseInt(dados.refugo) : null,
+          ciclo_informado: dados.cicloInformado !== "" ? parseFloat(dados.cicloInformado) : null,
           inicio_parada: dados.inicio || null,
           retomada: dados.retomada || null,
           motivo_parada: dados.motivo || null,
           parada_programada: !!dados.paradaProgramada,
+          contador_parada: dados.contadorParada !== "" ? parseInt(dados.contadorParada) : null,
+          contador_retomada: dados.contadorRetomada !== "" ? parseInt(dados.contadorRetomada) : null,
         });
       }
     }
