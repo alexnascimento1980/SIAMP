@@ -1,6 +1,6 @@
 from datetime import time
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Time
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Time
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -39,9 +39,22 @@ class RegistroHorario(Base):
     pecas_boas: Mapped[int | None] = mapped_column(Integer, nullable=True)
     refugo: Mapped[int | None] = mapped_column(Integer, nullable=True)
     meta_producao: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Ciclo (segundos) informado manualmente pelo operador para esta
+    # hora/máquina - tem prioridade sobre o ciclo da peça/máquina no
+    # cálculo de capacidade esperada (ver
+    # app/services/analytics.py:calcular_capacidade_esperada_registro).
+    # Útil quando o ciclo padrão cadastrado não reflete a regulagem
+    # real do molde naquele momento, ou quando não há peça/ciclo
+    # cadastrado ainda.
+    ciclo_informado: Mapped[float | None] = mapped_column(Float, nullable=True)
     inicio_parada: Mapped[time | None] = mapped_column(Time, nullable=True)
     retomada: Mapped[time | None] = mapped_column(Time, nullable=True)
     motivo_parada: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    # Leitura do contador de peças da máquina no início e na retomada
+    # da parada, só para conferência/auditoria - não entra no cálculo
+    # de OEE.
+    contador_parada: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    contador_retomada: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Parada programada (troca de molde, manutenção preventiva, refeição
     # etc.): o tempo parado não deve contar contra a capacidade esperada
     # no cálculo do OEE (ver app/services/analytics.py). Paradas não

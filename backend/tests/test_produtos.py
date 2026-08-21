@@ -54,7 +54,7 @@ def test_admin_cria_edita_e_desativa_peca(client, db_session):
     # Código duplicado -> 409
     res_dup = client.post(
         "/api/v1/produtos/",
-        json={"codigo": "T1", "descricao": "Outra descrição", "ciclo_padrao": 5.0},
+        json={"codigo": "T1", "descricao": "Outra descrição", "ciclo_padrao": 5.0, "cavidades": 1},
     )
     assert res_dup.status_code == 409
 
@@ -90,3 +90,23 @@ def test_editar_peca_inexistente_retorna_404(client, db_session):
 
     res = client.patch("/api/v1/produtos/99999", json={"descricao": "Inexistente"})
     assert res.status_code == 404
+
+
+def test_criar_peca_sem_ciclo_padrao_e_rejeitado(client, db_session):
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+    res = client.post(
+        "/api/v1/produtos/",
+        json={"codigo": "SEM-CICLO", "descricao": "Peça sem ciclo", "cavidades": 2},
+    )
+    assert res.status_code == 422
+
+
+def test_criar_peca_sem_cavidades_e_rejeitado(client, db_session):
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+    res = client.post(
+        "/api/v1/produtos/",
+        json={"codigo": "SEM-CAV", "descricao": "Peça sem cavidades", "ciclo_padrao": 10.0},
+    )
+    assert res.status_code == 422

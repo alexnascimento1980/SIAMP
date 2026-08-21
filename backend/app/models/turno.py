@@ -18,6 +18,10 @@ class Turno(Base):
         index=True,
     )
     responsavel_nome: Mapped[str] = mapped_column(String(120), nullable=False)
+    # Regulador do turno (papel de quem regula/ajusta o molde nas
+    # injetoras), além do líder. Opcional para não quebrar turnos
+    # antigos, que não tinham esse campo.
+    regulador_nome: Mapped[str | None] = mapped_column(String(120), nullable=True)
     observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
     status_assinatura: Mapped[str] = mapped_column(
         String(30),

@@ -135,10 +135,13 @@ def _criar_registros(db: Session, turno: Turno, dados: FechamentoTurnoCreate) ->
             pecas_boas=reg.pecas_boas,
             refugo=reg.refugo,
             meta_producao=reg.meta_producao,
+            ciclo_informado=reg.ciclo_informado,
             inicio_parada=reg.inicio_parada,
             retomada=reg.retomada,
             motivo_parada=reg.motivo_parada,
             parada_programada=reg.parada_programada,
+            contador_parada=reg.contador_parada,
+            contador_retomada=reg.contador_retomada,
         )
         db.add(registro_db)
 
@@ -209,6 +212,7 @@ def fechar_turno(
     novo_turno = Turno(
         nome_turno=dados.nome_turno,
         responsavel_nome=dados.responsavel_nome,
+        regulador_nome=dados.regulador_nome,
         observacoes=dados.observacoes,
         status_assinatura=STATUS_ASSINADO,
     )
@@ -255,6 +259,7 @@ def editar_turno(
 
     turno.nome_turno = dados.nome_turno
     turno.responsavel_nome = dados.responsavel_nome
+    turno.regulador_nome = dados.regulador_nome
     turno.observacoes = dados.observacoes
     turno.editado_por_id = usuario_id
     turno.editado_em = datetime.utcnow()

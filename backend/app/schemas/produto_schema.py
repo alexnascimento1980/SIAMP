@@ -11,7 +11,13 @@ class ProdutoBase(BaseModel):
 
 
 class ProdutoCreate(ProdutoBase):
-    pass
+    # Obrigatórios apenas para peças novas - a fonte de verdade de
+    # ciclo/cavidades passou a ser a Peça, não mais a Máquina (ver
+    # maquina_schema.py). Peças já cadastradas sem esses valores
+    # continuam existindo normalmente (ProdutoResponse permanece
+    # aceitando None, para não quebrar dados antigos).
+    ciclo_padrao: float = Field(..., gt=0)
+    cavidades: int = Field(..., gt=0)
 
 
 class ProdutoUpdate(BaseModel):

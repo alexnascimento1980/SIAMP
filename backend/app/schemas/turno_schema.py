@@ -29,9 +29,18 @@ class RegistroHorarioCreate(BaseModel):
     pecas_boas: Optional[int] = Field(default=None, ge=0)
     refugo: Optional[int] = Field(default=None, ge=0)
     meta_producao: Optional[int] = Field(default=None, ge=0)
+    # Ciclo (segundos) informado manualmente pelo operador para esta
+    # hora/máquina - prevalece sobre o ciclo da peça/máquina no cálculo
+    # de capacidade esperada. Útil quando o ciclo padrão não reflete a
+    # regulagem real do molde, ou quando ainda não há ciclo cadastrado.
+    ciclo_informado: Optional[float] = Field(default=None, gt=0)
     inicio_parada: Optional[time] = None
     retomada: Optional[time] = None
     motivo_parada: Optional[str] = Field(default=None, max_length=150)
+    # Leitura do contador de peças da máquina no início/retomada da
+    # parada, para conferência - não entra no cálculo de OEE.
+    contador_parada: Optional[int] = Field(default=None, ge=0)
+    contador_retomada: Optional[int] = Field(default=None, ge=0)
     # Parada programada (troca de molde, manutenção preventiva, refeição
     # etc.): o tempo parado não entra na capacidade esperada do cálculo
     # de OEE (ver app/services/analytics.py). Só faz sentido quando
@@ -83,6 +92,7 @@ class RegistroHorarioCreate(BaseModel):
 class FechamentoTurnoCreate(BaseModel):
     nome_turno: str = Field(..., min_length=2, max_length=50)
     responsavel_nome: str = Field(..., min_length=2, max_length=120)
+    regulador_nome: Optional[str] = Field(default=None, max_length=120)
     observacoes: Optional[str] = Field(default=None, max_length=2000)
     registros: List[RegistroHorarioCreate] = Field(..., min_length=1)
 
@@ -118,16 +128,20 @@ class RegistroHorarioDetail(BaseModel):
     produto_descricao: Optional[str] = None
     ordem_producao_id: Optional[int] = None
     numero_op: Optional[str] = None
+    ciclo_informado: Optional[float] = None
     inicio_parada: Optional[time] = None
     retomada: Optional[time] = None
     motivo_parada: Optional[str] = None
     parada_programada: bool = False
+    contador_parada: Optional[int] = None
+    contador_retomada: Optional[int] = None
 
 
 class TurnoDetail(BaseModel):
     id: int
     nome_turno: str
     responsavel_nome: str
+    regulador_nome: Optional[str] = None
     observacoes: Optional[str] = None
     data_registro: datetime
     status_assinatura: str
