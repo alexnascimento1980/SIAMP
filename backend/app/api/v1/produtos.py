@@ -61,7 +61,24 @@ def atualizar_produto(
             detail="Peça não encontrada.",
         )
 
-    for campo, valor in dados.model_dump(exclude_unset=True).items():
+    dados_dict = dados.model_dump(exclude_unset=True)
+
+    # Código é a chave natural da peça - permite alterar (ex.: corrigir
+    # erro de digitação no cadastro original), mas confere que o novo
+    # valor não colide com outra peça já existente.
+    if "codigo" in dados_dict and dados_dict["codigo"] != produto.codigo:
+        colisao = (
+            db.query(Produto)
+            .filter(Produto.codigo == dados_dict["codigo"], Produto.id != produto_id)
+            .first()
+        )
+        if colisao:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Já existe outra peça cadastrada com este código.",
+            )
+
+    for campo, valor in dados_dict.items():
         setattr(produto, campo, valor)
 
     db.commit()

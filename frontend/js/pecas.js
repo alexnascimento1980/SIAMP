@@ -155,6 +155,7 @@ async function onSalvarEdicao(evento) {
 
   const pecaId = document.getElementById("editId").value;
   const payload = {
+    codigo: document.getElementById("editCodigo").value.trim(),
     descricao: document.getElementById("editDescricao").value.trim(),
     ciclo_padrao: valorOpcionalNumerico("editCiclo"),
     cavidades: valorOpcionalNumerico("editCavidades"),

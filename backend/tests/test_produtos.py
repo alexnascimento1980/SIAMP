@@ -110,3 +110,34 @@ def test_criar_peca_sem_cavidades_e_rejeitado(client, db_session):
         json={"codigo": "SEM-CAV", "descricao": "Peça sem cavidades", "ciclo_padrao": 10.0},
     )
     assert res.status_code == 422
+
+
+def test_editar_codigo_da_peca_com_sucesso(client, db_session):
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+    produto = client.post(
+        "/api/v1/produtos/",
+        json={"codigo": "COD-ANTIGO", "descricao": "Peça", "ciclo_padrao": 10.0, "cavidades": 2},
+    ).json()
+
+    res = client.patch(
+        f"/api/v1/produtos/{produto['id']}", json={"codigo": "COD-NOVO"}
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["codigo"] == "COD-NOVO"
+
+
+def test_editar_codigo_para_um_ja_existente_e_rejeitado(client, db_session):
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+    client.post(
+        "/api/v1/produtos/",
+        json={"codigo": "COD-A", "descricao": "Peça A", "ciclo_padrao": 10.0, "cavidades": 2},
+    )
+    produto_b = client.post(
+        "/api/v1/produtos/",
+        json={"codigo": "COD-B", "descricao": "Peça B", "ciclo_padrao": 8.0, "cavidades": 4},
+    ).json()
+
+    res = client.patch(f"/api/v1/produtos/{produto_b['id']}", json={"codigo": "COD-A"})
+    assert res.status_code == 409
