@@ -29,6 +29,9 @@ let registrosState = {};
 // Preenchido quando a tela está em modo de correção de um turno já
 // fechado (via apontamento.html?editar=<id>). null = modo normal (novo turno).
 let turnoEditandoId = null;
+// Rascunho: turno salvo em EM_ANDAMENTO, ainda sendo preenchido. Não
+// dispara PDF/e-mail - só o fechamento definitivo faz isso.
+let rascunhoTurnoId = null;
 
 // Inicialização
 document.addEventListener("DOMContentLoaded", async () => {
@@ -48,6 +51,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const params = new URLSearchParams(window.location.search);
   const idParaEditar = params.get("editar");
+  const idParaRascunho = params.get("rascunho");
 
   if (idParaEditar) {
     if (perfil !== "ADMIN" && perfil !== "SUPERVISOR") {
@@ -59,6 +63,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     turnoEditandoId = idParaEditar;
     ativarModoEdicao();
+  } else if (idParaRascunho) {
+    rascunhoTurnoId = idParaRascunho;
   }
 
   document.getElementById("dataTurno").valueAsDate = new Date();
@@ -75,6 +81,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   if (turnoEditandoId) {
     await carregarTurnoParaEdicao(turnoEditandoId);
+  } else if (rascunhoTurnoId) {
+    await carregarTurnoParaEdicao(rascunhoTurnoId);
   }
 
   renderizarTabela();
@@ -507,8 +515,10 @@ function montarPayloadFechamento() {
   return { lider, payload };
 }
 
-// Envio para o Backend FastAPI (cria um turno novo, ou corrige um
-// existente quando turnoEditandoId estiver definido).
+// Envio para o Backend FastAPI: cria/atualiza um rascunho, fecha um
+// turno novo, fecha um rascunho existente, ou corrige um turno já
+// fechado (turnoEditandoId) - qual caminho depende de qual id estiver
+// definido no momento.
 async function confirmarFechamento() {
   const { lider, payload } = montarPayloadFechamento();
   if (!lider) {
@@ -516,11 +526,23 @@ async function confirmarFechamento() {
     return;
   }
 
-  const editando = !!turnoEditandoId;
-  const caminho = editando
-    ? `/turnos/${turnoEditandoId}`
-    : `/turnos/fechamento`;
-  const metodo = editando ? "PATCH" : "POST";
+  let caminho;
+  let metodo;
+  let tipo; // "correcao" | "fechar_rascunho" | "fechar_direto"
+
+  if (turnoEditandoId) {
+    caminho = `/turnos/${turnoEditandoId}`;
+    metodo = "PATCH";
+    tipo = "correcao";
+  } else if (rascunhoTurnoId) {
+    caminho = `/turnos/${rascunhoTurnoId}/fechar`;
+    metodo = "POST";
+    tipo = "fechar_rascunho";
+  } else {
+    caminho = `/turnos/fechamento`;
+    metodo = "POST";
+    tipo = "fechar_direto";
+  }
 
   try {
     const res = await chamarApi(caminho, {
@@ -534,7 +556,7 @@ async function confirmarFechamento() {
     }
 
     if (res.ok) {
-      if (editando) {
+      if (tipo === "correcao") {
         alert("✅ Turno corrigido com sucesso!");
         window.location.href = "historico.html";
       } else {
@@ -557,5 +579,61 @@ async function confirmarFechamento() {
     if (error.message === "Sessão expirada.") return;
     console.error("Erro na requisição:", error);
     alert("❌ Não foi possível conectar à API.");
+  }
+}
+
+// Salva o progresso do turno em andamento, sem disparar PDF/e-mail -
+// pode ser chamado várias vezes ao longo do turno. Na primeira vez,
+// cria o rascunho (POST); nas seguintes, atualiza o mesmo (PATCH).
+async function salvarRascunho() {
+  const { lider, payload } = montarPayloadFechamento();
+  if (!lider) {
+    alert("Por favor, preencha o nome do líder antes de salvar o rascunho.");
+    return;
+  }
+  if (turnoEditandoId) {
+    alert("Este turno já está fechado - use 'Salvar Correção' em vez de rascunho.");
+    return;
+  }
+
+  const btn = document.getElementById("btnSalvarRascunho");
+  const textoOriginal = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span>`;
+
+  const caminho = rascunhoTurnoId ? `/turnos/rascunho/${rascunhoTurnoId}` : `/turnos/rascunho`;
+  const metodo = rascunhoTurnoId ? "PATCH" : "POST";
+
+  try {
+    const res = await chamarApi(caminho, {
+      method: metodo,
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const erro = await res.json().catch(() => null);
+      alert("⚠️ " + (erro?.detail || "Não foi possível salvar o rascunho."));
+      return;
+    }
+
+    const resultado = await res.json();
+    rascunhoTurnoId = String(resultado.turno_id);
+
+    // Atualiza a URL sem recarregar a página, para que um refresh
+    // acidental (ou fechar e reabrir a aba) continue de onde parou.
+    const novaUrl = `${window.location.pathname}?rascunho=${rascunhoTurnoId}`;
+    window.history.replaceState({}, "", novaUrl);
+
+    const indicador = document.getElementById("indicadorRascunho");
+    const agora = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    indicador.innerText = `Rascunho salvo às ${agora}`;
+    indicador.classList.remove("d-none");
+  } catch (error) {
+    if (error.message === "Sessão expirada.") return;
+    console.error("Erro ao salvar rascunho:", error);
+    alert("❌ Não foi possível salvar o rascunho.");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = textoOriginal;
   }
 }

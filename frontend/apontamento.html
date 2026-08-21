@@ -219,13 +219,30 @@
             placeholder="Ocorrências relevantes, manutenções, ajustes de processo..."
           ></textarea>
         </div>
-        <div class="card-footer bg-white text-end p-3">
-          <button
-            class="btn btn-success btn-lg px-4 shadow"
-            onclick="confirmarFechamento()"
-          >
-            <i class="bi bi-check-circle me-2"></i>Assinar e Finalizar Turno
-          </button>
+        <div class="card-footer bg-white p-3">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+              <span id="indicadorRascunho" class="text-secondary small d-none">
+                <i class="bi bi-check2 me-1"></i>
+              </span>
+            </div>
+            <div class="d-flex gap-2">
+              <button
+                id="btnSalvarRascunho"
+                class="btn btn-outline-secondary btn-lg px-4"
+                onclick="salvarRascunho()"
+                title="Salva o progresso sem gerar PDF nem enviar e-mail - pode continuar preenchendo depois."
+              >
+                <i class="bi bi-save me-2"></i>Salvar Rascunho
+              </button>
+              <button
+                class="btn btn-success btn-lg px-4 shadow"
+                onclick="confirmarFechamento()"
+              >
+                <i class="bi bi-check-circle me-2"></i>Assinar e Finalizar Turno
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

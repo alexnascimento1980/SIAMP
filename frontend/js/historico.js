@@ -43,6 +43,7 @@ function renderizarTurnos(turnos) {
       hour: "2-digit",
       minute: "2-digit",
     });
+    const emAndamento = t.status_assinatura === "EM_ANDAMENTO";
     const badgeEficiencia =
       t.eficiencia_oee < 75
         ? `<span class="badge bg-danger">${t.eficiencia_oee}%</span>`
@@ -51,19 +52,28 @@ function renderizarTurnos(turnos) {
       t.indice_qualidade < 95
         ? `<span class="badge bg-warning text-dark">${t.indice_qualidade}%</span>`
         : `<span class="badge bg-success">${t.indice_qualidade}%</span>`;
+    const badgeStatus = emAndamento
+      ? `<span class="badge bg-warning text-dark">Em andamento</span>`
+      : `<span class="badge bg-success">Fechado</span>`;
     const marcaEditado = t.editado
       ? ' <i class="bi bi-pencil-fill text-secondary" title="Turno corrigido"></i>'
       : "";
-    const botaoEditar = podeEditar
-      ? `<a href="apontamento.html?editar=${t.id}" class="btn btn-sm btn-outline-secondary" title="Corrigir este turno">
+
+    // Turno em andamento: continuar preenchendo (liberado para
+    // qualquer usuário - é o rascunho da própria pessoa). Turno já
+    // fechado: corrigir é restrito a ADMIN/SUPERVISOR.
+    const botaoEditar = emAndamento
+      ? `<a href="apontamento.html?rascunho=${t.id}" class="btn btn-sm btn-outline-warning" title="Continuar preenchendo este turno">
            <i class="bi bi-pencil-square"></i>
          </a>`
-      : "";
-    // Reenvio de e-mail é uma ação administrativa explícita (não
-    // acontece sozinho a cada correção, para não gerar e-mails
-    // repetidos por ajustes pequenos) - por isso restrito a
-    // ADMIN/SUPERVISOR, igual à correção do turno.
-    const botaoReenviarEmail = podeEditar
+      : podeEditar
+        ? `<a href="apontamento.html?editar=${t.id}" class="btn btn-sm btn-outline-secondary" title="Corrigir este turno">
+             <i class="bi bi-pencil-square"></i>
+           </a>`
+        : "";
+    // Reenvio de e-mail só faz sentido para turno já fechado (é o
+    // único caso em que um e-mail original já foi enviado).
+    const botaoReenviarEmail = !emAndamento && podeEditar
       ? `<button class="btn btn-sm btn-outline-secondary" title="Reenviar relatório por e-mail" onclick="reenviarEmail(${t.id}, this)">
            <i class="bi bi-envelope-arrow-up"></i>
          </button>`
@@ -76,7 +86,7 @@ function renderizarTurnos(turnos) {
       <td class="text-center">${t.total_produzido} pçs</td>
       <td class="text-center">${badgeQualidade}</td>
       <td class="text-center">${badgeEficiencia}</td>
-      <td class="text-center"><span class="badge bg-primary">${escaparHtml(t.status_assinatura)}</span></td>
+      <td class="text-center">${badgeStatus}</td>
       <td class="text-center">
         <div class="d-flex gap-1 justify-content-center">
           <button class="btn btn-sm btn-outline-primary" onclick="baixarRelatorio(${t.id}, this)">
@@ -132,6 +142,40 @@ function extrairNomeArquivo(res) {
   if (!cabecalho) return null;
   const match = cabecalho.match(/filename="?([^"]+)"?/);
   return match ? match[1] : null;
+}
+
+async function exportarCsv() {
+  const btn = document.getElementById("btnExportarCsv");
+  const textoOriginal = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span>`;
+
+  const dataInicio = document.getElementById("exportDataInicio").value;
+  const dataFim = document.getElementById("exportDataFim").value;
+  const params = new URLSearchParams();
+  if (dataInicio) params.set("data_inicio", dataInicio);
+  if (dataFim) params.set("data_fim", dataFim);
+  const query = params.toString() ? `?${params.toString()}` : "";
+
+  try {
+    const res = await chamarApi(`/turnos/exportar/csv${query}`);
+    if (!res.ok) throw new Error("Não foi possível gerar a exportação.");
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = extrairNomeArquivo(res) || "apontamentos_siamp.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (erro) {
+    mostrarMensagem(erro.message, "danger");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = textoOriginal;
+  }
 }
 
 async function reenviarEmail(turnoId, botao) {
