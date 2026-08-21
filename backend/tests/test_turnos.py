@@ -425,3 +425,231 @@ def test_fechamento_com_ordem_producao_inexistente_e_rejeitado(client, db_sessio
     res = client.post("/api/v1/turnos/fechamento", json=payload)
     assert res.status_code == 400
     assert "ordem" in res.json()["detail"].lower()
+
+
+def test_salvar_rascunho_cria_turno_em_andamento_sem_enviar_email(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, _peca = _criar_maquina_e_peca(db_session)
+
+    payload = {
+        "nome_turno": "1º Turno (05:00 - 13:00)",
+        "responsavel_nome": "Líder Teste",
+        "registros": [
+            {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 100},
+        ],
+    }
+    res = client.post("/api/v1/turnos/rascunho", json=payload)
+    assert res.status_code == 201, res.text
+    assert res.json()["status_assinatura"] == "EM_ANDAMENTO"
+    turno_id = res.json()["turno_id"]
+
+    detalhe = client.get(f"/api/v1/turnos/{turno_id}").json()
+    assert detalhe["status_assinatura"] == "EM_ANDAMENTO"
+    assert len(detalhe["registros"]) == 1
+
+
+def test_salvar_rascunho_sem_nenhum_registro_e_permitido(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    payload = {"nome_turno": "1º Turno", "responsavel_nome": "Líder Teste", "registros": []}
+    res = client.post("/api/v1/turnos/rascunho", json=payload)
+    assert res.status_code == 201, res.text
+
+
+def test_atualizar_rascunho_substitui_registros(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, _peca = _criar_maquina_e_peca(db_session)
+
+    turno_id = client.post(
+        "/api/v1/turnos/rascunho",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "registros": [{"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 50}],
+        },
+    ).json()["turno_id"]
+
+    res = client.patch(
+        f"/api/v1/turnos/rascunho/{turno_id}",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "registros": [
+                {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 50},
+                {"numero_maquina": maquina.numero_maquina, "hora_referencia": "06:00", "prod_executada": 60},
+            ],
+        },
+    )
+    assert res.status_code == 200, res.text
+
+    detalhe = client.get(f"/api/v1/turnos/{turno_id}").json()
+    assert len(detalhe["registros"]) == 2
+
+
+def test_fechar_rascunho_dispara_email_e_muda_status(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, _peca = _criar_maquina_e_peca(db_session)
+
+    turno_id = client.post(
+        "/api/v1/turnos/rascunho",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "registros": [{"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 50}],
+        },
+    ).json()["turno_id"]
+
+    res = client.post(
+        f"/api/v1/turnos/{turno_id}/fechar",
+        json={
+            "nome_turno": "1º Turno (05:00 - 13:00)",
+            "responsavel_nome": "Líder Teste",
+            "registros": [{"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 50}],
+        },
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["status_assinatura"] == "ASSINADO_DIGITALMENTE"
+    assert "relatorio_email_agendado" in res.json()
+
+    detalhe = client.get(f"/api/v1/turnos/{turno_id}").json()
+    assert detalhe["status_assinatura"] == "ASSINADO_DIGITALMENTE"
+
+
+def test_fechar_rascunho_ja_fechado_e_rejeitado(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, _peca = _criar_maquina_e_peca(db_session)
+
+    payload = {
+        "nome_turno": "1º Turno",
+        "responsavel_nome": "Líder Teste",
+        "registros": [{"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 50}],
+    }
+    turno_id = client.post("/api/v1/turnos/fechamento", json=payload).json()["turno_id"]
+
+    res = client.post(f"/api/v1/turnos/{turno_id}/fechar", json=payload)
+    assert res.status_code == 400
+    assert "já está fechado" in res.json()["detail"]
+
+
+def test_atualizar_rascunho_de_turno_ja_fechado_e_rejeitado(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, _peca = _criar_maquina_e_peca(db_session)
+
+    payload = {
+        "nome_turno": "1º Turno",
+        "responsavel_nome": "Líder Teste",
+        "registros": [{"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 50}],
+    }
+    turno_id = client.post("/api/v1/turnos/fechamento", json=payload).json()["turno_id"]
+
+    res = client.patch(f"/api/v1/turnos/rascunho/{turno_id}", json=payload)
+    assert res.status_code == 409
+
+
+def test_rascunho_em_andamento_nao_aparece_nas_metricas_do_dashboard(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, _peca = _criar_maquina_e_peca(db_session)
+
+    # Rascunho em andamento: não deve contar.
+    client.post(
+        "/api/v1/turnos/rascunho",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "registros": [{"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 999}],
+        },
+    )
+    # Turno fechado de verdade: deve contar.
+    client.post(
+        "/api/v1/turnos/fechamento",
+        json={
+            "nome_turno": "2º Turno",
+            "responsavel_nome": "Líder Teste",
+            "registros": [{"numero_maquina": maquina.numero_maquina, "hora_referencia": "13:00", "prod_executada": 30}],
+        },
+    )
+
+    res = client.get("/api/v1/dashboard/metricas-gerais")
+    assert res.status_code == 200
+    dados = res.json()
+    assert dados["kpis"]["total_turnos_encerrados"] == 1
+    assert dados["kpis"]["total_pecas_produzidas"] == 30
+
+
+def test_exportar_csv_contem_registros_de_turnos_fechados(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)
+
+    client.post(
+        "/api/v1/turnos/fechamento",
+        json={
+            "nome_turno": "1º Turno (05:00 - 13:00)",
+            "responsavel_nome": "Líder Teste",
+            "regulador_nome": "Regulador Teste",
+            "registros": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "hora_referencia": "05:00",
+                    "prod_executada": 100,
+                    "produto_id": peca.id,
+                }
+            ],
+        },
+    )
+
+    res = client.get("/api/v1/turnos/exportar/csv")
+    assert res.status_code == 200
+    assert res.headers["content-type"].startswith("text/csv")
+
+    conteudo = res.content.decode("utf-8-sig")
+    linhas = conteudo.strip().split("\n")
+    assert linhas[0].startswith("data_turno;nome_turno;lider;regulador")
+    assert "Líder Teste" in linhas[1]
+    assert "Regulador Teste" in linhas[1]
+    assert "100" in linhas[1]
+
+
+def test_exportar_csv_nao_inclui_rascunho_em_andamento(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, _peca = _criar_maquina_e_peca(db_session)
+
+    client.post(
+        "/api/v1/turnos/rascunho",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "registros": [
+                {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 777}
+            ],
+        },
+    )
+
+    res = client.get("/api/v1/turnos/exportar/csv")
+    assert res.status_code == 200
+    conteudo = res.content.decode("utf-8-sig")
+    assert "777" not in conteudo
+
+
+def test_exportar_csv_filtra_por_periodo(client, db_session, usuario_teste):
+    from datetime import date
+
+    _login(client, usuario_teste)
+    maquina, _peca = _criar_maquina_e_peca(db_session)
+
+    client.post(
+        "/api/v1/turnos/fechamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "registros": [
+                {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 42}
+            ],
+        },
+    )
+
+    ontem = (date.today().replace(day=1))
+    res = client.get(
+        f"/api/v1/turnos/exportar/csv?data_inicio=2000-01-01&data_fim={ontem.isoformat()}"
+    )
+    conteudo = res.content.decode("utf-8-sig")
+    # Período no passado, antes do turno criado agora -> não deve aparecer
+    assert "42" not in conteudo
