@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -12,6 +14,7 @@ from app.models.turno import Turno
 from app.models.usuario import Usuario
 from app.schemas.turno_schema import (
     FechamentoTurnoCreate,
+    RascunhoTurnoCreate,
     RegistroHorarioDetail,
     TurnoDetail,
     TurnoListItem,
@@ -21,9 +24,12 @@ from app.services.pdf_generator import gerar_relatorio_turno_pdf
 from app.services.turno_service import (
     buscar_registros_para_relatorio,
     editar_turno,
+    exportar_registros_csv,
     fechar_turno,
+    fechar_turno_rascunho,
     montar_nome_arquivo_relatorio,
     reenviar_email_turno,
+    salvar_rascunho,
 )
 
 
@@ -98,6 +104,62 @@ def criar_fechamento_turno(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Erro interno ao processar o fechamento do turno.",
         ) from exc
+
+
+@router.post("/rascunho", status_code=status.HTTP_201_CREATED)
+def criar_rascunho(
+    dados: RascunhoTurnoCreate,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+):
+    """Cria um novo turno em andamento (rascunho), sem disparar PDF/
+    e-mail. Pode ser salvo já no início do turno, com zero registros."""
+    resultado = salvar_rascunho(db, dados, turno_id=None)
+    return resultado
+
+
+@router.patch("/rascunho/{turno_id}")
+def atualizar_rascunho(
+    turno_id: int,
+    dados: RascunhoTurnoCreate,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+):
+    """Atualiza o progresso de um rascunho já criado. Rejeita se o
+    turno já tiver sido fechado (nesse caso, a correção precisa passar
+    pela tela de Histórico, restrita a ADMIN/SUPERVISOR)."""
+    try:
+        return salvar_rascunho(db, dados, turno_id=turno_id)
+    except ValueError as exc:
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if "não encontrado" in str(exc)
+            else status.HTTP_409_CONFLICT
+        )
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+
+
+@router.post("/{turno_id}/fechar")
+def fechar_rascunho(
+    turno_id: int,
+    dados: FechamentoTurnoCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+):
+    """Fecha definitivamente um turno que vinha sendo salvo como
+    rascunho - só agora o PDF/e-mail são disparados."""
+    try:
+        return fechar_turno_rascunho(
+            db=db, turno_id=turno_id, dados=dados, background_tasks=background_tasks
+        )
+    except ValueError as exc:
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if "não encontrado" in str(exc)
+            else status.HTTP_400_BAD_REQUEST
+        )
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
 
 
 @router.get("/{turno_id}", response_model=TurnoDetail)
@@ -255,5 +317,27 @@ def baixar_relatorio_turno(
     return StreamingResponse(
         iter([pdf_bytes]),
         media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{nome_arquivo}"'},
+    )
+
+
+@router.get("/exportar/csv")
+def exportar_csv(
+    data_inicio: date | None = None,
+    data_fim: date | None = None,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+):
+    """
+    Exporta os apontamentos horários de turnos fechados em CSV (uma
+    linha por hora/máquina), para análise em Excel, Power BI ou
+    ferramentas similares. data_inicio/data_fim (formato AAAA-MM-DD)
+    são opcionais - sem eles, exporta todo o histórico.
+    """
+    conteudo = exportar_registros_csv(db, data_inicio=data_inicio, data_fim=data_fim)
+    nome_arquivo = "apontamentos_siamp.csv"
+    return StreamingResponse(
+        iter([conteudo.encode("utf-8")]),
+        media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{nome_arquivo}"'},
     )

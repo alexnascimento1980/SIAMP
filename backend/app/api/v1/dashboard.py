@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import case, func
 from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.models.maquina import Maquina
@@ -10,6 +10,7 @@ from app.models.turno import Turno
 from app.models.usuario import Usuario
 from app.services.analytics import calcular_kpis_varios_turnos
 from app.services.ml_engine import prever_risco_operacional
+from app.services.turno_service import STATUS_ASSINADO
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
@@ -21,9 +22,12 @@ LIMITE_ORDENS_COMPARATIVO = 8
 
 def _montar_producao_por_turno(db: Session) -> dict:
     """Produção e OEE dos turnos mais recentes, em ordem cronológica
-    (mais antigo primeiro) - para o gráfico de tendência."""
+    (mais antigo primeiro) - para o gráfico de tendência. Só turnos
+    fechados (ASSINADO_DIGITALMENTE) entram aqui - rascunhos em
+    andamento não devem aparecer como se já fossem dado consolidado."""
     ultimos_turnos = (
         db.query(Turno)
+        .filter(Turno.status_assinatura == STATUS_ASSINADO)
         .order_by(Turno.data_registro.desc())
         .limit(LIMITE_TURNOS_GRAFICO)
         .all()
@@ -63,7 +67,9 @@ def _montar_comparativo_ordens_producao(db: Session) -> list[dict]:
             RegistroHorario.ordem_producao_id,
             func.coalesce(func.sum(RegistroHorario.prod_executada), 0),
         )
+        .join(Turno, RegistroHorario.turno_id == Turno.id)
         .filter(RegistroHorario.ordem_producao_id.in_([o.id for o in ordens]))
+        .filter(Turno.status_assinatura == STATUS_ASSINADO)
         .group_by(RegistroHorario.ordem_producao_id)
         .all()
     )
@@ -87,12 +93,29 @@ def obter_metricas_dashboard(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_current_user),
 ):
-    total_turnos = db.query(func.count(Turno.id)).scalar() or 0
-    total_pecas = db.query(func.sum(RegistroHorario.prod_executada)).scalar() or 0
+    # Só turnos fechados contam nas métricas gerais - um rascunho em
+    # andamento não deve inflar/distorcer os agregados até ser
+    # efetivamente encerrado.
+    total_turnos = (
+        db.query(func.count(Turno.id))
+        .filter(Turno.status_assinatura == STATUS_ASSINADO)
+        .scalar()
+        or 0
+    )
+    total_pecas = (
+        db.query(func.sum(RegistroHorario.prod_executada))
+        .join(Turno, RegistroHorario.turno_id == Turno.id)
+        .filter(Turno.status_assinatura == STATUS_ASSINADO)
+        .scalar()
+        or 0
+    )
 
     # OEE médio real, calculado a partir dos KPIs de cada turno encerrado
     # (antes era um valor fixo de 82.4%, que não refletia os dados reais).
-    ids_turnos = [t.id for t in db.query(Turno.id).all()]
+    ids_turnos = [
+        t.id
+        for t in db.query(Turno.id).filter(Turno.status_assinatura == STATUS_ASSINADO).all()
+    ]
     kpis_por_turno = calcular_kpis_varios_turnos(db, ids_turnos)
     if kpis_por_turno:
         oee_medio_estimado = round(
@@ -103,12 +126,24 @@ def obter_metricas_dashboard(
     else:
         oee_medio_estimado = 0.0
     
-    # Consulta produção agrupada por máquina (Injetoras 1 a 6)
+    # Consulta produção agrupada por máquina (Injetoras 1 a 6) - só de
+    # turnos fechados. CASE WHEN dentro do SUM (não um filtro na
+    # condição do JOIN) é necessário para preservar máquinas sem
+    # nenhuma produção fechada ainda na lista (LEFT JOIN), zerando só
+    # a soma, sem sumir a linha da máquina.
     producao_por_maquina = db.query(
         Maquina.numero_maquina,
-        func.sum(RegistroHorario.prod_executada).label("total_produzido")
-    ).join(RegistroHorario, Maquina.id == RegistroHorario.maquina_id, isouter=True)\
-     .group_by(Maquina.numero_maquina)\
+        func.sum(
+            case(
+                (Turno.status_assinatura == STATUS_ASSINADO, RegistroHorario.prod_executada),
+                else_=0,
+            )
+        ).label("total_produzido")
+    ).outerjoin(
+        RegistroHorario, Maquina.id == RegistroHorario.maquina_id
+    ).outerjoin(
+        Turno, RegistroHorario.turno_id == Turno.id
+    ).group_by(Maquina.numero_maquina)\
      .order_by(Maquina.numero_maquina).all()
 
     # Diagnóstico da IA baseado no registro mais recente com parada,

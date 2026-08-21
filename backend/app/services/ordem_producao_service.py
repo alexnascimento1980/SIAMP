@@ -7,12 +7,14 @@ from app.models.maquina import Maquina
 from app.models.ordem_producao import OrdemProducao
 from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
+from app.models.turno import Turno
 from app.schemas.ordem_producao_schema import (
     OrdemProducaoComparativo,
     OrdemProducaoCreate,
     OrdemProducaoResponse,
     OrdemProducaoUpdate,
 )
+from app.services.turno_service import STATUS_ASSINADO
 
 
 def _resolver_maquina(db: Session, numero_maquina: str | None) -> Maquina | None:
@@ -168,7 +170,9 @@ def calcular_comparativo(db: Session, ordem_id: int) -> OrdemProducaoComparativo
 
     total = (
         db.query(func.coalesce(func.sum(RegistroHorario.prod_executada), 0))
+        .join(Turno, RegistroHorario.turno_id == Turno.id)
         .filter(RegistroHorario.ordem_producao_id == ordem.id)
+        .filter(Turno.status_assinatura == STATUS_ASSINADO)
         .scalar()
     )
     quantidade_produzida = int(total or 0)

@@ -1,4 +1,6 @@
-from datetime import datetime, time
+from datetime import date, datetime, time
+import csv
+import io
 import re
 
 from fastapi import BackgroundTasks
@@ -11,13 +13,18 @@ from app.models.ordem_producao import OrdemProducao
 from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
 from app.models.turno import Turno
-from app.schemas.turno_schema import FechamentoTurnoCreate
+from app.schemas.turno_schema import FechamentoTurnoCreate, RascunhoTurnoCreate
 from app.services.analytics import calcular_capacidade_esperada_registro, calcular_kpis_turno
 from app.services.mailer import enviar_relatorio_email
 from app.services.pdf_generator import gerar_relatorio_turno_pdf
 
 
 STATUS_ASSINADO = "ASSINADO_DIGITALMENTE"
+# Turno salvo como rascunho, ainda sendo preenchido - permite salvar o
+# progresso ao longo do turno sem disparar PDF/e-mail a cada gravação;
+# só a transição para STATUS_ASSINADO (fechar_turno_rascunho) dispara
+# o envio.
+STATUS_EM_ANDAMENTO = "EM_ANDAMENTO"
 
 
 def montar_nome_arquivo_relatorio(nome_turno: str, data_registro: datetime) -> str:
@@ -67,6 +74,73 @@ def buscar_registros_para_relatorio(db: Session, turno_id: int) -> list[dict]:
         }
         for reg, maq, produto, ordem in registros
     ]
+
+
+def exportar_registros_csv(
+    db: Session,
+    data_inicio: date | None = None,
+    data_fim: date | None = None,
+) -> str:
+    """Exporta os apontamentos horários de turnos fechados, num período
+    opcional, em CSV (uma linha por hora/máquina apontada) - para
+    análise em Excel, Power BI ou ferramentas similares. Usa ';' como
+    separador (não ','), padrão esperado pelo Excel em configuração
+    regional Brasil ao abrir o arquivo direto com duplo clique.
+
+    Só turnos fechados (ASSINADO_DIGITALMENTE) entram - um rascunho
+    ainda em andamento pode mudar completamente até o fechamento, não
+    faz sentido exportar como se fosse dado definitivo.
+    """
+    query = (
+        db.query(RegistroHorario, Turno, Maquina, Produto, OrdemProducao)
+        .join(Turno, RegistroHorario.turno_id == Turno.id)
+        .join(Maquina, RegistroHorario.maquina_id == Maquina.id)
+        .outerjoin(Produto, RegistroHorario.produto_id == Produto.id)
+        .outerjoin(OrdemProducao, RegistroHorario.ordem_producao_id == OrdemProducao.id)
+        .filter(Turno.status_assinatura == STATUS_ASSINADO)
+    )
+    if data_inicio:
+        query = query.filter(Turno.data_registro >= datetime.combine(data_inicio, time.min))
+    if data_fim:
+        query = query.filter(Turno.data_registro <= datetime.combine(data_fim, time.max))
+
+    registros = query.order_by(Turno.data_registro, RegistroHorario.hora_referencia).all()
+
+    saida = io.StringIO()
+    saida.write("\ufeff")  # BOM - Excel reconhece UTF-8 com acentuação corretamente
+    escritor = csv.writer(saida, delimiter=";")
+    escritor.writerow([
+        "data_turno", "nome_turno", "lider", "regulador", "numero_maquina",
+        "hora_referencia", "produto_codigo", "produto_descricao", "numero_op",
+        "prod_executada", "producao_esperada", "ciclo_informado",
+        "inicio_parada", "retomada", "parada_programada", "contador_parada",
+        "contador_retomada", "motivo_parada",
+    ])
+
+    for reg, turno, maq, produto, ordem in registros:
+        capacidade = calcular_capacidade_esperada_registro(reg, maq, produto)
+        escritor.writerow([
+            turno.data_registro.strftime("%d/%m/%Y"),
+            turno.nome_turno,
+            turno.responsavel_nome,
+            turno.regulador_nome or "",
+            maq.numero_maquina,
+            reg.hora_referencia.strftime("%H:%M"),
+            produto.codigo if produto else "",
+            produto.descricao if produto else "",
+            ordem.numero_op if ordem else "",
+            reg.prod_executada,
+            round(capacidade["capacidade_ajustada"]),
+            reg.ciclo_informado or "",
+            reg.inicio_parada.strftime("%H:%M") if reg.inicio_parada else "",
+            reg.retomada.strftime("%H:%M") if reg.retomada else "",
+            "Sim" if reg.parada_programada else "Não",
+            reg.contador_parada if reg.contador_parada is not None else "",
+            reg.contador_retomada if reg.contador_retomada is not None else "",
+            reg.motivo_parada or "",
+        ])
+
+    return saida.getvalue()
 
 
 def _resolver_maquinas(db: Session, dados: FechamentoTurnoCreate) -> dict:
@@ -232,6 +306,104 @@ def fechar_turno(
         "status": "sucesso",
         "mensagem": "Turno encerrado com sucesso.",
         "turno_id": novo_turno.id,
+        "status_assinatura": STATUS_ASSINADO,
+        "relatorio_email_agendado": email_agendado,
+        "kpis": kpis,
+    }
+
+
+def salvar_rascunho(
+    db: Session,
+    dados: RascunhoTurnoCreate,
+    turno_id: int | None,
+) -> dict:
+    """Salva (cria ou atualiza) o progresso de um turno ainda em
+    andamento, sem disparar PDF/e-mail - permite ao operador ir
+    gravando o apontamento ao longo do turno, não só no fechamento.
+    Liberado para qualquer usuário logado (é o trabalho da própria
+    pessoa, diferente de corrigir um turno já fechado, que exige
+    ADMIN/SUPERVISOR - ver editar_turno)."""
+    if turno_id is None:
+        turno = Turno(
+            nome_turno=dados.nome_turno,
+            responsavel_nome=dados.responsavel_nome,
+            regulador_nome=dados.regulador_nome,
+            observacoes=dados.observacoes,
+            status_assinatura=STATUS_EM_ANDAMENTO,
+        )
+        db.add(turno)
+        db.flush()
+    else:
+        turno = db.query(Turno).filter(Turno.id == turno_id).first()
+        if turno is None:
+            raise ValueError("Turno não encontrado.")
+        if turno.status_assinatura != STATUS_EM_ANDAMENTO:
+            raise ValueError(
+                "Este turno já foi fechado - use a tela de Histórico para "
+                "corrigi-lo, em vez de salvar como rascunho."
+            )
+        turno.nome_turno = dados.nome_turno
+        turno.responsavel_nome = dados.responsavel_nome
+        turno.regulador_nome = dados.regulador_nome
+        turno.observacoes = dados.observacoes
+        db.query(RegistroHorario).filter(RegistroHorario.turno_id == turno_id).delete()
+        db.flush()
+
+    if dados.registros:
+        _criar_registros(db, turno, dados)
+
+    db.commit()
+    db.refresh(turno)
+
+    return {
+        "status": "sucesso",
+        "mensagem": "Rascunho salvo.",
+        "turno_id": turno.id,
+        "status_assinatura": STATUS_EM_ANDAMENTO,
+    }
+
+
+def fechar_turno_rascunho(
+    db: Session,
+    turno_id: int,
+    dados: FechamentoTurnoCreate,
+    background_tasks: BackgroundTasks,
+) -> dict:
+    """Fecha definitivamente um turno que vinha sendo salvo como
+    rascunho: grava os registros finais, muda o status para
+    ASSINADO_DIGITALMENTE e - só agora - agenda o PDF/e-mail. Depois
+    dessa chamada, o turno passa a seguir as mesmas regras de um turno
+    fechado direto (correção só via ADMIN/SUPERVISOR)."""
+    if not dados.registros:
+        raise ValueError("O fechamento do turno deve possuir pelo menos um registro.")
+
+    turno = db.query(Turno).filter(Turno.id == turno_id).first()
+    if turno is None:
+        raise ValueError("Turno não encontrado.")
+    if turno.status_assinatura == STATUS_ASSINADO:
+        raise ValueError("Este turno já está fechado.")
+
+    turno.nome_turno = dados.nome_turno
+    turno.responsavel_nome = dados.responsavel_nome
+    turno.regulador_nome = dados.regulador_nome
+    turno.observacoes = dados.observacoes
+    turno.status_assinatura = STATUS_ASSINADO
+
+    db.query(RegistroHorario).filter(RegistroHorario.turno_id == turno_id).delete()
+    db.flush()
+
+    _criar_registros(db, turno, dados)
+
+    db.commit()
+    db.refresh(turno)
+
+    kpis = calcular_kpis_turno(db, turno.id)
+    email_agendado = _agendar_email_relatorio(db, turno, kpis, background_tasks)
+
+    return {
+        "status": "sucesso",
+        "mensagem": "Turno encerrado com sucesso.",
+        "turno_id": turno.id,
         "status_assinatura": STATUS_ASSINADO,
         "relatorio_email_agendado": email_agendado,
         "kpis": kpis,
