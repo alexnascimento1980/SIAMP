@@ -97,9 +97,9 @@
                 <option value="3">3º Turno (22:00 - 04:00)</option>
               </select>
             </div>
-            <div class="col-md-5 col-sm-6">
+            <div class="col-md-3 col-sm-6">
               <label class="form-label fw-bold text-secondary mb-1"
-                >Líder / Responsável</label
+                >Líder</label
               >
               <input
                 type="text"
@@ -108,7 +108,18 @@
                 placeholder="Nome do Líder"
               />
             </div>
-            <div class="col-md-3 col-sm-12">
+            <div class="col-md-3 col-sm-6">
+              <label class="form-label fw-bold text-secondary mb-1"
+                >Regulador</label
+              >
+              <input
+                type="text"
+                id="nomeRegulador"
+                class="form-control form-control-lg"
+                placeholder="Nome do Regulador"
+              />
+            </div>
+            <div class="col-md-2 col-sm-12">
               <label class="form-label fw-bold text-secondary mb-1">Data</label>
               <input
                 type="date"
@@ -149,17 +160,18 @@
             <thead class="table-light">
               <tr>
                 <th style="width: 6%">Hora</th>
-                <th style="width: 15%">Peça Produzida</th>
-                <th style="width: 10%">Ordem de Produção</th>
-                <th style="width: 9%">Prod. Executada (pçs)</th>
-                <th style="width: 8%">Peças Boas</th>
-                <th style="width: 8%">Refugo</th>
-                <th style="width: 8%">Parada</th>
-                <th style="width: 8%">Retomada</th>
-                <th style="width: 8%" title="Parada programada (troca de molde, manutenção preventiva, refeição etc.) não penaliza o cálculo do OEE.">
+                <th style="width: 14%">Peça Produzida</th>
+                <th style="width: 9%">Ordem de Produção</th>
+                <th style="width: 8%">Prod. Executada (pçs)</th>
+                <th style="width: 7%" title="Ciclo real usado nessa hora. Pré-preenchido com o ciclo da peça selecionada, mas pode ser corrigido manualmente - útil quando o molde foi regulado diferente ou o ciclo ainda não está cadastrado.">
+                  Ciclo (s)
+                </th>
+                <th style="width: 12%">Parada</th>
+                <th style="width: 12%">Retomada</th>
+                <th style="width: 7%" title="Parada programada (troca de molde, manutenção preventiva, refeição etc.) não penaliza o cálculo do OEE.">
                   Programada?
                 </th>
-                <th style="width: 20%">Motivo Parada</th>
+                <th style="width: 16%">Motivo Parada</th>
               </tr>
             </thead>
             <tbody id="corpoTabelaApontamento">
