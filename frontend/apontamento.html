@@ -131,7 +131,32 @@
         </div>
       </div>
 
-      <!-- 2. Seletor de Máquinas (abas geradas dinamicamente a partir do cadastro) -->
+      <!-- 2. Resumo acumulado do turno em andamento (todas as máquinas) -->
+      <div class="card shadow-sm mb-3 border-info">
+        <div class="card-body py-2 px-3">
+          <div class="row text-center g-2 align-items-center">
+            <div class="col-md-3">
+              <div class="small text-secondary fw-bold text-uppercase">Produção Esperada até agora</div>
+              <div class="fs-4 fw-bold text-info" id="resumoEsperado">0</div>
+            </div>
+            <div class="col-md-3">
+              <div class="small text-secondary fw-bold text-uppercase">Produção Apontada</div>
+              <div class="fs-4 fw-bold text-primary" id="resumoApontado">0</div>
+            </div>
+            <div class="col-md-3">
+              <div class="small text-secondary fw-bold text-uppercase">Atingido</div>
+              <div class="fs-4 fw-bold" id="resumoPercentual">-</div>
+            </div>
+            <div class="col-md-3">
+              <div class="small text-secondary" id="resumoLegenda">
+                Some das horas já preenchidas, em todas as injetoras. Estimativa - o valor final é calculado no fechamento.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Seletor de Máquinas (abas geradas dinamicamente a partir do cadastro) -->
       <ul
         class="nav nav-pills nav-fill mb-3 bg-white p-2 rounded shadow-sm gap-1"
         id="pills-maquinas"
@@ -141,7 +166,7 @@
         </li>
       </ul>
 
-      <!-- 3. Tabela de Apontamento Horário da Máquina Selecionada -->
+      <!-- 4. Tabela de Apontamento Horário da Máquina Selecionada -->
       <div class="card shadow-sm mb-3">
         <div
           class="card-header bg-white d-flex justify-content-between align-items-center py-2"

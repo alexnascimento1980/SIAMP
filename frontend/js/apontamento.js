@@ -78,6 +78,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   renderizarTabela();
+  atualizarResumoTurno();
 });
 
 function ativarModoEdicao() {
@@ -377,6 +378,7 @@ function onPecaSelecionada(hora, produtoId) {
     if (peca && peca.ciclo_padrao) {
       registro.cicloInformado = peca.ciclo_padrao;
       renderizarTabela();
+      atualizarResumoTurno();
     }
   }
 }
@@ -409,6 +411,55 @@ function salvarValor(hora, campo, valor) {
   }
 
   registrosState[maquinaAtiva][hora][campo] = valor;
+  atualizarResumoTurno();
+}
+
+// Soma a produção esperada e apontada em todas as máquinas e horas já
+// preenchidas do turno em andamento - permite ao responsável do setor
+// acompanhar o progresso a qualquer momento, sem precisar esperar o
+// fechamento do turno para ver o total. É uma estimativa client-side
+// (mesma lógica de prioridade de ciclo/cavidades do backend: ciclo
+// informado > peça > máquina) - o valor definitivo, incluindo o
+// desconto de paradas programadas, só é calculado no fechamento.
+function atualizarResumoTurno() {
+  let totalEsperado = 0;
+  let totalApontado = 0;
+
+  maquinasDisponiveis.forEach((maquina) => {
+    const registrosMaquina = registrosState[maquina.numero_maquina] || {};
+    for (const dados of Object.values(registrosMaquina)) {
+      if (dados.prod === "" && !dados.produtoId) continue;
+
+      totalApontado += parseInt(dados.prod || 0);
+
+      const peca = dados.produtoId
+        ? pecasDisponiveis.find((p) => String(p.id) === String(dados.produtoId))
+        : null;
+
+      const ciclo =
+        parseFloat(dados.cicloInformado) ||
+        peca?.ciclo_padrao ||
+        maquina.ciclo_padrao;
+      const cavidades = peca?.cavidades || maquina.cavidades;
+
+      if (ciclo && cavidades) {
+        totalEsperado += Math.round((3600 / ciclo) * cavidades);
+      }
+    }
+  });
+
+  document.getElementById("resumoEsperado").innerText = totalEsperado.toLocaleString("pt-BR");
+  document.getElementById("resumoApontado").innerText = totalApontado.toLocaleString("pt-BR");
+
+  const percEl = document.getElementById("resumoPercentual");
+  if (totalEsperado > 0) {
+    const percentual = Math.round((totalApontado / totalEsperado) * 100);
+    percEl.innerText = `${percentual}%`;
+    percEl.className = `fs-4 fw-bold ${percentual >= 90 ? "text-success" : percentual >= 60 ? "text-warning" : "text-danger"}`;
+  } else {
+    percEl.innerText = "-";
+    percEl.className = "fs-4 fw-bold text-secondary";
+  }
 }
 
 function escaparHtml(texto) {
