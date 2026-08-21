@@ -129,6 +129,7 @@ def obter_turno(
         id=turno.id,
         nome_turno=turno.nome_turno,
         responsavel_nome=turno.responsavel_nome,
+        regulador_nome=turno.regulador_nome,
         observacoes=turno.observacoes,
         data_registro=turno.data_registro,
         status_assinatura=turno.status_assinatura,
@@ -146,10 +147,13 @@ def obter_turno(
                 produto_descricao=produto.descricao if produto else None,
                 ordem_producao_id=ordem.id if ordem else None,
                 numero_op=ordem.numero_op if ordem else None,
+                ciclo_informado=reg.ciclo_informado,
                 inicio_parada=reg.inicio_parada,
                 retomada=reg.retomada,
                 motivo_parada=reg.motivo_parada,
                 parada_programada=reg.parada_programada,
+                contador_parada=reg.contador_parada,
+                contador_retomada=reg.contador_retomada,
             )
             for reg, maq, produto, ordem in registros
         ],

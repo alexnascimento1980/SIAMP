@@ -170,3 +170,51 @@ def test_ciclo_da_peca_prevalece_sobre_ciclo_da_maquina(db_session):
     kpis = calcular_kpis_turno(db_session, turno.id)
     assert kpis["total_esperado"] == 1440
     assert kpis["indice_producao"] == 100.0
+
+
+def test_ciclo_informado_prevalece_sobre_peca_e_maquina(db_session):
+    # Máquina com ciclo 10s e peça com ciclo 5s, mas o operador informou
+    # manualmente 20s para esta hora específica (ex.: molde regulado
+    # diferente naquele momento) -> deve prevalecer sobre os dois.
+    maquina = _criar_maquina(db_session, nome="informado")
+    peca = Produto(codigo="PY", descricao="Peça de teste", ciclo_padrao=5.0, cavidades=2)
+    db_session.add(peca)
+    db_session.flush()
+
+    turno = _criar_turno_vazio(db_session, nome="Ciclo informado")
+    registro = RegistroHorario(
+        turno_id=turno.id,
+        maquina_id=maquina.id,
+        produto_id=peca.id,
+        hora_referencia=time(8, 0),
+        prod_executada=360,
+        ciclo_informado=20.0,
+    )
+    db_session.add(registro)
+    db_session.commit()
+
+    # ciclo 20s, 2 cavidades (da peça) -> capacidade = int(3600/20 * 2) = 360
+    kpis = calcular_kpis_turno(db_session, turno.id)
+    assert kpis["total_esperado"] == 360
+    assert kpis["indice_producao"] == 100.0
+
+
+def test_capacidade_zero_quando_ciclo_e_cavidades_ausentes(db_session):
+    # Máquina sem ciclo/cavidades cadastrados (agora opcionais) e sem
+    # peça selecionada -> capacidade esperada deve ser 0, não erro.
+    maquina = Maquina(numero_maquina="sem-dados", descricao="Sem cadastro completo")
+    db_session.add(maquina)
+    db_session.flush()
+
+    turno = _criar_turno_vazio(db_session, nome="Sem ciclo/cavidades")
+    registro = RegistroHorario(
+        turno_id=turno.id,
+        maquina_id=maquina.id,
+        hora_referencia=time(8, 0),
+        prod_executada=50,
+    )
+    db_session.add(registro)
+    db_session.commit()
+
+    kpis = calcular_kpis_turno(db_session, turno.id)
+    assert kpis["total_esperado"] == 0

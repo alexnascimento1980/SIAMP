@@ -10,8 +10,8 @@ class Maquina(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     numero_maquina: Mapped[str] = mapped_column(String(30), unique=True, nullable=False, index=True)
     descricao: Mapped[str | None] = mapped_column(String(150), nullable=True)
-    cavidades: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    ciclo_padrao: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    cavidades: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ciclo_padrao: Mapped[float | None] = mapped_column(Float, nullable=True)
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     registros = relationship("RegistroHorario", back_populates="maquina")

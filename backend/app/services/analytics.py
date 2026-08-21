@@ -25,8 +25,18 @@ def calcular_capacidade_esperada_registro(
         if produto.cavidades:
             cavidades = produto.cavidades
 
-    # Cálculo de produção nominal esperada (3600s / ciclo * cavidades por hora cheia)
-    capacidade_hora_cheia = int((3600 / ciclo) * cavidades) if ciclo else 0
+    # Ciclo informado manualmente pelo operador (campo editável no
+    # apontamento) tem prioridade máxima - usado quando o ciclo
+    # cadastrado (peça/máquina) não reflete a regulagem real do molde
+    # naquele momento, ou quando nenhum dos dois está cadastrado ainda.
+    if reg.ciclo_informado:
+        ciclo = reg.ciclo_informado
+
+    # Cálculo de produção nominal esperada (3600s / ciclo * cavidades por hora cheia).
+    # Guarda contra ciclo/cavidades ausentes (ex.: máquina e peça sem
+    # nenhum dos dois cadastrados) - resulta em capacidade zero em vez
+    # de erro.
+    capacidade_hora_cheia = int((3600 / ciclo) * cavidades) if ciclo and cavidades else 0
 
     duracao_parada_min = 0
     if reg.inicio_parada and reg.retomada:

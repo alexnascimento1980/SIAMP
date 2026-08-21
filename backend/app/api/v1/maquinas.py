@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.api.deps import exigir_perfil, get_current_user
 from app.core.database import get_db
@@ -61,3 +62,31 @@ def atualizar_maquina(
     db.commit()
     db.refresh(maquina)
     return maquina
+
+
+@router.delete("/{maquina_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remover_maquina(
+    maquina_id: int,
+    db: Session = Depends(get_db),
+    usuario_atual: Usuario = Depends(exigir_perfil("ADMIN", "SUPERVISOR")),
+):
+    maquina = db.query(Maquina).filter(Maquina.id == maquina_id).first()
+    if maquina is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Máquina não encontrada.",
+        )
+
+    db.delete(maquina)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Não é possível excluir: esta máquina já tem registros de "
+                "produção ou Ordens de Produção vinculados. Desative-a em "
+                "vez de excluir, para preservar o histórico."
+            ),
+        )
