@@ -235,15 +235,22 @@ def _resolver_destinatarios(db: Session) -> list[str]:
     return emails_db if emails_db else settings.report_recipients
 
 
-def _agendar_email_relatorio(
+def agendar_email_relatorio(
     db: Session,
     turno: Turno,
     kpis: dict,
     background_tasks: BackgroundTasks,
+    registros_pdf: list[dict] | None = None,
 ) -> bool:
     """Monta o PDF e agenda o envio do relatório em background. Retorna
     True se o envio foi agendado (SMTP configurado e há pelo menos um
-    destinatário), False se foi pulado."""
+    destinatário), False se foi pulado.
+
+    registros_pdf: se não informado, monta a partir de
+    buscar_registros_para_relatorio (modelo por hora). Passar
+    explicitamente permite reaproveitar esta função para o modelo de
+    lançamentos livres (ver lancamento_service.py), que monta os
+    registros num formato equivalente."""
     destinatarios = _resolver_destinatarios(db)
     if not (settings.smtp_user and settings.smtp_pass and destinatarios):
         return False
@@ -252,7 +259,8 @@ def _agendar_email_relatorio(
         "nome_turno": turno.nome_turno,
         "responsavel_nome": turno.responsavel_nome,
     }
-    registros_pdf = buscar_registros_para_relatorio(db, turno.id)
+    if registros_pdf is None:
+        registros_pdf = buscar_registros_para_relatorio(db, turno.id)
     pdf_bytes = gerar_relatorio_turno_pdf(dados_turno, kpis, registros_pdf)
 
     assunto = (
@@ -300,7 +308,7 @@ def fechar_turno(
     db.refresh(novo_turno)
 
     kpis = calcular_kpis_turno(db, novo_turno.id)
-    email_agendado = _agendar_email_relatorio(db, novo_turno, kpis, background_tasks)
+    email_agendado = agendar_email_relatorio(db, novo_turno, kpis, background_tasks)
 
     return {
         "status": "sucesso",
@@ -398,7 +406,7 @@ def fechar_turno_rascunho(
     db.refresh(turno)
 
     kpis = calcular_kpis_turno(db, turno.id)
-    email_agendado = _agendar_email_relatorio(db, turno, kpis, background_tasks)
+    email_agendado = agendar_email_relatorio(db, turno, kpis, background_tasks)
 
     return {
         "status": "sucesso",
@@ -471,8 +479,17 @@ def reenviar_email_turno(
     if turno is None:
         raise ValueError("Turno não encontrado.")
 
-    kpis = calcular_kpis_turno(db, turno.id)
-    email_agendado = _agendar_email_relatorio(db, turno, kpis, background_tasks)
+    if turno.modelo_apontamento == "LANCAMENTO":
+        from app.services.analytics import calcular_kpis_turno_lancamento
+        from app.services.lancamento_service import montar_registros_pdf_lancamento
+
+        kpis = calcular_kpis_turno_lancamento(db, turno.id)
+        registros_pdf = montar_registros_pdf_lancamento(db, turno.id)
+    else:
+        kpis = calcular_kpis_turno(db, turno.id)
+        registros_pdf = None  # agendar_email_relatorio monta via buscar_registros_para_relatorio
+
+    email_agendado = agendar_email_relatorio(db, turno, kpis, background_tasks, registros_pdf)
 
     if not email_agendado:
         raise ValueError(

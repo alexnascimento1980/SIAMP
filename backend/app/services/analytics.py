@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from app.models.lancamento import Lancamento, TIPO_PARADA_PROGRAMADA, TIPO_PARADA_FALHA, TIPO_PRODUCAO
 from app.models.maquina import Maquina
 from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
@@ -168,3 +169,146 @@ def calcular_kpis_varios_turnos(db: Session, turno_ids: list[int]) -> dict[int, 
         kpis_por_turno[turno_id] = _kpis_a_partir_de_registros(regs)
 
     return kpis_por_turno
+
+
+# ======================================================================
+# Modelo novo: lançamentos livres (produção/parada com início-fim
+# variável), em paralelo ao modelo por hora acima. Ver
+# Turno.modelo_apontamento - turnos antigos continuam usando as
+# funções acima; turnos criados com o modelo novo usam estas.
+# ======================================================================
+
+
+def _resolver_ciclo_cavidades(maq: Maquina, produto: Produto | None) -> tuple[float | None, int | None]:
+    """Mesma prioridade já usada no modelo por hora: ciclo/cavidades da
+    peça (quando cadastrados) prevalecem sobre os padrão da máquina."""
+    ciclo = maq.ciclo_padrao
+    cavidades = maq.cavidades
+    if produto is not None:
+        if produto.ciclo_padrao:
+            ciclo = produto.ciclo_padrao
+        if produto.cavidades:
+            cavidades = produto.cavidades
+    return ciclo, cavidades
+
+
+def _duracao_segundos(lanc: Lancamento) -> int:
+    inicio = lanc.horario_inicio.hour * 3600 + lanc.horario_inicio.minute * 60 + lanc.horario_inicio.second
+    fim = lanc.horario_fim.hour * 3600 + lanc.horario_fim.minute * 60 + lanc.horario_fim.second
+    return max(0, fim - inicio)
+
+
+def calcular_capacidade_esperada_lancamento(
+    lanc: Lancamento, maq: Maquina, produto: Produto | None
+) -> int:
+    """Capacidade teórica esperada de UM lançamento de produção, com
+    base na duração real do intervalo (não mais numa hora cheia fixa).
+    Só se aplica a lançamentos do tipo PRODUCAO - paradas não têm
+    'esperado' (o tempo delas simplesmente não conta como capacidade
+    disponível, em vez de contar e depois ser proporcionalmente
+    descontado como no modelo por hora)."""
+    if lanc.tipo != TIPO_PRODUCAO:
+        return 0
+
+    ciclo, cavidades = _resolver_ciclo_cavidades(maq, produto)
+    if not ciclo or not cavidades:
+        return 0
+
+    duracao_s = _duracao_segundos(lanc)
+    return int((duracao_s / ciclo) * cavidades)
+
+
+def _kpis_a_partir_de_lancamentos(
+    lancamentos: list[tuple[Lancamento, Maquina, Produto | None]],
+) -> dict:
+    """Mesmo formato de saída de _kpis_a_partir_de_registros, calculado
+    a partir de lançamentos livres em vez de registros por hora."""
+    total_produzido = 0
+    total_esperado = 0
+
+    minutos_parados_programados = 0
+    minutos_parados_nao_programados = 0
+
+    for lanc, maq, produto in lancamentos:
+        if lanc.tipo == TIPO_PRODUCAO:
+            total_produzido += lanc.quantidade or 0
+            total_esperado += calcular_capacidade_esperada_lancamento(lanc, maq, produto)
+        else:
+            duracao_min = round(_duracao_segundos(lanc) / 60)
+            if lanc.tipo == TIPO_PARADA_PROGRAMADA:
+                minutos_parados_programados += duracao_min
+            elif lanc.tipo == TIPO_PARADA_FALHA:
+                minutos_parados_nao_programados += duracao_min
+
+    minutos_parados = minutos_parados_programados + minutos_parados_nao_programados
+    indice_producao = (total_produzido / total_esperado) if total_esperado > 0 else 0.0
+    # O modelo de lançamento não tem apontamento de peças boas/refugo -
+    # qualidade sempre 100% (mesmo fallback do modelo por hora quando
+    # não há apontamento de qualidade).
+    indice_qualidade = 1.0
+    eficiencia_oee = round(indice_producao * indice_qualidade * 100, 2)
+
+    return {
+        "total_produzido": total_produzido,
+        "total_esperado": total_esperado,
+        "minutos_parados": minutos_parados,
+        "minutos_parados_programados": minutos_parados_programados,
+        "minutos_parados_nao_programados": minutos_parados_nao_programados,
+        "total_pecas_boas": 0,
+        "total_refugo": 0,
+        "indice_producao": round(indice_producao * 100, 2),
+        "indice_qualidade": round(indice_qualidade * 100, 2),
+        "eficiencia_oee": eficiencia_oee,
+        "alerta_ia": "Abaixo da meta esperada" if eficiencia_oee < 75.0 else "Operação normal",
+    }
+
+
+def calcular_kpis_turno_lancamento(db: Session, turno_id: int) -> dict:
+    lancamentos = (
+        db.query(Lancamento, Maquina, Produto)
+        .join(Maquina, Lancamento.maquina_id == Maquina.id)
+        .outerjoin(Produto, Lancamento.produto_id == Produto.id)
+        .filter(Lancamento.turno_id == turno_id)
+        .all()
+    )
+    return _kpis_a_partir_de_lancamentos(lancamentos)
+
+
+def calcular_kpis_turno_qualquer_modelo(db: Session, turno) -> dict:
+    """Despacha para o cálculo certo conforme Turno.modelo_apontamento -
+    'turno' já precisa estar carregado (evita uma query extra só para
+    ler o campo)."""
+    if turno.modelo_apontamento == "LANCAMENTO":
+        return calcular_kpis_turno_lancamento(db, turno.id)
+    return calcular_kpis_turno(db, turno.id)
+
+
+def calcular_kpis_varios_turnos_generico(db: Session, turnos: list) -> dict[int, dict]:
+    """Mesma ideia de calcular_kpis_varios_turnos (uma query em lote, não
+    uma por turno), mas cobrindo os dois modelos de apontamento
+    misturados na mesma lista - usado no histórico (GET /turnos/), que
+    lista turnos antigos e novos juntos."""
+    ids_horario = [t.id for t in turnos if t.modelo_apontamento != "LANCAMENTO"]
+    ids_lancamento = [t.id for t in turnos if t.modelo_apontamento == "LANCAMENTO"]
+
+    resultado = calcular_kpis_varios_turnos(db, ids_horario)
+
+    kpis_lancamento = {
+        turno_id: _kpis_a_partir_de_lancamentos([]) for turno_id in ids_lancamento
+    }
+    if ids_lancamento:
+        lancamentos = (
+            db.query(Lancamento, Maquina, Produto)
+            .join(Maquina, Lancamento.maquina_id == Maquina.id)
+            .outerjoin(Produto, Lancamento.produto_id == Produto.id)
+            .filter(Lancamento.turno_id.in_(ids_lancamento))
+            .all()
+        )
+        lancamentos_por_turno: dict[int, list] = {turno_id: [] for turno_id in ids_lancamento}
+        for lanc, maq, produto in lancamentos:
+            lancamentos_por_turno[lanc.turno_id].append((lanc, maq, produto))
+        for turno_id, lancs in lancamentos_por_turno.items():
+            kpis_lancamento[turno_id] = _kpis_a_partir_de_lancamentos(lancs)
+
+    resultado.update(kpis_lancamento)
+    return resultado
