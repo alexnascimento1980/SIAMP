@@ -411,8 +411,8 @@ async function confirmarFechamento() {
 
   let caminho, metodo, tipo;
   if (turnoEditandoId) {
-    caminho = `/turnos/lancamento/${turnoEditandoId}/fechar`;
-    metodo = "POST";
+    caminho = `/turnos/lancamento/${turnoEditandoId}`;
+    metodo = "PATCH";
     tipo = "correcao";
   } else if (rascunhoTurnoId) {
     caminho = `/turnos/lancamento/${rascunhoTurnoId}/fechar`;
