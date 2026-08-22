@@ -225,3 +225,49 @@ def fechar_turno_lancamento(
         "relatorio_email_agendado": email_agendado,
         "kpis": kpis,
     }
+
+
+def editar_turno_lancamento(
+    db: Session,
+    turno_id: int,
+    dados: TurnoLancamentoCreate,
+    usuario_id: int,
+) -> dict:
+    """Corrige um turno de lançamentos já encerrado (ASSINADO_DIGITALMENTE):
+    substitui integralmente seus lançamentos e recalcula os KPIs. Não
+    reenvia e-mail (evita duplicidade) - mesmo comportamento de
+    turno_service.editar_turno (modelo por hora), espelhado aqui para
+    o modelo de lançamentos livres. Restrito a ADMIN/SUPERVISOR (ver
+    endpoint)."""
+    if not dados.lancamentos:
+        raise ValueError("O turno deve possuir pelo menos um lançamento.")
+
+    turno = db.query(Turno).filter(Turno.id == turno_id).first()
+    if turno is None:
+        raise ValueError("Turno não encontrado.")
+    if turno.modelo_apontamento != MODELO_LANCAMENTO:
+        raise ValueError("Este turno não usa o modelo de lançamentos livres.")
+
+    turno.nome_turno = dados.nome_turno
+    turno.responsavel_nome = dados.responsavel_nome
+    turno.regulador_nome = dados.regulador_nome
+    turno.observacoes = dados.observacoes
+    turno.editado_por_id = usuario_id
+    turno.editado_em = datetime.utcnow()
+
+    db.query(Lancamento).filter(Lancamento.turno_id == turno_id).delete()
+    db.flush()
+
+    _criar_lancamentos(db, turno, dados.lancamentos)
+
+    db.commit()
+    db.refresh(turno)
+
+    kpis = calcular_kpis_turno_lancamento(db, turno.id)
+
+    return {
+        "status": "sucesso",
+        "mensagem": "Turno corrigido com sucesso.",
+        "turno_id": turno.id,
+        "kpis": kpis,
+    }
