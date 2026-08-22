@@ -4,6 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.schemas.lancamento_schema import LancamentoDetail
+
 
 class RegistroHorarioCreate(BaseModel):
     # Identifica a máquina pelo número de injetora exibido na interface
@@ -123,6 +125,7 @@ class TurnoListItem(BaseModel):
     responsavel_nome: str
     data_registro: datetime
     status_assinatura: str
+    modelo_apontamento: str = "HORARIO"
     total_produzido: int
     eficiencia_oee: float
     indice_qualidade: float
@@ -157,6 +160,8 @@ class TurnoDetail(BaseModel):
     observacoes: Optional[str] = None
     data_registro: datetime
     status_assinatura: str
+    modelo_apontamento: str = "HORARIO"
     editado_por_nome: Optional[str] = None
     editado_em: Optional[datetime] = None
-    registros: List[RegistroHorarioDetail]
+    registros: List[RegistroHorarioDetail] = []
+    lancamentos: List[LancamentoDetail] = []

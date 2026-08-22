@@ -6,12 +6,18 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import exigir_perfil, get_current_user
 from app.core.database import get_db
+from app.models.lancamento import Lancamento
 from app.models.maquina import Maquina
 from app.models.ordem_producao import OrdemProducao
 from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
 from app.models.turno import Turno
 from app.models.usuario import Usuario
+from app.schemas.lancamento_schema import (
+    LancamentoDetail,
+    TurnoLancamentoCreate,
+    TurnoLancamentoRascunho,
+)
 from app.schemas.turno_schema import (
     FechamentoTurnoCreate,
     RascunhoTurnoCreate,
@@ -19,7 +25,16 @@ from app.schemas.turno_schema import (
     TurnoDetail,
     TurnoListItem,
 )
-from app.services.analytics import calcular_kpis_turno, calcular_kpis_varios_turnos
+from app.services.analytics import (
+    calcular_capacidade_esperada_lancamento,
+    calcular_kpis_turno,
+    calcular_kpis_varios_turnos_generico,
+)
+from app.services.lancamento_service import (
+    fechar_turno_lancamento,
+    montar_registros_pdf_lancamento,
+    salvar_rascunho_lancamento,
+)
 from app.services.pdf_generator import gerar_relatorio_turno_pdf
 from app.services.turno_service import (
     buscar_registros_para_relatorio,
@@ -55,7 +70,8 @@ def listar_turnos(
 
     # Uma única query para os KPIs de todos os turnos listados, em vez de
     # uma consulta por turno (evita N+1 em listas grandes de histórico).
-    kpis_por_turno = calcular_kpis_varios_turnos(db, [t.id for t in turnos])
+    # Cobre os dois modelos de apontamento misturados na mesma lista.
+    kpis_por_turno = calcular_kpis_varios_turnos_generico(db, turnos)
 
     resultado = []
     for turno in turnos:
@@ -67,6 +83,7 @@ def listar_turnos(
                 responsavel_nome=turno.responsavel_nome,
                 data_registro=turno.data_registro,
                 status_assinatura=turno.status_assinatura,
+                modelo_apontamento=turno.modelo_apontamento,
                 total_produzido=kpis["total_produzido"],
                 eficiencia_oee=kpis["eficiencia_oee"],
                 indice_qualidade=kpis["indice_qualidade"],
@@ -162,6 +179,82 @@ def fechar_rascunho(
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
 
 
+# ======================================================================
+# Modelo novo: lançamentos livres (produção/parada com início-fim
+# variável por peça/OP, não mais grade fixa por hora). Ver
+# Turno.modelo_apontamento.
+# ======================================================================
+
+
+@router.post("/lancamento", status_code=status.HTTP_201_CREATED)
+def criar_fechamento_lancamento(
+    dados: TurnoLancamentoCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+):
+    """Fecha um turno direto (sem passar por rascunho) usando o modelo
+    de lançamentos livres."""
+    try:
+        return fechar_turno_lancamento(db=db, dados=dados, background_tasks=background_tasks)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/lancamento/rascunho", status_code=status.HTTP_201_CREATED)
+def criar_rascunho_lancamento(
+    dados: TurnoLancamentoRascunho,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+):
+    """Cria um novo turno em andamento (rascunho) no modelo de
+    lançamentos livres, sem disparar PDF/e-mail."""
+    return salvar_rascunho_lancamento(db, dados, turno_id=None)
+
+
+@router.patch("/lancamento/rascunho/{turno_id}")
+def atualizar_rascunho_lancamento(
+    turno_id: int,
+    dados: TurnoLancamentoRascunho,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+):
+    """Atualiza o progresso de um rascunho (modelo de lançamentos
+    livres) já criado."""
+    try:
+        return salvar_rascunho_lancamento(db, dados, turno_id=turno_id)
+    except ValueError as exc:
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if "não encontrado" in str(exc)
+            else status.HTTP_409_CONFLICT
+        )
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+
+
+@router.post("/lancamento/{turno_id}/fechar")
+def fechar_rascunho_lancamento(
+    turno_id: int,
+    dados: TurnoLancamentoCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+):
+    """Fecha definitivamente um rascunho (modelo de lançamentos
+    livres) - só agora o PDF/e-mail são disparados."""
+    try:
+        return fechar_turno_lancamento(
+            db=db, dados=dados, background_tasks=background_tasks, turno_id=turno_id
+        )
+    except ValueError as exc:
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if "não encontrado" in str(exc)
+            else status.HTTP_400_BAD_REQUEST
+        )
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+
+
 @router.get("/{turno_id}", response_model=TurnoDetail)
 def obter_turno(
     turno_id: int,
@@ -169,12 +262,56 @@ def obter_turno(
     usuario: Usuario = Depends(get_current_user),
 ):
     """Detalhe completo de um turno, incluindo todos os registros
-    horários — usado para pré-carregar a tela de edição."""
+    horários (modelo HORARIO) ou lançamentos (modelo LANCAMENTO) —
+    usado para pré-carregar a tela de edição."""
     turno = db.query(Turno).filter(Turno.id == turno_id).first()
     if turno is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Turno não encontrado.",
+        )
+
+    if turno.modelo_apontamento == "LANCAMENTO":
+        linhas = (
+            db.query(Lancamento, Maquina, Produto, OrdemProducao)
+            .join(Maquina, Lancamento.maquina_id == Maquina.id)
+            .outerjoin(Produto, Lancamento.produto_id == Produto.id)
+            .outerjoin(OrdemProducao, Lancamento.ordem_producao_id == OrdemProducao.id)
+            .filter(Lancamento.turno_id == turno_id)
+            .order_by(Lancamento.horario_inicio)
+            .all()
+        )
+        lancamentos_detail = [
+            LancamentoDetail(
+                id=lanc.id,
+                numero_maquina=maq.numero_maquina,
+                tipo=lanc.tipo,
+                horario_inicio=lanc.horario_inicio.strftime("%H:%M"),
+                horario_fim=lanc.horario_fim.strftime("%H:%M"),
+                produto_id=produto.id if produto else None,
+                produto_codigo=produto.codigo if produto else None,
+                produto_descricao=produto.descricao if produto else None,
+                ordem_producao_id=ordem.id if ordem else None,
+                numero_op=ordem.numero_op if ordem else None,
+                quantidade=lanc.quantidade,
+                motivo=lanc.motivo,
+                producao_esperada=calcular_capacidade_esperada_lancamento(lanc, maq, produto),
+            )
+            for lanc, maq, produto, ordem in linhas
+        ]
+        return TurnoDetail(
+            id=turno.id,
+            nome_turno=turno.nome_turno,
+            responsavel_nome=turno.responsavel_nome,
+            regulador_nome=turno.regulador_nome,
+            observacoes=turno.observacoes,
+            data_registro=turno.data_registro,
+            status_assinatura=turno.status_assinatura,
+            modelo_apontamento=turno.modelo_apontamento,
+            editado_por_nome=turno.editado_por.nome if turno.editado_por else None,
+            editado_em=turno.editado_em,
+            registros=[],
+            lancamentos=lancamentos_detail,
         )
 
     registros = (
@@ -195,6 +332,7 @@ def obter_turno(
         observacoes=turno.observacoes,
         data_registro=turno.data_registro,
         status_assinatura=turno.status_assinatura,
+        modelo_apontamento=turno.modelo_apontamento,
         editado_por_nome=turno.editado_por.nome if turno.editado_por else None,
         editado_em=turno.editado_em,
         registros=[
@@ -305,12 +443,18 @@ def baixar_relatorio_turno(
             detail="Turno não encontrado.",
         )
 
-    kpis = calcular_kpis_turno(db, turno_id)
+    if turno.modelo_apontamento == "LANCAMENTO":
+        from app.services.analytics import calcular_kpis_turno_lancamento
+        kpis = calcular_kpis_turno_lancamento(db, turno_id)
+        registros_pdf = montar_registros_pdf_lancamento(db, turno_id)
+    else:
+        kpis = calcular_kpis_turno(db, turno_id)
+        registros_pdf = buscar_registros_para_relatorio(db, turno_id)
+
     dados_turno = {
         "nome_turno": turno.nome_turno,
         "responsavel_nome": turno.responsavel_nome,
     }
-    registros_pdf = buscar_registros_para_relatorio(db, turno_id)
     pdf_bytes = gerar_relatorio_turno_pdf(dados_turno, kpis, registros_pdf)
 
     nome_arquivo = montar_nome_arquivo_relatorio(turno.nome_turno, turno.data_registro)

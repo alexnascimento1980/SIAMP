@@ -29,6 +29,17 @@ class Turno(Base):
         default="PENDENTE",
         index=True,
     )
+    # HORARIO = grade fixa por hora (modelo original). LANCAMENTO =
+    # lançamentos livres por peça/parada, com início/fim variável
+    # (modelo novo). Turnos já existentes ficam para sempre em
+    # HORARIO - não há conversão automática entre os dois modelos.
+    # A leitura (KPIs, PDF, CSV) verifica este campo para saber qual
+    # tabela de apontamento usar (RegistroHorario ou Lancamento).
+    modelo_apontamento: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="HORARIO",
+    )
     # Trilha de auditoria de correções: um turno já fechado pode ser
     # editado por SUPERVISOR/ADMIN (ex.: corrigir erro de digitação),
     # e aqui fica registrado quem foi e quando.
@@ -40,6 +51,11 @@ class Turno(Base):
 
     registros = relationship(
         "RegistroHorario",
+        back_populates="turno",
+        cascade="all, delete-orphan",
+    )
+    lancamentos = relationship(
+        "Lancamento",
         back_populates="turno",
         cascade="all, delete-orphan",
     )
