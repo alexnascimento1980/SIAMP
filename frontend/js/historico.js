@@ -62,12 +62,20 @@ function renderizarTurnos(turnos) {
     // Turno em andamento: continuar preenchendo (liberado para
     // qualquer usuário - é o rascunho da própria pessoa). Turno já
     // fechado: corrigir é restrito a ADMIN/SUPERVISOR.
+    // Turno em andamento: continuar preenchendo (liberado para
+    // qualquer usuário - é o rascunho da própria pessoa). Turno já
+    // fechado: corrigir é restrito a ADMIN/SUPERVISOR. A página certa
+    // (nova, por lançamento, ou antiga, por hora) depende do modelo
+    // com que o turno foi criado - turnos antigos continuam usando a
+    // grade por hora para sempre.
+    const paginaApontamento =
+      t.modelo_apontamento === "LANCAMENTO" ? "apontamento.html" : "apontamento_horario.html";
     const botaoEditar = emAndamento
-      ? `<a href="apontamento.html?rascunho=${t.id}" class="btn btn-sm btn-outline-warning" title="Continuar preenchendo este turno">
+      ? `<a href="${paginaApontamento}?rascunho=${t.id}" class="btn btn-sm btn-outline-warning" title="Continuar preenchendo este turno">
            <i class="bi bi-pencil-square"></i>
          </a>`
       : podeEditar
-        ? `<a href="apontamento.html?editar=${t.id}" class="btn btn-sm btn-outline-secondary" title="Corrigir este turno">
+        ? `<a href="${paginaApontamento}?editar=${t.id}" class="btn btn-sm btn-outline-secondary" title="Corrigir este turno">
              <i class="bi bi-pencil-square"></i>
            </a>`
         : "";

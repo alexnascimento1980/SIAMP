@@ -1,41 +1,14 @@
-// Grade horária de acordo com as fichas operacionais de cada turno
-const HORARIOS_POR_TURNO = {
-  1: [
-    "05:00",
-    "06:00",
-    "07:00",
-    "08:00",
-    "09:00",
-    "10:00",
-    "11:00",
-    "12:00",
-    "13:00",
-  ],
-  2: ["14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00"],
-  3: ["22:00", "23:00", "00:00", "01:00", "02:00", "03:00", "04:00"],
-};
-
-// Lista de máquinas (ativas, ou todas se estiver editando um turno antigo).
-// Cada item: { id, numero_maquina, descricao, cavidades, ciclo_padrao }
+// Estado: lancamentosState[numero_maquina] = [ {tipo, horario_inicio, horario_fim, produto_id, ordem_producao_id, quantidade, motivo}, ... ]
+let lancamentosState = {};
 let maquinasDisponiveis = [];
-let maquinaAtiva = null; // guarda o numero_maquina (string) selecionado
-// Catálogo de peças (GET /produtos/): { id, codigo, descricao, ciclo_padrao, cavidades }
 let pecasDisponiveis = [];
-// Ordens de Produção cadastradas (GET /ordens-producao/): { id, numero_op, produto_descricao, ... }
 let ordensProducaoDisponiveis = [];
-// Estado centralizado dos apontamentos: dados[numero_maquina][hora] = { prod, inicio, retomada, motivo, produtoId, ordemProducaoId, paradaProgramada, cicloInformado, contadorParada, contadorRetomada }
-let registrosState = {};
+let maquinaAtiva = null;
 
-// Preenchido quando a tela está em modo de correção de um turno já
-// fechado (via apontamento.html?editar=<id>). null = modo normal (novo turno).
-let turnoEditandoId = null;
-// Rascunho: turno salvo em EM_ANDAMENTO, ainda sendo preenchido. Não
-// dispara PDF/e-mail - só o fechamento definitivo faz isso.
-let rascunhoTurnoId = null;
+let turnoEditandoId = null; // corrigir turno LANCAMENTO já fechado (ADMIN/SUPERVISOR)
+let rascunhoTurnoId = null; // continuar um rascunho LANCAMENTO em andamento
 
-// Inicialização
 document.addEventListener("DOMContentLoaded", async () => {
-  // Sem sessão válida, manda direto pra tela de login.
   const sessao = await exigirSessao();
   if (!sessao) return;
 
@@ -55,9 +28,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   if (idParaEditar) {
     if (perfil !== "ADMIN" && perfil !== "SUPERVISOR") {
-      alert(
-        "Apenas administradores e supervisores podem corrigir um turno já fechado.",
-      );
+      alert("Apenas administradores e supervisores podem corrigir um turno já fechado.");
       window.location.href = "historico.html";
       return;
     }
@@ -69,15 +40,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   document.getElementById("dataTurno").valueAsDate = new Date();
   atualizarRelogio();
-  setInterval(atualizarRelogio, 1000);
+  setInterval(atualizarRelogio, 30000);
 
-  // Em modo de edição, inclui também máquinas já desativadas, para que
-  // os registros históricos delas continuem visíveis e editáveis.
-  await Promise.all([
-    carregarMaquinas(!!turnoEditandoId),
-    carregarPecas(),
-    carregarOrdensProducao(),
-  ]);
+  await Promise.all([carregarMaquinas(), carregarPecas(), carregarOrdensProducao()]);
 
   if (turnoEditandoId) {
     await carregarTurnoParaEdicao(turnoEditandoId);
@@ -85,76 +50,24 @@ document.addEventListener("DOMContentLoaded", async () => {
     await carregarTurnoParaEdicao(rascunhoTurnoId);
   }
 
-  renderizarTabela();
+  renderizarListaLancamentos();
   atualizarResumoTurno();
 });
 
 function ativarModoEdicao() {
   const aviso = document.createElement("div");
-  aviso.className =
-    "alert alert-warning d-flex justify-content-between align-items-center mb-3";
-  aviso.innerHTML = `
-    <span><i class="bi bi-pencil-square me-2"></i>Corrigindo um turno já encerrado.</span>
-    <a href="historico.html" class="btn btn-sm btn-outline-dark">Cancelar</a>
-  `;
-  document.querySelector(".container-fluid.p-3").prepend(aviso);
-
-  const botaoFechar = document.querySelector(
-    'button[onclick="confirmarFechamento()"]',
-  );
-  botaoFechar.innerHTML =
-    '<i class="bi bi-check-circle me-2"></i>Salvar Correção';
-
-  // O turno (1º/2º/3º) não é editável em modo de correção, para evitar
-  // inconsistência entre a grade de horários e os registros já salvos.
-  document.getElementById("selectTurno").disabled = true;
+  aviso.className = "alert alert-warning mb-3";
+  aviso.innerHTML =
+    '<i class="bi bi-pencil-square me-2"></i>Você está corrigindo um turno já fechado.';
+  document.querySelector(".container-fluid").prepend(aviso);
 }
 
-async function carregarTurnoParaEdicao(turnoId) {
-  try {
-    const res = await chamarApi(`/turnos/${turnoId}`);
-
-    if (!res.ok) throw new Error("Turno não encontrado.");
-
-    const turno = await res.json();
-
-    // Tenta casar o nome_turno salvo com uma das opções do seletor
-    // (ex.: "1º Turno (05:00 - 13:00)") para pré-selecionar a grade
-    // horária correta.
-    const selectTurno = document.getElementById("selectTurno");
-    for (const opcao of selectTurno.options) {
-      if (opcao.text === turno.nome_turno) {
-        selectTurno.value = opcao.value;
-        break;
-      }
-    }
-
-    document.getElementById("nomeLider").value = turno.responsavel_nome || "";
-    document.getElementById("nomeRegulador").value = turno.regulador_nome || "";
-    document.getElementById("observacoesTurno").value = turno.observacoes || "";
-
-    turno.registros.forEach((reg) => {
-      if (!registrosState[reg.numero_maquina]) {
-        registrosState[reg.numero_maquina] = {};
-      }
-      registrosState[reg.numero_maquina][reg.hora_referencia] = {
-        prod: reg.prod_executada ?? "",
-        inicio: reg.inicio_parada ? reg.inicio_parada.slice(0, 5) : "",
-        retomada: reg.retomada ? reg.retomada.slice(0, 5) : "",
-        motivo: reg.motivo_parada || "",
-        produtoId: reg.produto_id ?? "",
-        ordemProducaoId: reg.ordem_producao_id ?? "",
-        paradaProgramada: !!reg.parada_programada,
-        cicloInformado: reg.ciclo_informado ?? "",
-        contadorParada: reg.contador_parada ?? "",
-        contadorRetomada: reg.contador_retomada ?? "",
-      };
-    });
-  } catch (erro) {
-    console.error(erro);
-    alert("Não foi possível carregar os dados do turno para edição.");
-    window.location.href = "historico.html";
-  }
+function atualizarRelogio() {
+  const agora = new Date();
+  document.getElementById("relogio").innerText = agora.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 async function carregarPecas() {
@@ -162,10 +75,15 @@ async function carregarPecas() {
     const res = await chamarApi("/produtos/");
     if (!res.ok) throw new Error("Não foi possível carregar as peças.");
     pecasDisponiveis = await res.json();
+    const select = document.getElementById("lancPeca");
+    pecasDisponiveis.forEach((p) => {
+      const option = document.createElement("option");
+      option.value = p.id;
+      option.textContent = `${p.codigo} - ${p.descricao}`;
+      select.appendChild(option);
+    });
   } catch (erro) {
     console.error(erro);
-    // Não bloqueia o apontamento: sem o catálogo carregado, o seletor de
-    // peça fica só com a opção em branco, mas o resto da tela funciona.
     pecasDisponiveis = [];
   }
 }
@@ -175,22 +93,24 @@ async function carregarOrdensProducao() {
     const res = await chamarApi("/ordens-producao/");
     if (!res.ok) throw new Error("Não foi possível carregar as ordens de produção.");
     ordensProducaoDisponiveis = await res.json();
+    const select = document.getElementById("lancOp");
+    ordensProducaoDisponiveis.forEach((o) => {
+      const option = document.createElement("option");
+      option.value = o.id;
+      option.textContent = `${o.numero_op}${o.produto_descricao ? " - " + o.produto_descricao : ""}`;
+      select.appendChild(option);
+    });
   } catch (erro) {
     console.error(erro);
     ordensProducaoDisponiveis = [];
   }
 }
 
-async function carregarMaquinas(incluirInativas = false) {
+async function carregarMaquinas() {
   const container = document.getElementById("pills-maquinas");
-
   try {
-    const res = await chamarApi(
-      `/maquinas/?incluir_inativas=${incluirInativas}`,
-    );
-
+    const res = await chamarApi("/maquinas/?incluir_inativas=false");
     if (!res.ok) throw new Error("Não foi possível carregar as máquinas.");
-
     maquinasDisponiveis = await res.json();
 
     if (maquinasDisponiveis.length === 0) {
@@ -200,10 +120,9 @@ async function carregarMaquinas(incluirInativas = false) {
       return;
     }
 
-    // Garante que sempre há um estado (mesmo vazio) para cada máquina.
     maquinasDisponiveis.forEach((m) => {
-      if (!registrosState[m.numero_maquina]) {
-        registrosState[m.numero_maquina] = {};
+      if (!lancamentosState[m.numero_maquina]) {
+        lancamentosState[m.numero_maquina] = [];
       }
     });
 
@@ -224,236 +143,188 @@ function renderizarAbasMaquinas() {
   maquinasDisponiveis.forEach((m) => {
     const li = document.createElement("li");
     li.className = "nav-item";
-
     const btn = document.createElement("button");
     btn.className = "nav-link btn-maq";
     btn.dataset.numeroMaquina = m.numero_maquina;
-    const rotulo = m.descricao
-      ? `Injetora ${m.numero_maquina}`
-      : `Máquina ${m.numero_maquina}`;
-    btn.textContent = m.ativo === false ? `${rotulo} (inativa)` : rotulo;
+    const rotulo = m.descricao ? `Injetora ${m.numero_maquina}` : `Máquina ${m.numero_maquina}`;
+    const qtdLancamentos = (lancamentosState[m.numero_maquina] || []).length;
+    btn.innerHTML = qtdLancamentos > 0 ? `${rotulo} <span class="badge bg-light text-dark ms-1">${qtdLancamentos}</span>` : rotulo;
     btn.addEventListener("click", () => selecionarMaquina(m.numero_maquina));
-
     li.appendChild(btn);
     container.appendChild(li);
   });
-}
 
-function atualizarRelogio() {
-  const agora = new Date();
-  document.getElementById("relogio").innerText = agora.toLocaleTimeString(
-    "pt-BR",
-    { hour: "2-digit", minute: "2-digit" },
-  );
-}
-
-function atualizarHorariosTurno() {
-  renderizarTabela();
+  // Reaplica a seleção visual (renderizarAbasMaquinas recria os botões
+  // do zero, perdendo a classe "active" anterior).
+  if (maquinaAtiva) {
+    document.querySelectorAll(".btn-maq").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.numeroMaquina === maquinaAtiva);
+    });
+  }
 }
 
 function selecionarMaquina(numeroMaquina) {
   maquinaAtiva = numeroMaquina;
-
-  // Atualiza botões
   document.querySelectorAll(".btn-maq").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.numeroMaquina === numeroMaquina);
   });
 
-  // Atualiza cabeçalho da máquina
-  const info = maquinasDisponiveis.find(
-    (m) => m.numero_maquina === numeroMaquina,
-  );
+  const info = maquinasDisponiveis.find((m) => m.numero_maquina === numeroMaquina);
   if (info) {
     document.getElementById("tituloMaquina").innerText =
       info.descricao || `Injetora ${info.numero_maquina}`;
     const badge = document.getElementById("badgeDetalheMaquina");
-    if (info.cavidades && info.ciclo_padrao) {
-      badge.innerText = `Cavidades: ${info.cavidades} | Ciclo: ${info.ciclo_padrao}s (padrão da máquina)`;
-    } else {
-      badge.innerText = "Sem cavidades/ciclo padrão cadastrados - defina pela peça";
-    }
+    badge.innerText = info.cavidades && info.ciclo_padrao
+      ? `Cavidades: ${info.cavidades} | Ciclo: ${info.ciclo_padrao}s (padrão da máquina)`
+      : "Sem cavidades/ciclo padrão na máquina - use o cadastro da peça";
   }
 
-  renderizarTabela();
+  renderizarListaLancamentos();
 }
 
-function renderizarTabela() {
-  const turno = document.getElementById("selectTurno").value;
-  const horas = HORARIOS_POR_TURNO[turno] || [];
-  const tbody = document.getElementById("corpoTabelaApontamento");
-  tbody.innerHTML = "";
+function onTipoLancamentoMudou() {
+  const tipo = document.querySelector('input[name="tipoLancamento"]:checked').value;
+  document.getElementById("camposProducao").classList.toggle("d-none", tipo !== "PRODUCAO");
+  document.getElementById("camposParada").classList.toggle("d-none", tipo === "PRODUCAO");
+}
 
-  if (!maquinaAtiva) return;
+function adicionarLancamento() {
+  const tipo = document.querySelector('input[name="tipoLancamento"]:checked').value;
 
-  const opcoesPecas = pecasDisponiveis
-    .map(
-      (p) =>
-        `<option value="${p.id}">${escaparHtml(p.codigo)} - ${escaparHtml(p.descricao)}</option>`,
-    )
-    .join("");
+  let lancamento;
+  if (tipo === "PRODUCAO") {
+    const pecaId = document.getElementById("lancPeca").value;
+    const quantidade = document.getElementById("lancQuantidade").value;
+    const inicio = document.getElementById("lancInicio").value;
+    const fim = document.getElementById("lancFim").value;
 
-  const opcoesOps = ordensProducaoDisponiveis
-    .map(
-      (o) =>
-        `<option value="${o.id}">${escaparHtml(o.numero_op)}${o.produto_descricao ? " - " + escaparHtml(o.produto_descricao) : ""}</option>`,
-    )
-    .join("");
+    if (!pecaId) return alert("Selecione a peça produzida.");
+    if (quantidade === "" || quantidade === null) return alert("Informe a quantidade produzida.");
+    if (!inicio || !fim) return alert("Informe o horário de início e fim.");
+    if (fim <= inicio) return alert("O horário de fim deve ser depois do início.");
 
-  horas.forEach((hora) => {
-    const salvo = (registrosState[maquinaAtiva] || {})[hora] || {
-      prod: "",
-      inicio: "",
-      retomada: "",
-      motivo: "",
-      produtoId: "",
-      ordemProducaoId: "",
-      paradaProgramada: false,
-      cicloInformado: "",
-      contadorParada: "",
-      contadorRetomada: "",
+    lancamento = {
+      tipo: "PRODUCAO",
+      horario_inicio: inicio,
+      horario_fim: fim,
+      produto_id: parseInt(pecaId),
+      ordem_producao_id: document.getElementById("lancOp").value
+        ? parseInt(document.getElementById("lancOp").value)
+        : null,
+      quantidade: parseInt(quantidade),
+      motivo: null,
     };
 
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td class="fw-bold fs-5 text-secondary">${hora}</td>
-      <td>
-        <select class="form-select select-peca" onchange="onPecaSelecionada('${hora}', this.value)">
-          <option value="" ${salvo.produtoId ? "" : "selected"}>— Selecionar —</option>
-          ${opcoesPecas}
-        </select>
-      </td>
-      <td>
-        <select class="form-select select-op" onchange="salvarValor('${hora}', 'ordemProducaoId', this.value)">
-          <option value="" ${salvo.ordemProducaoId ? "" : "selected"}>— Nenhuma —</option>
-          ${opcoesOps}
-        </select>
-      </td>
-      <td>
-        <input type="number" min="0" class="form-control" placeholder="0" 
-          value="${salvo.prod}" onchange="salvarValor('${hora}', 'prod', this.value)">
-      </td>
-      <td>
-        <input type="number" min="0.1" step="0.1" class="form-control" placeholder="ciclo (s)"
-          value="${salvo.cicloInformado}" onchange="salvarValor('${hora}', 'cicloInformado', this.value)">
-      </td>
-      <td>
-        <input type="time" class="form-control mb-1" 
-          value="${salvo.inicio}" onchange="salvarValor('${hora}', 'inicio', this.value)">
-        <input type="number" min="0" class="form-control form-control-sm" placeholder="contador"
-          value="${salvo.contadorParada}" onchange="salvarValor('${hora}', 'contadorParada', this.value)">
-      </td>
-      <td>
-        <input type="time" class="form-control mb-1" 
-          value="${salvo.retomada}" onchange="salvarValor('${hora}', 'retomada', this.value)">
-        <input type="number" min="0" class="form-control form-control-sm" placeholder="contador"
-          value="${salvo.contadorRetomada}" onchange="salvarValor('${hora}', 'contadorRetomada', this.value)">
-      </td>
-      <td>
-        <input type="checkbox" class="form-check-input" title="Parada programada (não penaliza o OEE)"
-          ${salvo.paradaProgramada ? "checked" : ""}
-          onchange="salvarValor('${hora}', 'paradaProgramada', this.checked)">
-      </td>
-      <td>
-        <input type="text" class="form-control text-start" placeholder="Ex: Molde travado" 
-          value="${salvo.motivo}" onchange="salvarValor('${hora}', 'motivo', this.value)">
-      </td>
-    `;
+    document.getElementById("lancQuantidade").value = "";
+    document.getElementById("lancInicio").value = "";
+    document.getElementById("lancFim").value = "";
+  } else {
+    const inicio = document.getElementById("lancInicioParada").value;
+    const fim = document.getElementById("lancFimParada").value;
+    if (!inicio || !fim) return alert("Informe o horário de início e fim da parada.");
+    if (fim <= inicio) return alert("O horário de fim deve ser depois do início.");
 
-    // Restaura os selects (o innerHTML acima recria os <select> do zero,
-    // então marcar "selected" na string dificultaria escapar o id
-    // corretamente - fazemos pela API do DOM em vez disso).
-    if (salvo.produtoId) {
-      tr.querySelector(".select-peca").value = String(salvo.produtoId);
-    }
-    if (salvo.ordemProducaoId) {
-      tr.querySelector(".select-op").value = String(salvo.ordemProducaoId);
-    }
-    tbody.appendChild(tr);
-  });
-}
-
-// Ao trocar a peça selecionada, pré-preenche o campo de ciclo com o
-// ciclo médio cadastrado na peça (só quando o campo ainda estiver
-// vazio, para não sobrescrever um valor que o operador já corrigiu
-// manualmente) - deixa visível qual ciclo está sendo assumido, e
-// ainda editável caso o molde esteja regulado diferente.
-function onPecaSelecionada(hora, produtoId) {
-  salvarValor(hora, "produtoId", produtoId);
-
-  const registro = registrosState[maquinaAtiva][hora];
-  if (!registro.cicloInformado && produtoId) {
-    const peca = pecasDisponiveis.find((p) => String(p.id) === String(produtoId));
-    if (peca && peca.ciclo_padrao) {
-      registro.cicloInformado = peca.ciclo_padrao;
-      renderizarTabela();
-      atualizarResumoTurno();
-    }
-  }
-}
-
-function salvarValor(hora, campo, valor) {
-  if (!registrosState[maquinaAtiva]) {
-    registrosState[maquinaAtiva] = {};
-  }
-  if (!registrosState[maquinaAtiva][hora]) {
-    registrosState[maquinaAtiva][hora] = {
-      prod: "",
-      inicio: "",
-      retomada: "",
-      motivo: "",
-      produtoId: "",
-      ordemProducaoId: "",
-      paradaProgramada: false,
-      cicloInformado: "",
-      contadorParada: "",
-      contadorRetomada: "",
+    lancamento = {
+      tipo,
+      horario_inicio: inicio,
+      horario_fim: fim,
+      produto_id: null,
+      ordem_producao_id: null,
+      quantidade: null,
+      motivo: document.getElementById("lancMotivo").value.trim() || null,
     };
+
+    document.getElementById("lancMotivo").value = "";
+    document.getElementById("lancInicioParada").value = "";
+    document.getElementById("lancFimParada").value = "";
   }
 
-  // Parada programada só faz sentido com um horário de início registrado
-  // (é o que o backend usa pra calcular quantos minutos excluir do OEE).
-  if (campo === "paradaProgramada" && valor && !registrosState[maquinaAtiva][hora].inicio) {
-    alert("Preencha o horário de início da parada antes de marcar como programada.");
-    renderizarTabela();
-    return;
-  }
-
-  registrosState[maquinaAtiva][hora][campo] = valor;
+  lancamentosState[maquinaAtiva].push(lancamento);
+  renderizarAbasMaquinas();
+  renderizarListaLancamentos();
   atualizarResumoTurno();
 }
 
-// Soma a produção esperada e apontada em todas as máquinas e horas já
-// preenchidas do turno em andamento - permite ao responsável do setor
-// acompanhar o progresso a qualquer momento, sem precisar esperar o
-// fechamento do turno para ver o total. É uma estimativa client-side
-// (mesma lógica de prioridade de ciclo/cavidades do backend: ciclo
-// informado > peça > máquina) - o valor definitivo, incluindo o
-// desconto de paradas programadas, só é calculado no fechamento.
+function removerLancamento(indice) {
+  lancamentosState[maquinaAtiva].splice(indice, 1);
+  renderizarAbasMaquinas();
+  renderizarListaLancamentos();
+  atualizarResumoTurno();
+}
+
+function calcularEsperadoLancamento(lanc, maquina) {
+  if (lanc.tipo !== "PRODUCAO") return 0;
+  const peca = lanc.produto_id
+    ? pecasDisponiveis.find((p) => String(p.id) === String(lanc.produto_id))
+    : null;
+  const ciclo = peca?.ciclo_padrao || maquina?.ciclo_padrao;
+  const cavidades = peca?.cavidades || maquina?.cavidades;
+  if (!ciclo || !cavidades) return 0;
+
+  const [hIni, mIni] = lanc.horario_inicio.split(":").map(Number);
+  const [hFim, mFim] = lanc.horario_fim.split(":").map(Number);
+  const duracaoSeg = (hFim * 3600 + mFim * 60) - (hIni * 3600 + mIni * 60);
+  return Math.round((duracaoSeg / ciclo) * cavidades);
+}
+
+function renderizarListaLancamentos() {
+  const tbody = document.getElementById("corpoListaLancamentos");
+  const lista = lancamentosState[maquinaAtiva] || [];
+  const maquina = maquinasDisponiveis.find((m) => m.numero_maquina === maquinaAtiva);
+
+  if (lista.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-secondary py-3">Nenhum lançamento ainda nesta injetora.</td></tr>`;
+    return;
+  }
+
+  const rotuloTipo = {
+    PRODUCAO: '<span class="badge bg-success">Produção</span>',
+    PARADA_PROGRAMADA: '<span class="badge bg-warning text-dark">Parada Programada</span>',
+    PARADA_FALHA: '<span class="badge bg-danger">Falha</span>',
+  };
+
+  tbody.innerHTML = lista
+    .map((lanc, i) => {
+      const peca = lanc.produto_id
+        ? pecasDisponiveis.find((p) => String(p.id) === String(lanc.produto_id))
+        : null;
+      const op = lanc.ordem_producao_id
+        ? ordensProducaoDisponiveis.find((o) => String(o.id) === String(lanc.ordem_producao_id))
+        : null;
+      const pecaOuMotivo = lanc.tipo === "PRODUCAO" ? (peca?.descricao || "-") : (lanc.motivo || "-");
+      const esperado = calcularEsperadoLancamento(lanc, maquina);
+
+      return `
+        <tr>
+          <td>${rotuloTipo[lanc.tipo]}</td>
+          <td>${lanc.horario_inicio}</td>
+          <td>${lanc.horario_fim}</td>
+          <td>${escaparHtml(pecaOuMotivo)}</td>
+          <td>${op ? escaparHtml(op.numero_op) : "-"}</td>
+          <td class="text-center">${lanc.quantidade ?? "-"}</td>
+          <td class="text-center">${lanc.tipo === "PRODUCAO" ? esperado : "-"}</td>
+          <td class="text-center">
+            <button class="btn btn-sm btn-outline-danger" onclick="removerLancamento(${i})">
+              <i class="bi bi-trash"></i>
+            </button>
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
+}
+
 function atualizarResumoTurno() {
   let totalEsperado = 0;
   let totalApontado = 0;
 
   maquinasDisponiveis.forEach((maquina) => {
-    const registrosMaquina = registrosState[maquina.numero_maquina] || {};
-    for (const dados of Object.values(registrosMaquina)) {
-      if (dados.prod === "" && !dados.produtoId) continue;
-
-      totalApontado += parseInt(dados.prod || 0);
-
-      const peca = dados.produtoId
-        ? pecasDisponiveis.find((p) => String(p.id) === String(dados.produtoId))
-        : null;
-
-      const ciclo =
-        parseFloat(dados.cicloInformado) ||
-        peca?.ciclo_padrao ||
-        maquina.ciclo_padrao;
-      const cavidades = peca?.cavidades || maquina.cavidades;
-
-      if (ciclo && cavidades) {
-        totalEsperado += Math.round((3600 / ciclo) * cavidades);
+    (lancamentosState[maquina.numero_maquina] || []).forEach((lanc) => {
+      if (lanc.tipo === "PRODUCAO") {
+        totalApontado += lanc.quantidade || 0;
+        totalEsperado += calcularEsperadoLancamento(lanc, maquina);
       }
-    }
+    });
   });
 
   document.getElementById("resumoEsperado").innerText = totalEsperado.toLocaleString("pt-BR");
@@ -470,10 +341,44 @@ function atualizarResumoTurno() {
   }
 }
 
-function escaparHtml(texto) {
-  const div = document.createElement("div");
-  div.textContent = texto;
-  return div.innerHTML;
+async function carregarTurnoParaEdicao(turnoId) {
+  try {
+    const res = await chamarApi(`/turnos/${turnoId}`);
+    if (!res.ok) throw new Error("Turno não encontrado.");
+    const turno = await res.json();
+
+    const selectTurno = document.getElementById("selectTurno");
+    for (const opcao of selectTurno.options) {
+      if (opcao.text === turno.nome_turno) {
+        selectTurno.value = opcao.value;
+        break;
+      }
+    }
+
+    document.getElementById("nomeLider").value = turno.responsavel_nome || "";
+    document.getElementById("nomeRegulador").value = turno.regulador_nome || "";
+    document.getElementById("observacoesTurno").value = turno.observacoes || "";
+
+    (turno.lancamentos || []).forEach((lanc) => {
+      if (!lancamentosState[lanc.numero_maquina]) {
+        lancamentosState[lanc.numero_maquina] = [];
+      }
+      lancamentosState[lanc.numero_maquina].push({
+        tipo: lanc.tipo,
+        horario_inicio: lanc.horario_inicio,
+        horario_fim: lanc.horario_fim,
+        produto_id: lanc.produto_id,
+        ordem_producao_id: lanc.ordem_producao_id,
+        quantidade: lanc.quantidade,
+        motivo: lanc.motivo,
+      });
+    });
+
+    renderizarAbasMaquinas();
+  } catch (erro) {
+    console.error(erro);
+    alert("Não foi possível carregar o turno para edição.");
+  }
 }
 
 function montarPayloadFechamento() {
@@ -485,70 +390,42 @@ function montarPayloadFechamento() {
     responsavel_nome: lider,
     regulador_nome: regulador || null,
     observacoes: document.getElementById("observacoesTurno").value,
-    registros: [],
+    lancamentos: [],
   };
 
-  // Formata os registros de todas as máquinas cadastradas (número dinâmico,
-  // não mais fixo em 6).
   maquinasDisponiveis.forEach((m) => {
-    const registrosMaquina = registrosState[m.numero_maquina] || {};
-    for (const [hora, dados] of Object.entries(registrosMaquina)) {
-      if (dados.prod !== "" || dados.inicio !== "") {
-        payload.registros.push({
-          numero_maquina: m.numero_maquina,
-          hora_referencia: hora,
-          prod_executada: parseInt(dados.prod || 0),
-          produto_id: dados.produtoId ? parseInt(dados.produtoId) : null,
-          ordem_producao_id: dados.ordemProducaoId ? parseInt(dados.ordemProducaoId) : null,
-          ciclo_informado: dados.cicloInformado !== "" ? parseFloat(dados.cicloInformado) : null,
-          inicio_parada: dados.inicio || null,
-          retomada: dados.retomada || null,
-          motivo_parada: dados.motivo || null,
-          parada_programada: !!dados.paradaProgramada,
-          contador_parada: dados.contadorParada !== "" ? parseInt(dados.contadorParada) : null,
-          contador_retomada: dados.contadorRetomada !== "" ? parseInt(dados.contadorRetomada) : null,
-        });
-      }
-    }
+    (lancamentosState[m.numero_maquina] || []).forEach((lanc) => {
+      payload.lancamentos.push({ numero_maquina: m.numero_maquina, ...lanc });
+    });
   });
 
   return { lider, payload };
 }
 
-// Envio para o Backend FastAPI: cria/atualiza um rascunho, fecha um
-// turno novo, fecha um rascunho existente, ou corrige um turno já
-// fechado (turnoEditandoId) - qual caminho depende de qual id estiver
-// definido no momento.
 async function confirmarFechamento() {
   const { lider, payload } = montarPayloadFechamento();
-  if (!lider) {
-    alert("Por favor, preencha o nome do líder antes de finalizar.");
-    return;
+  if (!lider) return alert("Por favor, preencha o nome do líder antes de finalizar.");
+  if (payload.lancamentos.length === 0) {
+    return alert("Adicione pelo menos um lançamento (produção ou parada) antes de finalizar.");
   }
 
-  let caminho;
-  let metodo;
-  let tipo; // "correcao" | "fechar_rascunho" | "fechar_direto"
-
+  let caminho, metodo, tipo;
   if (turnoEditandoId) {
-    caminho = `/turnos/${turnoEditandoId}`;
-    metodo = "PATCH";
+    caminho = `/turnos/lancamento/${turnoEditandoId}/fechar`;
+    metodo = "POST";
     tipo = "correcao";
   } else if (rascunhoTurnoId) {
-    caminho = `/turnos/${rascunhoTurnoId}/fechar`;
+    caminho = `/turnos/lancamento/${rascunhoTurnoId}/fechar`;
     metodo = "POST";
     tipo = "fechar_rascunho";
   } else {
-    caminho = `/turnos/fechamento`;
+    caminho = `/turnos/lancamento`;
     metodo = "POST";
     tipo = "fechar_direto";
   }
 
   try {
-    const res = await chamarApi(caminho, {
-      method: metodo,
-      body: JSON.stringify(payload),
-    });
+    const res = await chamarApi(caminho, { method: metodo, body: JSON.stringify(payload) });
 
     if (res.status === 403) {
       alert("Você não tem permissão para corrigir este turno.");
@@ -558,42 +435,26 @@ async function confirmarFechamento() {
     if (res.ok) {
       if (tipo === "correcao") {
         alert("✅ Turno corrigido com sucesso!");
-        window.location.href = "historico.html";
       } else {
-        alert(
-          "✅ Fechamento de turno registrado e assinado com sucesso! O relatório será gerado.",
-        );
-        window.location.reload();
+        alert("✅ Fechamento de turno registrado e assinado com sucesso! O relatório será gerado.");
       }
+      window.location.href = "historico.html";
     } else {
       const erro = await res.json().catch(() => null);
-      alert(
-        "⚠️ " +
-          (erro?.detail ||
-            "Erro ao registrar dados. Verifique a conexão com o servidor."),
-      );
+      alert("⚠️ " + (erro?.detail || "Erro ao registrar dados. Verifique a conexão com o servidor."));
     }
   } catch (error) {
-    // Sessão expirada: chamarApi já redirecionou para login.html, então
-    // não mostramos um alerta de erro de conexão por cima do redirect.
     if (error.message === "Sessão expirada.") return;
     console.error("Erro na requisição:", error);
     alert("❌ Não foi possível conectar à API.");
   }
 }
 
-// Salva o progresso do turno em andamento, sem disparar PDF/e-mail -
-// pode ser chamado várias vezes ao longo do turno. Na primeira vez,
-// cria o rascunho (POST); nas seguintes, atualiza o mesmo (PATCH).
 async function salvarRascunho() {
   const { lider, payload } = montarPayloadFechamento();
-  if (!lider) {
-    alert("Por favor, preencha o nome do líder antes de salvar o rascunho.");
-    return;
-  }
+  if (!lider) return alert("Por favor, preencha o nome do líder antes de salvar o rascunho.");
   if (turnoEditandoId) {
-    alert("Este turno já está fechado - use 'Salvar Correção' em vez de rascunho.");
-    return;
+    return alert("Este turno já está fechado - use 'Salvar Correção' em vez de rascunho.");
   }
 
   const btn = document.getElementById("btnSalvarRascunho");
@@ -601,14 +462,13 @@ async function salvarRascunho() {
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span>`;
 
-  const caminho = rascunhoTurnoId ? `/turnos/rascunho/${rascunhoTurnoId}` : `/turnos/rascunho`;
+  const caminho = rascunhoTurnoId
+    ? `/turnos/lancamento/rascunho/${rascunhoTurnoId}`
+    : `/turnos/lancamento/rascunho`;
   const metodo = rascunhoTurnoId ? "PATCH" : "POST";
 
   try {
-    const res = await chamarApi(caminho, {
-      method: metodo,
-      body: JSON.stringify(payload),
-    });
+    const res = await chamarApi(caminho, { method: metodo, body: JSON.stringify(payload) });
 
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
@@ -619,8 +479,6 @@ async function salvarRascunho() {
     const resultado = await res.json();
     rascunhoTurnoId = String(resultado.turno_id);
 
-    // Atualiza a URL sem recarregar a página, para que um refresh
-    // acidental (ou fechar e reabrir a aba) continue de onde parou.
     const novaUrl = `${window.location.pathname}?rascunho=${rascunhoTurnoId}`;
     window.history.replaceState({}, "", novaUrl);
 
@@ -636,4 +494,10 @@ async function salvarRascunho() {
     btn.disabled = false;
     btn.innerHTML = textoOriginal;
   }
+}
+
+function escaparHtml(texto) {
+  const div = document.createElement("div");
+  div.textContent = texto;
+  return div.innerHTML;
 }
