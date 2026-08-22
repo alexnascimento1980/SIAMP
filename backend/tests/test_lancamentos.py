@@ -273,3 +273,180 @@ def test_pdf_de_turno_lancamento_gera_corretamente(client, db_session, usuario_t
     res = client.get(f"/api/v1/turnos/{turno_id}/relatorio.pdf")
     assert res.status_code == 200
     assert res.content[:4] == b"%PDF"
+
+
+def _criar_admin(db_session, email="admin-lanc@siamp.test"):
+    admin = Usuario(
+        nome="Admin Teste",
+        email=email,
+        senha_hash=gerar_hash_senha("senha-forte-123"),
+        perfil="ADMIN",
+        ativo=True,
+    )
+    db_session.add(admin)
+    db_session.commit()
+    db_session.refresh(admin)
+    return admin
+
+
+def test_corrigir_turno_lancamento_ja_fechado(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)
+
+    turno_id = client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": peca.id,
+                    "quantidade": 100,
+                }
+            ],
+        },
+    ).json()["turno_id"]
+
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+
+    res = client.patch(
+        f"/api/v1/turnos/lancamento/{turno_id}",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Corrigido",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": peca.id,
+                    "quantidade": 150,
+                }
+            ],
+        },
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["kpis"]["total_produzido"] == 150
+
+    detalhe = client.get(f"/api/v1/turnos/{turno_id}").json()
+    assert detalhe["responsavel_nome"] == "Líder Corrigido"
+    assert detalhe["editado_por_nome"] == "Admin Teste"
+
+
+def test_corrigir_turno_lancamento_operador_nao_pode(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)
+
+    turno_id = client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": peca.id,
+                    "quantidade": 100,
+                }
+            ],
+        },
+    ).json()["turno_id"]
+
+    res = client.patch(
+        f"/api/v1/turnos/lancamento/{turno_id}",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Tentativa",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": peca.id,
+                    "quantidade": 1,
+                }
+            ],
+        },
+    )
+    assert res.status_code == 403
+
+
+def test_exportar_csv_inclui_turno_lancamento(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)
+
+    client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Lançamento",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "07:00",
+                    "produto_id": peca.id,
+                    "quantidade": 300,
+                },
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PARADA_FALHA",
+                    "horario_inicio": "07:00",
+                    "horario_fim": "07:15",
+                    "motivo": "Sensor travado",
+                },
+            ],
+        },
+    )
+
+    res = client.get("/api/v1/turnos/exportar/csv")
+    assert res.status_code == 200
+    conteudo = res.content.decode("utf-8-sig")
+    assert "LANCAMENTO" in conteudo
+    assert "PRODUCAO" in conteudo
+    assert "PARADA_FALHA" in conteudo
+    assert "Sensor travado" in conteudo
+    assert "300" in conteudo
+
+
+def test_dashboard_ve_producao_de_turno_lancamento(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)
+
+    client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": peca.id,
+                    "quantidade": 250,
+                }
+            ],
+        },
+    )
+
+    res = client.get("/api/v1/dashboard/metricas-gerais")
+    assert res.status_code == 200
+    dados = res.json()
+    assert dados["kpis"]["total_turnos_encerrados"] == 1
+    assert dados["kpis"]["total_pecas_produzidas"] == 250
+    assert 250 in dados["grafico_producao"]["valores"]
+    assert len(dados["producao_por_turno"]["labels"]) == 1
+    assert dados["producao_por_turno"]["produzido"] == [250]

@@ -31,6 +31,7 @@ from app.services.analytics import (
     calcular_kpis_varios_turnos_generico,
 )
 from app.services.lancamento_service import (
+    editar_turno_lancamento,
     fechar_turno_lancamento,
     montar_registros_pdf_lancamento,
     salvar_rascunho_lancamento,
@@ -245,6 +246,30 @@ def fechar_rascunho_lancamento(
     try:
         return fechar_turno_lancamento(
             db=db, dados=dados, background_tasks=background_tasks, turno_id=turno_id
+        )
+    except ValueError as exc:
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if "não encontrado" in str(exc)
+            else status.HTTP_400_BAD_REQUEST
+        )
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+
+
+@router.patch("/lancamento/{turno_id}")
+def corrigir_turno_lancamento(
+    turno_id: int,
+    dados: TurnoLancamentoCreate,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(exigir_perfil("ADMIN", "SUPERVISOR")),
+):
+    """Corrige um turno de lançamentos já encerrado (equivalente a
+    PATCH /turnos/{id} do modelo por hora). Restrito a ADMIN/
+    SUPERVISOR. Substitui todos os lançamentos do turno pelos
+    informados; não reenvia e-mail (evita duplicidade)."""
+    try:
+        return editar_turno_lancamento(
+            db=db, turno_id=turno_id, dados=dados, usuario_id=usuario.id
         )
     except ValueError as exc:
         status_code = (

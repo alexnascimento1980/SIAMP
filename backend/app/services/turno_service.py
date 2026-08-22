@@ -81,17 +81,24 @@ def exportar_registros_csv(
     data_inicio: date | None = None,
     data_fim: date | None = None,
 ) -> str:
-    """Exporta os apontamentos horários de turnos fechados, num período
-    opcional, em CSV (uma linha por hora/máquina apontada) - para
-    análise em Excel, Power BI ou ferramentas similares. Usa ';' como
-    separador (não ','), padrão esperado pelo Excel em configuração
-    regional Brasil ao abrir o arquivo direto com duplo clique.
+    """Exporta os apontamentos de turnos fechados, num período opcional,
+    em CSV - para análise em Excel, Power BI ou ferramentas similares.
+    Usa ';' como separador (não ','), padrão esperado pelo Excel em
+    configuração regional Brasil ao abrir o arquivo direto com duplo
+    clique. Cobre os dois modelos de apontamento (HORARIO e
+    LANCAMENTO) no mesmo arquivo, distinguidos pela coluna
+    'modelo_apontamento' - colunas que só fazem sentido para um dos
+    modelos (ex.: ciclo_informado, só do modelo por hora) ficam em
+    branco nas linhas do outro.
 
     Só turnos fechados (ASSINADO_DIGITALMENTE) entram - um rascunho
     ainda em andamento pode mudar completamente até o fechamento, não
     faz sentido exportar como se fosse dado definitivo.
     """
-    query = (
+    from app.models.lancamento import Lancamento
+    from app.services.analytics import calcular_capacidade_esperada_lancamento
+
+    query_horario = (
         db.query(RegistroHorario, Turno, Maquina, Produto, OrdemProducao)
         .join(Turno, RegistroHorario.turno_id == Turno.id)
         .join(Maquina, RegistroHorario.maquina_id == Maquina.id)
@@ -99,22 +106,35 @@ def exportar_registros_csv(
         .outerjoin(OrdemProducao, RegistroHorario.ordem_producao_id == OrdemProducao.id)
         .filter(Turno.status_assinatura == STATUS_ASSINADO)
     )
+    query_lancamento = (
+        db.query(Lancamento, Turno, Maquina, Produto, OrdemProducao)
+        .join(Turno, Lancamento.turno_id == Turno.id)
+        .join(Maquina, Lancamento.maquina_id == Maquina.id)
+        .outerjoin(Produto, Lancamento.produto_id == Produto.id)
+        .outerjoin(OrdemProducao, Lancamento.ordem_producao_id == OrdemProducao.id)
+        .filter(Turno.status_assinatura == STATUS_ASSINADO)
+    )
     if data_inicio:
-        query = query.filter(Turno.data_registro >= datetime.combine(data_inicio, time.min))
+        inicio_dt = datetime.combine(data_inicio, time.min)
+        query_horario = query_horario.filter(Turno.data_registro >= inicio_dt)
+        query_lancamento = query_lancamento.filter(Turno.data_registro >= inicio_dt)
     if data_fim:
-        query = query.filter(Turno.data_registro <= datetime.combine(data_fim, time.max))
+        fim_dt = datetime.combine(data_fim, time.max)
+        query_horario = query_horario.filter(Turno.data_registro <= fim_dt)
+        query_lancamento = query_lancamento.filter(Turno.data_registro <= fim_dt)
 
-    registros = query.order_by(Turno.data_registro, RegistroHorario.hora_referencia).all()
+    registros = query_horario.order_by(Turno.data_registro, RegistroHorario.hora_referencia).all()
+    lancamentos = query_lancamento.order_by(Turno.data_registro, Lancamento.horario_inicio).all()
 
     saida = io.StringIO()
     saida.write("\ufeff")  # BOM - Excel reconhece UTF-8 com acentuação corretamente
     escritor = csv.writer(saida, delimiter=";")
     escritor.writerow([
-        "data_turno", "nome_turno", "lider", "regulador", "numero_maquina",
-        "hora_referencia", "produto_codigo", "produto_descricao", "numero_op",
+        "data_turno", "nome_turno", "lider", "regulador", "modelo_apontamento",
+        "numero_maquina", "tipo", "horario_inicio", "horario_fim",
+        "produto_codigo", "produto_descricao", "numero_op",
         "prod_executada", "producao_esperada", "ciclo_informado",
-        "inicio_parada", "retomada", "parada_programada", "contador_parada",
-        "contador_retomada", "motivo_parada",
+        "parada_programada", "contador_parada", "contador_retomada", "motivo",
     ])
 
     for reg, turno, maq, produto, ordem in registros:
@@ -124,20 +144,45 @@ def exportar_registros_csv(
             turno.nome_turno,
             turno.responsavel_nome,
             turno.regulador_nome or "",
+            "HORARIO",
             maq.numero_maquina,
+            "HORA",
             reg.hora_referencia.strftime("%H:%M"),
+            "",
             produto.codigo if produto else "",
             produto.descricao if produto else "",
             ordem.numero_op if ordem else "",
             reg.prod_executada,
             round(capacidade["capacidade_ajustada"]),
             reg.ciclo_informado or "",
-            reg.inicio_parada.strftime("%H:%M") if reg.inicio_parada else "",
-            reg.retomada.strftime("%H:%M") if reg.retomada else "",
             "Sim" if reg.parada_programada else "Não",
             reg.contador_parada if reg.contador_parada is not None else "",
             reg.contador_retomada if reg.contador_retomada is not None else "",
             reg.motivo_parada or "",
+        ])
+
+    for lanc, turno, maq, produto, ordem in lancamentos:
+        esperado = calcular_capacidade_esperada_lancamento(lanc, maq, produto)
+        escritor.writerow([
+            turno.data_registro.strftime("%d/%m/%Y"),
+            turno.nome_turno,
+            turno.responsavel_nome,
+            turno.regulador_nome or "",
+            "LANCAMENTO",
+            maq.numero_maquina,
+            lanc.tipo,
+            lanc.horario_inicio.strftime("%H:%M"),
+            lanc.horario_fim.strftime("%H:%M"),
+            produto.codigo if produto else "",
+            produto.descricao if produto else "",
+            ordem.numero_op if ordem else "",
+            lanc.quantidade if lanc.quantidade is not None else "",
+            esperado,
+            "",
+            "Sim" if lanc.tipo == "PARADA_PROGRAMADA" else "Não",
+            "",
+            "",
+            lanc.motivo or "",
         ])
 
     return saida.getvalue()
