@@ -75,12 +75,22 @@ async function carregarPecas() {
     const res = await chamarApi("/produtos/");
     if (!res.ok) throw new Error("Não foi possível carregar as peças.");
     pecasDisponiveis = await res.json();
-    const select = document.getElementById("lancPeca");
+    const datalist = document.getElementById("listaPecasDatalist");
     pecasDisponiveis.forEach((p) => {
       const option = document.createElement("option");
-      option.value = p.id;
-      option.textContent = `${p.codigo} - ${p.descricao}`;
-      select.appendChild(option);
+      option.value = `${p.codigo} - ${p.descricao}`;
+      datalist.appendChild(option);
+    });
+
+    // Resolve o texto digitado/selecionado no campo de busca para o
+    // produto_id correspondente (campo oculto usado no restante do
+    // código) - permite filtrar por código ou descrição em vez de
+    // rolar uma lista longa, importante conforme o catálogo cresce.
+    document.getElementById("lancPecaBusca").addEventListener("input", (evento) => {
+      const peca = pecasDisponiveis.find(
+        (p) => `${p.codigo} - ${p.descricao}` === evento.target.value,
+      );
+      document.getElementById("lancPeca").value = peca ? peca.id : "";
     });
   } catch (erro) {
     console.error(erro);
@@ -201,7 +211,7 @@ function adicionarLancamento() {
     if (!pecaId) return alert("Selecione a peça produzida.");
     if (quantidade === "" || quantidade === null) return alert("Informe a quantidade produzida.");
     if (!inicio || !fim) return alert("Informe o horário de início e fim.");
-    if (fim <= inicio) return alert("O horário de fim deve ser depois do início.");
+    if (fim === inicio) return alert("O horário de fim não pode ser igual ao início.");
 
     lancamento = {
       tipo: "PRODUCAO",
@@ -218,11 +228,13 @@ function adicionarLancamento() {
     document.getElementById("lancQuantidade").value = "";
     document.getElementById("lancInicio").value = "";
     document.getElementById("lancFim").value = "";
+    document.getElementById("lancPecaBusca").value = "";
+    document.getElementById("lancPeca").value = "";
   } else {
     const inicio = document.getElementById("lancInicioParada").value;
     const fim = document.getElementById("lancFimParada").value;
     if (!inicio || !fim) return alert("Informe o horário de início e fim da parada.");
-    if (fim <= inicio) return alert("O horário de fim deve ser depois do início.");
+    if (fim === inicio) return alert("O horário de fim não pode ser igual ao início.");
 
     lancamento = {
       tipo,
@@ -263,7 +275,13 @@ function calcularEsperadoLancamento(lanc, maquina) {
 
   const [hIni, mIni] = lanc.horario_inicio.split(":").map(Number);
   const [hFim, mFim] = lanc.horario_fim.split(":").map(Number);
-  const duracaoSeg = (hFim * 3600 + mFim * 60) - (hIni * 3600 + mIni * 60);
+  const inicioSeg = hIni * 3600 + mIni * 60;
+  let fimSeg = hFim * 3600 + mFim * 60;
+  // Fim menor ou igual ao início = atravessa a meia-noite (3º turno,
+  // ex.: 22:00 até 05:00 do dia seguinte) - soma 24h ao horário final,
+  // mesma lógica do backend (ver analytics.py:_duracao_segundos).
+  if (fimSeg <= inicioSeg) fimSeg += 24 * 3600;
+  const duracaoSeg = fimSeg - inicioSeg;
   return Math.round((duracaoSeg / ciclo) * cavidades);
 }
 
