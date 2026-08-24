@@ -10,7 +10,7 @@ Se SMTP_USER/SMTP_PASS não estiverem configurados no .env, o script
 avisa e não tenta enviar nada (mesmo comportamento do envio real).
 """
 import argparse
-from datetime import datetime
+from app.core.timezone import agora_brasilia
 import sys
 
 from app.core.config import settings
@@ -110,7 +110,7 @@ def main() -> None:
             ),
             pdf_bytes=_gerar_pdf_de_exemplo(),
             nome_arquivo=montar_nome_arquivo_relatorio(
-                "[EXEMPLO] 1º Turno", datetime.now()
+                "[EXEMPLO] 1º Turno", agora_brasilia()
             ),
         )
     except EnvioEmailError as exc:
