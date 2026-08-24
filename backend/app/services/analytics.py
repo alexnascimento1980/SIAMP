@@ -193,9 +193,15 @@ def _resolver_ciclo_cavidades(maq: Maquina, produto: Produto | None) -> tuple[fl
 
 
 def _duracao_segundos(lanc: Lancamento) -> int:
+    """Duração do lançamento em segundos. Quando horario_fim é menor ou
+    igual a horario_inicio, interpreta como atravessando a meia-noite
+    (ex.: 3º turno, 22:00 até 05:00 do dia seguinte) e soma 24h ao
+    horário final - em vez de rejeitar ou dar duração negativa."""
     inicio = lanc.horario_inicio.hour * 3600 + lanc.horario_inicio.minute * 60 + lanc.horario_inicio.second
     fim = lanc.horario_fim.hour * 3600 + lanc.horario_fim.minute * 60 + lanc.horario_fim.second
-    return max(0, fim - inicio)
+    if fim <= inicio:
+        fim += 24 * 3600
+    return fim - inicio
 
 
 def calcular_capacidade_esperada_lancamento(

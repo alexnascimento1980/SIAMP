@@ -52,7 +52,7 @@ def test_fechamento_com_lancamento_de_producao(client, db_session, usuario_teste
     assert dados["status_assinatura"] == "ASSINADO_DIGITALMENTE"
 
 
-def test_horario_fim_antes_do_inicio_e_rejeitado(client, db_session, usuario_teste):
+def test_horario_fim_igual_ao_inicio_e_rejeitado(client, db_session, usuario_teste):
     _login(client, usuario_teste)
     maquina, peca = _criar_maquina_e_peca(db_session)
 
@@ -64,7 +64,7 @@ def test_horario_fim_antes_do_inicio_e_rejeitado(client, db_session, usuario_tes
                 "numero_maquina": maquina.numero_maquina,
                 "tipo": "PRODUCAO",
                 "horario_inicio": "07:00",
-                "horario_fim": "05:00",
+                "horario_fim": "07:00",
                 "produto_id": peca.id,
                 "quantidade": 100,
             }
@@ -72,6 +72,33 @@ def test_horario_fim_antes_do_inicio_e_rejeitado(client, db_session, usuario_tes
     }
     res = client.post("/api/v1/turnos/lancamento", json=payload)
     assert res.status_code == 422
+
+
+def test_lancamento_atravessando_meia_noite_e_aceito(client, db_session, usuario_teste):
+    # 3º turno: 22:00 até 05:00 do dia seguinte - não deve ser
+    # rejeitado, e a duração deve ser calculada como 7h (não negativa).
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)
+
+    payload = {
+        "nome_turno": "3º Turno",
+        "responsavel_nome": "Líder Teste",
+        "lancamentos": [
+            {
+                "numero_maquina": maquina.numero_maquina,
+                "tipo": "PRODUCAO",
+                "horario_inicio": "22:00",
+                "horario_fim": "05:00",
+                "produto_id": peca.id,
+                "quantidade": 700,
+            }
+        ],
+    }
+    res = client.post("/api/v1/turnos/lancamento", json=payload)
+    assert res.status_code == 201, res.text
+    # 7h = 25200s / ciclo 10s * 2 cavidades = 5040 esperado
+    assert res.json()["kpis"]["total_esperado"] == 5040
+    assert res.json()["kpis"]["total_produzido"] == 700
 
 
 def test_producao_sem_quantidade_e_rejeitado(client, db_session, usuario_teste):

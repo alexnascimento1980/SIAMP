@@ -23,11 +23,14 @@ class LancamentoCreate(BaseModel):
             raise ValueError(
                 f"tipo deve ser um de: {', '.join(sorted(TIPOS_LANCAMENTO))}."
             )
-        if self.horario_fim <= self.horario_inicio:
-            raise ValueError(
-                "horario_fim deve ser depois de horario_inicio (lançamentos que "
-                "cruzam a meia-noite devem ser lançados em duas partes)."
-            )
+        if self.horario_fim == self.horario_inicio:
+            raise ValueError("horario_fim não pode ser igual a horario_inicio.")
+        # horario_fim <= horario_inicio é interpretado como o lançamento
+        # atravessando a meia-noite (ex.: 3º turno, 22:00 até 05:00 do
+        # dia seguinte) - não é rejeitado, o cálculo de duração (ver
+        # app/services/analytics.py) soma 24h ao horário final nesse
+        # caso. Isso evita ter que quebrar todo lançamento do 3º turno
+        # em duas partes manualmente.
         if self.tipo == "PRODUCAO" and self.quantidade is None:
             raise ValueError("quantidade é obrigatória para lançamento de produção.")
         return self
