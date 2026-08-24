@@ -87,7 +87,12 @@ def gerar_relatorio_turno_pdf(dados_turno: dict, kpis: dict, registros: list[dic
             ])
 
         tabela_detalhe = Table(
-            linhas_detalhe, colWidths=[35, 40, 50, 150, 50, 50, 130], repeatRows=1
+            # "Hora" precisa caber tanto um horário único (modelo por
+            # hora, "05:00") quanto um intervalo (modelo de lançamentos,
+            # "22:00-05:00") - por isso mais larga que as demais colunas
+            # estreitas eram originalmente dimensionadas só para o
+            # formato antigo.
+            linhas_detalhe, colWidths=[68, 42, 48, 148, 48, 48, 103], repeatRows=1
         )
         tabela_detalhe.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F3F4F6')),
