@@ -160,9 +160,16 @@
           <div class="row g-2" id="camposProducao">
             <div class="col-md-4">
               <label class="form-label small mb-1">Peça <span class="text-danger">*</span></label>
-              <select id="lancPeca" class="form-select">
-                <option value="">— Selecionar —</option>
-              </select>
+              <input
+                type="text"
+                id="lancPecaBusca"
+                class="form-control"
+                list="listaPecasDatalist"
+                placeholder="Digite o código ou descrição..."
+                autocomplete="off"
+              />
+              <datalist id="listaPecasDatalist"></datalist>
+              <input type="hidden" id="lancPeca" />
             </div>
             <div class="col-md-3">
               <label class="form-label small mb-1">Ordem de Produção</label>
