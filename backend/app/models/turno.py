@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.core.timezone import agora_brasilia
 
 
 class Turno(Base):
@@ -14,7 +15,7 @@ class Turno(Base):
     data_registro: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        server_default=func.now(),
+        default=agora_brasilia,
         index=True,
     )
     responsavel_nome: Mapped[str] = mapped_column(String(120), nullable=False)

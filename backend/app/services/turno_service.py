@@ -7,6 +7,7 @@ from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.timezone import agora_brasilia
 from app.models.destinatario_relatorio import DestinatarioRelatorio
 from app.models.maquina import Maquina
 from app.models.ordem_producao import OrdemProducao
@@ -487,7 +488,7 @@ def editar_turno(
     turno.regulador_nome = dados.regulador_nome
     turno.observacoes = dados.observacoes
     turno.editado_por_id = usuario_id
-    turno.editado_em = datetime.utcnow()
+    turno.editado_em = agora_brasilia()
 
     # Substitui todos os registros (mais simples e seguro do que tentar
     # casar registro a registro por hora/máquina).

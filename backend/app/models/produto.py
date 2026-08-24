@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, Integer, String, func
+from sqlalchemy import Boolean, DateTime, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.core.timezone import agora_brasilia
 
 
 class Produto(Base):
@@ -19,7 +20,7 @@ class Produto(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        server_default=func.now(),
+        default=agora_brasilia,
     )
 
     registros = relationship("RegistroHorario", back_populates="produto")
