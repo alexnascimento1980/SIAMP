@@ -319,6 +319,8 @@ def obter_turno(
                 ordem_producao_id=ordem.id if ordem else None,
                 numero_op=ordem.numero_op if ordem else None,
                 quantidade=lanc.quantidade,
+                ciclo_informado=lanc.ciclo_informado,
+                ciclo_padrao_peca=produto.ciclo_padrao if produto else None,
                 motivo=lanc.motivo,
                 producao_esperada=calcular_capacidade_esperada_lancamento(lanc, maq, produto),
             )

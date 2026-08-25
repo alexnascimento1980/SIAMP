@@ -179,7 +179,7 @@ def exportar_registros_csv(
             ordem.numero_op if ordem else "",
             lanc.quantidade if lanc.quantidade is not None else "",
             esperado,
-            "",
+            lanc.ciclo_informado or "",
             "Sim" if lanc.tipo == "PARADA_PROGRAMADA" else "Não",
             "",
             "",

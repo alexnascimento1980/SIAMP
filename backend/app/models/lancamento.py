@@ -1,6 +1,6 @@
 from datetime import time
 
-from sqlalchemy import ForeignKey, Integer, String, Time
+from sqlalchemy import Float, ForeignKey, Integer, String, Time
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -40,6 +40,16 @@ class Lancamento(Base):
         ForeignKey("ordens_producao.id"), nullable=True
     )
     quantidade: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Ciclo (segundos) informado manualmente pelo operador para este
+    # lançamento - tem prioridade sobre o ciclo da peça/máquina no
+    # cálculo de capacidade esperada (ver
+    # app/services/analytics.py:calcular_capacidade_esperada_lancamento).
+    # Útil para o líder de turno comparar o ciclo real observado na
+    # injetora com o ciclo médio padrão cadastrado na peça, e para
+    # casos em que o ciclo real difere do cadastrado (molde regulado
+    # diferente naquele momento).
+    ciclo_informado: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     # Detalhe livre - motivo da falha (tipo=PARADA_FALHA) ou
     # observação da parada programada (tipo=PARADA_PROGRAMADA).

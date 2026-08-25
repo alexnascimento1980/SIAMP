@@ -217,6 +217,14 @@ def calcular_capacidade_esperada_lancamento(
         return 0
 
     ciclo, cavidades = _resolver_ciclo_cavidades(maq, produto)
+
+    # Ciclo informado manualmente pelo operador (campo editável no
+    # apontamento, para comparar com o ciclo médio padrão cadastrado na
+    # peça) tem prioridade máxima - mesma lógica já usada no modelo por
+    # hora (RegistroHorario.ciclo_informado).
+    if lanc.ciclo_informado:
+        ciclo = lanc.ciclo_informado
+
     if not ciclo or not cavidades:
         return 0
 
