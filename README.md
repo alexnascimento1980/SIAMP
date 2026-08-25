@@ -37,6 +37,22 @@ Plataforma para digitalização e automação do processo de fechamento de turno
 <td align="center"><sub>Máquinas</sub></td>
 <td align="center"><sub>Apontamento por lançamento (produção/parada, horário livre)</sub></td>
 </tr>
+<tr>
+<td><img src="docs/screenshots/09-dashboard-periodo.png" alt="Dashboard com filtro de período" width="400"></td>
+<td><img src="docs/screenshots/10-apontamento-ciclo.png" alt="Comparação de ciclo real x padrão" width="400"></td>
+</tr>
+<tr>
+<td align="center"><sub>Dashboard filtrado por período (Hoje / 7 dias / 30 dias / Total)</sub></td>
+<td align="center"><sub>Ciclo real informado x padrão da peça (divergência destacada)</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/11-apontamento-editar.png" alt="Editar lançamento já adicionado" width="400"></td>
+<td><img src="docs/screenshots/12-pdf-dashboard-turno.png" alt="PDF do dashboard anexado ao e-mail" width="400"></td>
+</tr>
+<tr>
+<td align="center"><sub>Editar um lançamento já adicionado (sem apagar e relançar)</sub></td>
+<td align="center"><sub>PDF do dashboard anexado ao e-mail de fechamento, com gráficos de verdade</sub></td>
+</tr>
 </table>
 
 ## 🚀 Funcionalidades Principais
@@ -44,7 +60,8 @@ Plataforma para digitalização e automação do processo de fechamento de turno
 - **Autenticação por usuário:** login com e-mail/senha, sessão via cookie `httpOnly` (não exposto ao JavaScript) — sem cadastro público, contas são criadas por um administrador.
 - **Controle de acesso por perfil:** `ADMIN`, `SUPERVISOR` e `OPERADOR`, com permissões diferentes em cada tela (ver tabela abaixo). O frontend esconde o que o perfil não pode usar, mas a permissão de verdade é sempre revalidada pelo backend em cada endpoint.
 - **Hub de navegação:** depois do login, a tela **Início** reúne um card de acesso rápido para cada tela do sistema, já filtrados pelo perfil de quem está logado.
-- **Apontamento por lançamento livre:** em vez de uma grade fixa por hora, cada apontamento é um lançamento com horário de início/fim livre dentro do turno — produção (peça, Ordem de Produção, quantidade) ou parada (programada ou falha na injetora), quantos forem necessários por injetora. O cálculo de produção esperada usa a duração real de cada lançamento (`3600/ciclo × cavidades`), não mais uma hora cheia fixa — funciona nativamente com turnos que cruzam a meia-noite (ex.: 3º turno, 22h–05h). *Turnos criados antes dessa mudança continuam no modelo antigo (por hora), preservados para consulta e correção.*
+- **Apontamento por lançamento livre:** em vez de uma grade fixa por hora, cada apontamento é um lançamento com horário de início/fim livre dentro do turno — produção (peça, Ordem de Produção, quantidade) ou parada (programada ou falha na injetora), quantos forem necessários por injetora. O cálculo de produção esperada usa a duração real de cada lançamento (`3600/ciclo × cavidades`), não mais uma hora cheia fixa — funciona nativamente com turnos que cruzam a meia-noite (ex.: 3º turno, 22h–05h). Cada lançamento pode ser **editado depois de adicionado** (corrige erro de digitação sem precisar apagar e relançar do zero). *Turnos criados antes dessa mudança continuam no modelo antigo (por hora), preservados para consulta e correção.*
+- **Ciclo real informado x padrão da peça:** opcionalmente, o operador digita o ciclo real observado na injetora durante o lançamento — a tela mostra os dois valores lado a lado e destaca em vermelho quando divergem, ajudando a identificar rápido quando o molde está regulado diferente do cadastrado. O ciclo informado tem prioridade no cálculo de produção esperada.
 - **Salvar o progresso do turno (rascunho):** o responsável não precisa mais esperar o fim do turno para conferir os números — dá para salvar o que já foi apontado a qualquer momento (sem disparar PDF/e-mail), continuar depois de fechar o navegador, e só finalizar de verdade quando o turno realmente encerrar.
 - **Injetoras e Peças configuráveis:** administradores e supervisores cadastram/editam máquinas e o catálogo de peças (código, ciclo médio, cavidades — obrigatórios e editáveis) pela própria interface — nada fixo no código. Peças têm um campo de busca por código/descrição, pensado para catálogos grandes.
 - **Ordens de Produção:** cadastro manual ou **importação em lote via CSV/XML** — peça e máquina são resolvidas pelo código já cadastrado, linhas com código desconhecido são rejeitadas e listadas (sem travar a importação das demais). Comparativo automático de meta x produção real, correto mesmo quando a mesma OP é produzida em mais de uma injetora ao mesmo tempo.
@@ -53,8 +70,8 @@ Plataforma para digitalização e automação do processo de fechamento de turno
 - **Fechamento de turno com cálculo automático de OEE:** índice de produção e qualidade combinados automaticamente; parada programada (troca de molde, manutenção preventiva etc.) não penaliza o cálculo — só o que efetivamente parou a linha sem planejamento conta contra a eficiência.
 - **Histórico de Turnos:** listagem dos turnos encerrados (e dos rascunhos em andamento, com indicação clara de status) com produção total, eficiência e status; download do relatório em PDF a qualquer momento, reenvio por e-mail sob demanda, e **exportação em CSV** (uma linha por lançamento/hora apontada) para análise em Excel ou Power BI.
 - **Relatórios em PDF sob demanda:** detalhados por lançamento/máquina, com a peça e a Ordem de Produção atendidas em cada linha — gerados a partir dos dados reais do turno, não dependem de e-mail configurado para existir.
-- **Envio automático de relatório por e-mail:** ao fechar um turno, PDF enviado em background para os destinatários cadastrados. Funciona via SMTP (bom para desenvolvimento local) ou via API HTTP do Brevo (necessário em hospedagens que bloqueiam portas SMTP no plano gratuito, como o Render — ver `DEPLOY.md`). Validado em produção via ambos os caminhos.
-- **Dashboard Analítico:** OEE médio, produção acumulada por injetora, produção e OEE dos últimos turnos, comparativo de meta x real das Ordens de Produção mais recentes, e um diagnóstico de risco operacional baseado em Machine Learning (scikit-learn).
+- **Envio automático de relatório por e-mail:** ao fechar um turno, **dois PDFs** são enviados em background para os destinatários cadastrados — o relatório de fechamento (detalhado por lançamento) e um dashboard com o desempenho do turno comparado ao acumulado diário/semanal/mensal, com os mesmos gráficos (barras, linha) disponíveis na tela do Dashboard, não só tabelas de números. Funciona via SMTP (bom para desenvolvimento local) ou via API HTTP do Brevo (necessário em hospedagens que bloqueiam portas SMTP no plano gratuito, como o Render — ver `DEPLOY.md`). Validado em produção via ambos os caminhos.
+- **Dashboard Analítico:** OEE médio, produção acumulada por injetora, produção e OEE dos últimos turnos, comparativo de meta x real das Ordens de Produção mais recentes, e um diagnóstico de risco operacional baseado em Machine Learning (scikit-learn). Os números acumulados (produzido, OEE médio, produção por injetora) podem ser filtrados por período — **Hoje / Últimos 7 dias / Últimos 30 dias / Total** — enquanto a tendência por turno e o comparativo de OPs continuam sempre mostrando os mais recentes.
 - **Fuso horário de Brasília:** toda data/hora gravada (fechamento de turno, cadastros) usa o horário de Brasília de forma explícita, independentemente do fuso do servidor onde o sistema está hospedado (bancos gerenciados na nuvem costumam rodar em UTC por padrão).
 - **Identidade visual da SIAMP:** cores e logo da marca aplicadas em todo o sistema.
 - **Pronto para deploy:** guia completo de publicação no Render (hospedagem) com Supabase (banco Postgres) em `DEPLOY.md`.
@@ -300,4 +317,4 @@ pip install -r requirements-dev.txt
 pytest -v
 ```
 
-Deve dar **113 testes passando**.
+Deve dar **124 testes passando**.
