@@ -696,3 +696,13 @@ def test_fechamento_agenda_email_so_com_brevo_configurado_sem_smtp(client, db_se
     assert len(payload_enviado["attachment"]) == 2
     nomes_anexo = [a["name"] for a in payload_enviado["attachment"]]
     assert any("dashboard" in nome for nome in nomes_anexo)
+
+    # O PDF do dashboard precisa ser um PDF válido e conter os
+    # gráficos de verdade (imagens), não só tabelas - um PDF só com
+    # tabelas de texto fica bem menor que um com gráficos embutidos.
+    import base64
+
+    anexo_dashboard = next(a for a in payload_enviado["attachment"] if "dashboard" in a["name"])
+    conteudo_pdf = base64.b64decode(anexo_dashboard["content"])
+    assert conteudo_pdf[:4] == b"%PDF"
+    assert len(conteudo_pdf) > 10_000  # tabelas sozinhas ficam bem menores que isso

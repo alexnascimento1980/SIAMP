@@ -1,8 +1,78 @@
 import io
+
+import matplotlib
+matplotlib.use("Agg")  # sem display disponível no servidor - precisa vir antes de importar pyplot
+import matplotlib.pyplot as plt
+
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+# Cores da marca SIAMP (mesmas do frontend - ver frontend/css/styles.css)
+_AZUL_MARINHO = "#004380"
+_AZUL_CLARO = "#00ABE9"
+
+
+def _gerar_grafico_barras(labels: list[str], valores: list[float], titulo: str) -> bytes:
+    """Gráfico de barras simples (ex.: produção por injetora), como
+    imagem PNG - para embutir no PDF via reportlab.platypus.Image.
+    Usado no lugar de renderizar a própria página do dashboard num
+    navegador headless: bem mais leve para rodar em background numa
+    hospedagem com pouca memória (plano gratuito do Render)."""
+    fig, ax = plt.subplots(figsize=(6.5, 3), dpi=150)
+    ax.bar(labels, valores, color=_AZUL_MARINHO)
+    ax.set_title(titulo, fontsize=11, color="#333333")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.tick_params(axis="x", labelrotation=0, labelsize=8)
+    fig.tight_layout()
+
+    buffer = io.BytesIO()
+    fig.savefig(buffer, format="png")
+    plt.close(fig)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def _gerar_grafico_producao_por_turno(labels: list[str], produzido: list[float], oee: list[float]) -> bytes:
+    """Gráfico combinado barra (produção) + linha (OEE, eixo secundário)
+    dos últimos turnos - mesmo formato do gráfico 'Produção por Turno'
+    do dashboard na tela."""
+    fig, ax1 = plt.subplots(figsize=(6.5, 3), dpi=150)
+    ax1.bar(labels, produzido, color=_AZUL_MARINHO, label="Produção (pçs)")
+    ax1.set_ylabel("Peças", fontsize=8)
+    ax1.tick_params(axis="x", labelrotation=30, labelsize=7)
+    ax1.spines["top"].set_visible(False)
+
+    ax2 = ax1.twinx()
+    ax2.plot(labels, oee, color=_AZUL_CLARO, marker="o", linewidth=2, label="OEE (%)")
+    ax2.set_ylabel("OEE %", fontsize=8)
+    ax2.set_ylim(0, max(100, max(oee) * 1.1 if oee else 100))
+
+    ax1.set_title("Produção por Turno (últimos 10)", fontsize=11, color="#333333")
+    linhas1, rotulos1 = ax1.get_legend_handles_labels()
+    linhas2, rotulos2 = ax2.get_legend_handles_labels()
+    ax1.legend(linhas1 + linhas2, rotulos1 + rotulos2, fontsize=7, loc="upper left")
+    fig.tight_layout()
+
+    buffer = io.BytesIO()
+    fig.savefig(buffer, format="png")
+    plt.close(fig)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def _imagem_de_bytes(conteudo_png: bytes, largura_pt: float = 470) -> Image:
+    """Monta um flowable Image do reportlab a partir de PNG em memória,
+    preservando a proporção original da figura."""
+    buffer = io.BytesIO(conteudo_png)
+    img = Image(buffer)
+    proporcao = img.imageHeight / img.imageWidth
+    img.drawWidth = largura_pt
+    img.drawHeight = largura_pt * proporcao
+    return img
+
 
 def gerar_relatorio_turno_pdf(dados_turno: dict, kpis: dict, registros: list[dict] | None = None) -> bytes:
     buffer = io.BytesIO()
@@ -120,22 +190,29 @@ def gerar_relatorio_dashboard_pdf(
     dados_turno: dict,
     kpis_turno: dict,
     metricas_por_periodo: dict,
+    producao_por_turno: dict | None = None,
 ) -> bytes:
     """PDF complementar ao relatório de fechamento de turno: mostra o
     desempenho do próprio turno lado a lado com o acumulado diário,
-    semanal e mensal - contexto que o relatório de fechamento sozinho
-    não dá, já que ele só fala do turno isolado.
+    semanal e mensal, com os mesmos gráficos disponíveis na tela do
+    dashboard (produção por injetora, produção por turno) - não só
+    tabelas de números.
 
     metricas_por_periodo: {"diario": {...}, "semanal": {...}, "mensal": {...}},
     cada um no formato retornado por
     app.services.dashboard_service.calcular_metricas_acumuladas.
+    producao_por_turno: formato de
+    app.services.dashboard_service.montar_producao_por_turno - se não
+    informado, esse gráfico é omitido.
     """
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
     styles = getSampleStyleSheet()
     elementos = []
 
-    titulo_style = ParagraphStyle('Titulo', parent=styles['Heading1'], fontSize=16, leading=20, textColor=colors.HexColor('#1E3A8A'))
+    titulo_style = ParagraphStyle('Titulo', parent=styles['Heading1'], fontSize=16, leading=20, textColor=colors.HexColor(_AZUL_MARINHO))
+    subtitulo_style = ParagraphStyle('Subtitulo', parent=styles['Heading2'], fontSize=12, textColor=colors.HexColor(_AZUL_MARINHO))
+
     elementos.append(Paragraph("SIAMP - Dashboard do Fechamento de Turno", titulo_style))
     elementos.append(Paragraph(
         f"<b>Turno:</b> {dados_turno['nome_turno']} | <b>Responsável:</b> {dados_turno['responsavel_nome']}",
@@ -146,7 +223,6 @@ def gerar_relatorio_dashboard_pdf(
     # Desempenho do próprio turno - mesmo dado do relatório de
     # fechamento, repetido aqui como ponto de referência para comparar
     # com o acumulado logo abaixo.
-    subtitulo_style = ParagraphStyle('Subtitulo', parent=styles['Heading2'], fontSize=12, textColor=colors.HexColor('#1E3A8A'))
     elementos.append(Paragraph("Este turno", subtitulo_style))
     dados_turno_tabela = [
         ["Produzido (pçs)", "Esperado (pçs)", "Eficiência (OEE)"],
@@ -190,22 +266,27 @@ def gerar_relatorio_dashboard_pdf(
 
     # Produção por injetora no acumulado mensal - o período mais amplo
     # dos três, mais útil para enxergar padrão entre máquinas do que
-    # o diário/semanal isoladamente.
+    # o diário/semanal isoladamente. Mesmo gráfico de barras do
+    # dashboard na tela, não uma tabela.
     producao_maquina = metricas_por_periodo["mensal"].get("producao_por_maquina", [])
     if producao_maquina:
         elementos.append(Paragraph("Produção por Injetora - Últimos 30 dias", subtitulo_style))
-        linhas_maquina = [["Injetora", "Produzido (pçs)"]]
-        for m in producao_maquina:
-            linhas_maquina.append([f"Injetora {m['numero_maquina']}", str(m["total_produzido"])])
-        tabela_maquina = Table(linhas_maquina, colWidths=[250, 250])
-        tabela_maquina.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F3F4F6')),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ]))
-        elementos.append(tabela_maquina)
+        labels_maquina = [f"Injetora {m['numero_maquina']}" for m in producao_maquina]
+        valores_maquina = [m["total_produzido"] for m in producao_maquina]
+        grafico_maquina = _gerar_grafico_barras(labels_maquina, valores_maquina, "")
+        elementos.append(_imagem_de_bytes(grafico_maquina))
+        elementos.append(Spacer(1, 10))
+
+    # Produção por turno (últimos 10) - mesmo gráfico combinado
+    # barra+linha (produção x OEE) da tela do dashboard.
+    if producao_por_turno and producao_por_turno.get("labels"):
+        elementos.append(Paragraph("Produção por Turno (últimos 10)", subtitulo_style))
+        grafico_turno = _gerar_grafico_producao_por_turno(
+            producao_por_turno["labels"],
+            producao_por_turno["produzido"],
+            producao_por_turno["oee"],
+        )
+        elementos.append(_imagem_de_bytes(grafico_turno))
 
     doc.build(elementos)
     buffer.seek(0)

@@ -318,13 +318,16 @@ def agendar_email_relatorio(
 
     # Import local para evitar ciclo de import: dashboard_service.py
     # já importa STATUS_ASSINADO deste mesmo módulo.
-    from app.services.dashboard_service import calcular_metricas_acumuladas
+    from app.services.dashboard_service import calcular_metricas_acumuladas, montar_producao_por_turno
 
     metricas_por_periodo = {
         periodo: calcular_metricas_acumuladas(db, periodo=periodo)
         for periodo in ("diario", "semanal", "mensal")
     }
-    pdf_dashboard = gerar_relatorio_dashboard_pdf(dados_turno, kpis, metricas_por_periodo)
+    producao_por_turno = montar_producao_por_turno(db)
+    pdf_dashboard = gerar_relatorio_dashboard_pdf(
+        dados_turno, kpis, metricas_por_periodo, producao_por_turno
+    )
 
     assunto = (
         f"[SIAMP] Fechamento de Turno: {turno.nome_turno} - "
