@@ -332,3 +332,100 @@ function escaparHtml(texto) {
   div.textContent = texto;
   return div.innerHTML;
 }
+
+async function importarArquivo() {
+  const input = document.getElementById("arquivoImportacao");
+  const arquivo = input.files[0];
+  if (!arquivo) {
+    alert("Selecione um arquivo .csv ou .xml.");
+    return;
+  }
+
+  const btn = document.getElementById("btnImportar");
+  const textoOriginal = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Importando...`;
+
+  const formData = new FormData();
+  formData.append("arquivo", arquivo);
+
+  try {
+    const res = await chamarApi("/ordens-producao/importar", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const erro = await res.json().catch(() => null);
+      mostrarResultadoImportacao(null, erro?.detail || "Não foi possível importar o arquivo.");
+      return;
+    }
+
+    const resultado = await res.json();
+    mostrarResultadoImportacao(resultado, null);
+
+    if (resultado.criadas > 0) {
+      carregarOps();
+    }
+    input.value = "";
+  } catch (erro) {
+    mostrarResultadoImportacao(null, erro.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = textoOriginal;
+  }
+}
+
+function mostrarResultadoImportacao(resultado, erroGeral) {
+  const container = document.getElementById("resultadoImportacao");
+  const resumo = document.getElementById("resumoImportacao");
+  const detalhe = document.getElementById("detalheErrosImportacao");
+  container.classList.remove("d-none");
+  detalhe.innerHTML = "";
+
+  if (erroGeral) {
+    resumo.className = "alert alert-danger";
+    resumo.innerText = erroGeral;
+    return;
+  }
+
+  const { total_linhas, criadas, erros, pecas_faltando, maquinas_faltando } = resultado;
+  const tipoAlerta = criadas > 0 && erros.length === 0 ? "alert-success" : criadas > 0 ? "alert-warning" : "alert-danger";
+  resumo.className = `alert ${tipoAlerta}`;
+  resumo.innerText = `${criadas} de ${total_linhas} linha(s) importada(s) com sucesso.`;
+
+  let html = "";
+
+  if (pecas_faltando.length > 0) {
+    html += `
+      <div class="alert alert-warning py-2">
+        <strong>Peças não cadastradas</strong> (cadastre em <a href="pecas.html">Peças</a> antes de tentar de novo):
+        ${pecas_faltando.map((p) => `<span class="badge bg-secondary me-1">${escaparHtml(p)}</span>`).join("")}
+      </div>`;
+  }
+  if (maquinas_faltando.length > 0) {
+    html += `
+      <div class="alert alert-warning py-2">
+        <strong>Máquinas não cadastradas</strong> (cadastre em <a href="maquinas.html">Máquinas</a> antes de tentar de novo):
+        ${maquinas_faltando.map((m) => `<span class="badge bg-secondary me-1">${escaparHtml(m)}</span>`).join("")}
+      </div>`;
+  }
+  if (erros.length > 0) {
+    html += `
+      <div class="table-responsive">
+        <table class="table table-sm table-striped mb-0">
+          <thead><tr><th>Linha</th><th>Nº OP</th><th>Motivo</th></tr></thead>
+          <tbody>
+            ${erros
+              .map(
+                (e) =>
+                  `<tr><td>${e.linha}</td><td>${escaparHtml(e.numero_op || "-")}</td><td>${escaparHtml(e.motivo)}</td></tr>`,
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  detalhe.innerHTML = html;
+}
