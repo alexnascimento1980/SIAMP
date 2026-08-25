@@ -34,6 +34,26 @@
     </nav>
 
     <div class="container-fluid py-4 px-4">
+      <!-- Seletor de período - filtra os KPIs acumulados e a produção
+           por injetora. "Produção por Turno" e Ordens de Produção
+           logo abaixo são naturalmente por turno, não mudam com isso. -->
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h6 class="text-muted text-uppercase mb-0">Acumulado (turnos fechados)</h6>
+        <div class="btn-group" role="group" id="seletorPeriodo">
+          <input type="radio" class="btn-check" name="periodo" id="periodoDiario" value="diario" autocomplete="off">
+          <label class="btn btn-outline-primary btn-sm" for="periodoDiario">Hoje</label>
+
+          <input type="radio" class="btn-check" name="periodo" id="periodoSemanal" value="semanal" autocomplete="off">
+          <label class="btn btn-outline-primary btn-sm" for="periodoSemanal">Últimos 7 dias</label>
+
+          <input type="radio" class="btn-check" name="periodo" id="periodoMensal" value="mensal" autocomplete="off">
+          <label class="btn btn-outline-primary btn-sm" for="periodoMensal">Últimos 30 dias</label>
+
+          <input type="radio" class="btn-check" name="periodo" id="periodoTotal" value="total" checked autocomplete="off">
+          <label class="btn btn-outline-primary btn-sm" for="periodoTotal">Total</label>
+        </div>
+      </div>
+
       <!-- Linha de KPIs -->
       <div class="row g-3 mb-4">
         <div class="col-md-4">
@@ -58,7 +78,7 @@
           <div
             class="card border-0 shadow-sm border-start border-warning border-4 p-3"
           >
-            <h6 class="text-muted text-uppercase mb-1">Turnos Registrados</h6>
+            <h6 class="text-muted text-uppercase mb-1">Turnos Fechados</h6>
             <h2 class="fw-bold mb-0 text-dark" id="kpiTurnos">--</h2>
           </div>
         </div>
@@ -69,8 +89,8 @@
         <div class="col-lg-8">
           <div class="card shadow-sm border-0 p-3">
             <h5 class="fw-bold text-secondary mb-3">
-              <i class="bi bi-graph-up me-2"></i>Produção Acumulada por Injetora
-              (Peças)
+              <i class="bi bi-graph-up me-2"></i>Produção por Injetora
+              (Peças) <span id="rotuloPeriodoGrafico" class="text-secondary fw-normal fs-6"></span>
             </h5>
             <canvas id="graficoProducaoCanvas" height="120"></canvas>
           </div>

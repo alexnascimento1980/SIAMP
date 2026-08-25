@@ -1,18 +1,40 @@
 document.addEventListener("DOMContentLoaded", async () => {
   const sessao = await exigirSessao();
   if (!sessao) return;
-  carregarDashboard();
+
+  document.querySelectorAll('input[name="periodo"]').forEach((radio) => {
+    radio.addEventListener("change", () => carregarDashboard(radio.value));
+  });
+
+  carregarDashboard("total");
 });
 
-async function carregarDashboard() {
+const ROTULOS_PERIODO = {
+  diario: "- hoje",
+  semanal: "- últimos 7 dias",
+  mensal: "- últimos 30 dias",
+  total: "",
+};
+
+// Guarda as instâncias já criadas do Chart.js - trocar de período
+// dispara uma nova busca e recria os gráficos, e o Chart.js exige
+// destruir a instância anterior antes de reusar o mesmo <canvas>,
+// senão lança erro ("Canvas is already in use").
+let graficoProducaoInstancia = null;
+let graficoTurnosInstancia = null;
+
+async function carregarDashboard(periodo = "total") {
   try {
-    const res = await chamarApi("/dashboard/metricas-gerais");
+    const res = await chamarApi(`/dashboard/metricas-gerais?periodo=${periodo}`);
 
     if (!res.ok) {
       throw new Error(`Falha ao carregar dashboard (HTTP ${res.status})`);
     }
 
     const dados = await res.json();
+
+    document.getElementById("rotuloPeriodoGrafico").innerText =
+      ROTULOS_PERIODO[dados.periodo] || "";
 
     // Atualiza KPIs
     document.getElementById("kpiProducao").innerText =
@@ -44,7 +66,8 @@ async function carregarDashboard() {
     const ctx = document
       .getElementById("graficoProducaoCanvas")
       .getContext("2d");
-    new Chart(ctx, {
+    if (graficoProducaoInstancia) graficoProducaoInstancia.destroy();
+    graficoProducaoInstancia = new Chart(ctx, {
       type: "bar",
       data: {
         labels: dados.grafico_producao.labels,
@@ -75,15 +98,27 @@ async function carregarDashboard() {
 
 function renderizarGraficoTurnos(producaoPorTurno) {
   const ctx = document.getElementById("graficoTurnosCanvas").getContext("2d");
+  if (graficoTurnosInstancia) {
+    graficoTurnosInstancia.destroy();
+    graficoTurnosInstancia = null;
+  }
 
   if (!producaoPorTurno || producaoPorTurno.labels.length === 0) {
-    ctx.canvas.parentElement.innerHTML +=
-      '<p class="text-secondary text-center py-4 mb-0">Nenhum turno encerrado ainda.</p>';
+    const mensagemExistente = ctx.canvas.parentElement.querySelector(".mensagem-sem-turnos");
+    if (!mensagemExistente) {
+      ctx.canvas.insertAdjacentHTML(
+        "afterend",
+        '<p class="mensagem-sem-turnos text-secondary text-center py-4 mb-0">Nenhum turno encerrado ainda.</p>',
+      );
+    }
     ctx.canvas.style.display = "none";
     return;
   }
+  ctx.canvas.style.display = "";
+  const mensagemAntiga = ctx.canvas.parentElement.querySelector(".mensagem-sem-turnos");
+  if (mensagemAntiga) mensagemAntiga.remove();
 
-  new Chart(ctx, {
+  graficoTurnosInstancia = new Chart(ctx, {
     data: {
       labels: producaoPorTurno.labels,
       datasets: [
