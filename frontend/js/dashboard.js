@@ -52,7 +52,7 @@ async function carregarDashboard() {
           {
             label: "Peças Produzidas",
             data: dados.grafico_producao.valores,
-            backgroundColor: "#0d6efd",
+            backgroundColor: "#004380",
             borderRadius: 6,
           },
         ],
@@ -91,7 +91,7 @@ function renderizarGraficoTurnos(producaoPorTurno) {
           type: "bar",
           label: "Produção (pçs)",
           data: producaoPorTurno.produzido,
-          backgroundColor: "#0d6efd",
+          backgroundColor: "#004380",
           borderRadius: 6,
           yAxisID: "yProducao",
         },

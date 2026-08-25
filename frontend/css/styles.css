@@ -1,3 +1,82 @@
+/* ==========================================================================
+   Identidade visual SIAMP - cores extraídas diretamente do logo oficial
+   (siamp.com.br): azul marinho #004380 (textos, fundo principal) e
+   azul claro #00ABE9 (ondas, detalhe/destaque).
+
+   Sobrescreve tanto as variáveis CSS do Bootstrap 5.3 (cobre a maioria
+   dos utilitários: .bg-primary, .text-primary, .border-primary) quanto
+   as classes específicas com cor pré-computada na build do Bootstrap
+   (.btn-primary, .btn-outline-primary, .navbar.bg-primary) - nem todo
+   componente do Bootstrap lê a variável em tempo real, então cobrir os
+   dois caminhos garante que a cor aplica em qualquer lugar do sistema.
+   ========================================================================== */
+:root {
+  --siamp-azul-marinho: #004380;
+  --siamp-azul-marinho-escuro: #002d57; /* hover/active - ~20% mais escuro */
+  --siamp-azul-claro: #00abe9;
+
+  --bs-primary: var(--siamp-azul-marinho);
+  --bs-primary-rgb: 0, 67, 128;
+}
+
+.btn-primary {
+  --bs-btn-bg: var(--siamp-azul-marinho);
+  --bs-btn-border-color: var(--siamp-azul-marinho);
+  --bs-btn-hover-bg: var(--siamp-azul-marinho-escuro);
+  --bs-btn-hover-border-color: var(--siamp-azul-marinho-escuro);
+  --bs-btn-active-bg: var(--siamp-azul-marinho-escuro);
+  --bs-btn-active-border-color: var(--siamp-azul-marinho-escuro);
+  --bs-btn-disabled-bg: var(--siamp-azul-marinho);
+  --bs-btn-disabled-border-color: var(--siamp-azul-marinho);
+  --bs-btn-focus-shadow-rgb: 0, 67, 128;
+}
+
+.btn-outline-primary {
+  --bs-btn-color: var(--siamp-azul-marinho);
+  --bs-btn-border-color: var(--siamp-azul-marinho);
+  --bs-btn-hover-bg: var(--siamp-azul-marinho);
+  --bs-btn-hover-border-color: var(--siamp-azul-marinho);
+  --bs-btn-active-bg: var(--siamp-azul-marinho);
+  --bs-btn-active-border-color: var(--siamp-azul-marinho);
+  --bs-btn-focus-shadow-rgb: 0, 67, 128;
+}
+
+.navbar.bg-primary {
+  background-color: var(--siamp-azul-marinho) !important;
+}
+
+.bg-primary {
+  background-color: var(--siamp-azul-marinho) !important;
+}
+
+.text-primary {
+  color: var(--siamp-azul-marinho) !important;
+}
+
+.border-primary {
+  border-color: var(--siamp-azul-marinho) !important;
+}
+
+.badge.bg-primary {
+  background-color: var(--siamp-azul-marinho) !important;
+}
+
+.form-check-input:checked {
+  background-color: var(--siamp-azul-marinho);
+  border-color: var(--siamp-azul-marinho);
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--siamp-azul-claro);
+  box-shadow: 0 0 0 0.25rem rgba(0, 171, 233, 0.25);
+}
+
+/* Aba ativa nas telas com seletor de máquina/injetora */
+.nav-pills .nav-link.active {
+  background-color: var(--siamp-azul-marinho) !important;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   user-select: none; /* Evita seleções acidentais de texto no touch */
@@ -13,9 +92,9 @@ body {
 }
 
 .btn-maq.active {
-  background-color: #0d6efd !important;
+  background-color: var(--siamp-azul-marinho) !important;
   color: #fff !important;
-  box-shadow: 0 4px 6px -1px rgba(13, 110, 253, 0.4);
+  box-shadow: 0 4px 6px -1px rgba(0, 67, 128, 0.4);
 }
 
 /* Campos de entrada com altura ampliada para facilidade de digitação rápida */
