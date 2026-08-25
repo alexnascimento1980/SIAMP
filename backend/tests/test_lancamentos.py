@@ -477,3 +477,88 @@ def test_dashboard_ve_producao_de_turno_lancamento(client, db_session, usuario_t
     assert 250 in dados["grafico_producao"]["valores"]
     assert len(dados["producao_por_turno"]["labels"]) == 1
     assert dados["producao_por_turno"]["produzido"] == [250]
+
+
+def test_ciclo_informado_no_lancamento_prevalece_sobre_peca(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)
+    # Peça tem ciclo_padrao=10.0, cavidades=2 (ver _criar_maquina_e_peca)
+
+    res = client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": peca.id,
+                    "quantidade": 100,
+                    "ciclo_informado": 20.0,
+                }
+            ],
+        },
+    )
+    assert res.status_code == 201, res.text
+    # 1h = 3600s / ciclo 20s (informado, não os 10s da peça) * 2 cavidades = 360
+    assert res.json()["kpis"]["total_esperado"] == 360
+
+
+def test_ciclo_informado_aparece_no_detalhe_do_turno_com_ciclo_padrao_da_peca(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)
+
+    turno_id = client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": peca.id,
+                    "quantidade": 100,
+                    "ciclo_informado": 15.5,
+                }
+            ],
+        },
+    ).json()["turno_id"]
+
+    detalhe = client.get(f"/api/v1/turnos/{turno_id}").json()
+    lanc = detalhe["lancamentos"][0]
+    assert lanc["ciclo_informado"] == 15.5
+    assert lanc["ciclo_padrao_peca"] == peca.ciclo_padrao
+
+
+def test_exportar_csv_inclui_ciclo_informado_do_lancamento(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)
+
+    client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": peca.id,
+                    "quantidade": 100,
+                    "ciclo_informado": 12.3,
+                }
+            ],
+        },
+    )
+
+    res = client.get("/api/v1/turnos/exportar/csv")
+    conteudo = res.content.decode("utf-8-sig")
+    assert "12.3" in conteudo

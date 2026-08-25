@@ -68,6 +68,7 @@ def _criar_lancamentos(db: Session, turno: Turno, lancamentos: list[LancamentoCr
                 produto_id=lanc.produto_id,
                 ordem_producao_id=lanc.ordem_producao_id,
                 quantidade=lanc.quantidade,
+                ciclo_informado=lanc.ciclo_informado,
                 motivo=lanc.motivo,
             )
         )

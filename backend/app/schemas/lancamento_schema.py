@@ -15,6 +15,7 @@ class LancamentoCreate(BaseModel):
     produto_id: Optional[int] = Field(default=None, gt=0)
     ordem_producao_id: Optional[int] = Field(default=None, gt=0)
     quantidade: Optional[int] = Field(default=None, ge=0)
+    ciclo_informado: Optional[float] = Field(default=None, gt=0)
     motivo: Optional[str] = Field(default=None, max_length=150)
 
     @model_validator(mode="after")
@@ -48,6 +49,8 @@ class LancamentoDetail(BaseModel):
     ordem_producao_id: Optional[int] = None
     numero_op: Optional[str] = None
     quantidade: Optional[int] = None
+    ciclo_informado: Optional[float] = None
+    ciclo_padrao_peca: Optional[float] = None
     motivo: Optional[str] = None
     producao_esperada: Optional[int] = None
 
