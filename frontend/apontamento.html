@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="pt-BR">
   <head>
-  <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
-  <link rel="icon" href="favicon-16.png" type="image/png" sizes="16x16">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="icon" href="favicon-16.png" type="image/png" sizes="16x16" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <meta charset="UTF-8" />
     <meta
       name="viewport"
@@ -27,7 +27,13 @@
         class="container-fluid d-flex justify-content-between align-items-center"
       >
         <span class="navbar-brand mb-0 h1 fw-bold d-flex align-items-center">
-          <img src="img/siamp-logo-branco.png" alt="SIAMP" height="26" class="me-2" /> • Registro Operacional
+          <img
+            src="img/siamp-logo-branco.png"
+            alt="SIAMP"
+            height="26"
+            class="me-2"
+          />
+          • Registro Operacional
         </span>
         <div class="d-flex align-items-center gap-3">
           <span id="relogio" class="text-white fw-bold"></span>
@@ -94,16 +100,34 @@
               </select>
             </div>
             <div class="col-md-3 col-sm-6">
-              <label class="form-label fw-bold text-secondary mb-1">Líder</label>
-              <input type="text" id="nomeLider" class="form-control form-control-lg" placeholder="Nome do Líder" />
+              <label class="form-label fw-bold text-secondary mb-1"
+                >Líder</label
+              >
+              <input
+                type="text"
+                id="nomeLider"
+                class="form-control form-control-lg"
+                placeholder="Nome do Líder"
+              />
             </div>
             <div class="col-md-3 col-sm-6">
-              <label class="form-label fw-bold text-secondary mb-1">Regulador</label>
-              <input type="text" id="nomeRegulador" class="form-control form-control-lg" placeholder="Nome do Regulador" />
+              <label class="form-label fw-bold text-secondary mb-1"
+                >Regulador</label
+              >
+              <input
+                type="text"
+                id="nomeRegulador"
+                class="form-control form-control-lg"
+                placeholder="Nome do Regulador"
+              />
             </div>
             <div class="col-md-2 col-sm-12">
               <label class="form-label fw-bold text-secondary mb-1">Data</label>
-              <input type="date" id="dataTurno" class="form-control form-control-lg" />
+              <input
+                type="date"
+                id="dataTurno"
+                class="form-control form-control-lg"
+              />
             </div>
           </div>
         </div>
@@ -114,20 +138,27 @@
         <div class="card-body py-2 px-3">
           <div class="row text-center g-2 align-items-center">
             <div class="col-md-3">
-              <div class="small text-secondary fw-bold text-uppercase">Produção Esperada até agora</div>
+              <div class="small text-secondary fw-bold text-uppercase">
+                Produção Esperada até agora
+              </div>
               <div class="fs-4 fw-bold text-info" id="resumoEsperado">0</div>
             </div>
             <div class="col-md-3">
-              <div class="small text-secondary fw-bold text-uppercase">Produção Apontada</div>
+              <div class="small text-secondary fw-bold text-uppercase">
+                Produção Apontada
+              </div>
               <div class="fs-4 fw-bold text-primary" id="resumoApontado">0</div>
             </div>
             <div class="col-md-3">
-              <div class="small text-secondary fw-bold text-uppercase">Atingido</div>
+              <div class="small text-secondary fw-bold text-uppercase">
+                Atingido
+              </div>
               <div class="fs-4 fw-bold" id="resumoPercentual">-</div>
             </div>
             <div class="col-md-3">
               <div class="small text-secondary" id="resumoLegenda">
-                Some de todos os lançamentos de produção já adicionados. Estimativa - o valor final é calculado no fechamento.
+                Soma de todos os lançamentos de produção já adicionados.
+                Estimativa - o valor final é calculado no fechamento.
               </div>
             </div>
           </div>
@@ -135,7 +166,10 @@
       </div>
 
       <!-- 3. Seletor de Máquinas -->
-      <ul class="nav nav-pills nav-fill mb-3 bg-white p-2 rounded shadow-sm gap-1" id="pills-maquinas">
+      <ul
+        class="nav nav-pills nav-fill mb-3 bg-white p-2 rounded shadow-sm gap-1"
+        id="pills-maquinas"
+      >
         <li class="nav-item">
           <span class="nav-link disabled">Carregando injetoras...</span>
         </li>
@@ -143,25 +177,58 @@
 
       <!-- 4. Formulário de novo lançamento -->
       <div class="card shadow-sm mb-3" id="cardNovoLancamento">
-        <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+        <div
+          class="card-header bg-white py-2 d-flex justify-content-between align-items-center"
+        >
           <h5 class="mb-0 fw-bold text-primary" id="tituloMaquina">Injetora</h5>
           <div class="badge bg-secondary fs-6" id="badgeDetalheMaquina"></div>
         </div>
         <div class="card-body p-3">
           <div class="btn-group w-100 mb-3" role="group">
-            <input type="radio" class="btn-check" name="tipoLancamento" id="tipoProducao" value="PRODUCAO" checked onchange="onTipoLancamentoMudou()">
-            <label class="btn btn-outline-success" for="tipoProducao"><i class="bi bi-gear-fill me-1"></i>Produção</label>
+            <input
+              type="radio"
+              class="btn-check"
+              name="tipoLancamento"
+              id="tipoProducao"
+              value="PRODUCAO"
+              checked
+              onchange="onTipoLancamentoMudou()"
+            />
+            <label class="btn btn-outline-success" for="tipoProducao"
+              ><i class="bi bi-gear-fill me-1"></i>Produção</label
+            >
 
-            <input type="radio" class="btn-check" name="tipoLancamento" id="tipoParadaProgramada" value="PARADA_PROGRAMADA" onchange="onTipoLancamentoMudou()">
-            <label class="btn btn-outline-warning" for="tipoParadaProgramada"><i class="bi bi-pause-circle me-1"></i>Parada Programada</label>
+            <input
+              type="radio"
+              class="btn-check"
+              name="tipoLancamento"
+              id="tipoParadaProgramada"
+              value="PARADA_PROGRAMADA"
+              onchange="onTipoLancamentoMudou()"
+            />
+            <label class="btn btn-outline-warning" for="tipoParadaProgramada"
+              ><i class="bi bi-pause-circle me-1"></i>Parada Programada</label
+            >
 
-            <input type="radio" class="btn-check" name="tipoLancamento" id="tipoParadaFalha" value="PARADA_FALHA" onchange="onTipoLancamentoMudou()">
-            <label class="btn btn-outline-danger" for="tipoParadaFalha"><i class="bi bi-exclamation-triangle-fill me-1"></i>Falha na Injetora</label>
+            <input
+              type="radio"
+              class="btn-check"
+              name="tipoLancamento"
+              id="tipoParadaFalha"
+              value="PARADA_FALHA"
+              onchange="onTipoLancamentoMudou()"
+            />
+            <label class="btn btn-outline-danger" for="tipoParadaFalha"
+              ><i class="bi bi-exclamation-triangle-fill me-1"></i>Falha na
+              Injetora</label
+            >
           </div>
 
           <div class="row g-2" id="camposProducao">
             <div class="col-12 col-md-5">
-              <label class="form-label small mb-1">Peça <span class="text-danger">*</span></label>
+              <label class="form-label small mb-1"
+                >Peça <span class="text-danger">*</span></label
+              >
               <input
                 type="text"
                 id="lancPecaBusca"
@@ -180,46 +247,81 @@
               </select>
             </div>
             <div class="col-6 col-md-3">
-              <label class="form-label small mb-1">Quantidade <span class="text-danger">*</span></label>
-              <input type="number" id="lancQuantidade" class="form-control" min="0">
+              <label class="form-label small mb-1"
+                >Quantidade <span class="text-danger">*</span></label
+              >
+              <input
+                type="number"
+                id="lancQuantidade"
+                class="form-control"
+                min="0"
+              />
             </div>
           </div>
           <div class="row g-2 mt-1" id="camposProducaoLinha2">
             <div class="col-6 col-md-4">
               <label class="form-label small mb-1">Ciclo real (s)</label>
-              <input type="number" id="lancCiclo" class="form-control" min="0.1" step="0.1" placeholder="opcional">
+              <input
+                type="number"
+                id="lancCiclo"
+                class="form-control"
+                min="0.1"
+                step="0.1"
+                placeholder="opcional"
+              />
               <div class="form-text" id="dicaCicloPadrao"></div>
             </div>
             <div class="col-6 col-md-4">
-              <label class="form-label small mb-1">Início <span class="text-danger">*</span></label>
-              <input type="time" id="lancInicio" class="form-control">
+              <label class="form-label small mb-1"
+                >Início <span class="text-danger">*</span></label
+              >
+              <input type="time" id="lancInicio" class="form-control" />
             </div>
             <div class="col-6 col-md-4">
-              <label class="form-label small mb-1">Fim <span class="text-danger">*</span></label>
-              <input type="time" id="lancFim" class="form-control">
+              <label class="form-label small mb-1"
+                >Fim <span class="text-danger">*</span></label
+              >
+              <input type="time" id="lancFim" class="form-control" />
             </div>
           </div>
 
           <div class="row g-2 d-none" id="camposParada">
             <div class="col-12 col-md-6">
               <label class="form-label small mb-1">Motivo (opcional)</label>
-              <input type="text" id="lancMotivo" class="form-control" placeholder="Ex: Troca de molde / Sensor travado">
+              <input
+                type="text"
+                id="lancMotivo"
+                class="form-control"
+                placeholder="Ex: Troca de molde / Sensor travado"
+              />
             </div>
             <div class="col-6 col-md-3">
-              <label class="form-label small mb-1">Início <span class="text-danger">*</span></label>
-              <input type="time" id="lancInicioParada" class="form-control">
+              <label class="form-label small mb-1"
+                >Início <span class="text-danger">*</span></label
+              >
+              <input type="time" id="lancInicioParada" class="form-control" />
             </div>
             <div class="col-6 col-md-3">
-              <label class="form-label small mb-1">Fim <span class="text-danger">*</span></label>
-              <input type="time" id="lancFimParada" class="form-control">
+              <label class="form-label small mb-1"
+                >Fim <span class="text-danger">*</span></label
+              >
+              <input type="time" id="lancFimParada" class="form-control" />
             </div>
           </div>
 
           <div class="text-end mt-3">
-            <button class="btn btn-outline-secondary d-none" id="btnCancelarEdicaoLancamento" onclick="cancelarEdicaoLancamento()">
+            <button
+              class="btn btn-outline-secondary d-none"
+              id="btnCancelarEdicaoLancamento"
+              onclick="cancelarEdicaoLancamento()"
+            >
               Cancelar edição
             </button>
-            <button class="btn btn-primary" id="btnAdicionarLancamento" onclick="adicionarLancamento()">
+            <button
+              class="btn btn-primary"
+              id="btnAdicionarLancamento"
+              onclick="adicionarLancamento()"
+            >
               <i class="bi bi-plus-circle me-1"></i>Adicionar Lançamento
             </button>
           </div>
@@ -229,7 +331,9 @@
       <!-- 5. Lançamentos já adicionados (máquina ativa) -->
       <div class="card shadow-sm mb-3">
         <div class="card-header bg-white py-2">
-          <h6 class="mb-0 fw-bold text-secondary">Lançamentos desta injetora</h6>
+          <h6 class="mb-0 fw-bold text-secondary">
+            Lançamentos desta injetora
+          </h6>
         </div>
         <div class="card-body p-0 table-responsive">
           <table class="table table-sm table-striped align-middle mb-0">
@@ -247,7 +351,11 @@
               </tr>
             </thead>
             <tbody id="corpoListaLancamentos">
-              <tr><td colspan="9" class="text-center text-secondary py-3">Nenhum lançamento ainda nesta injetora.</td></tr>
+              <tr>
+                <td colspan="9" class="text-center text-secondary py-3">
+                  Nenhum lançamento ainda nesta injetora.
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -256,21 +364,38 @@
       <!-- 6. Observações e Fechamento -->
       <div class="card shadow-sm mb-4">
         <div class="card-body p-3">
-          <label class="form-label fw-bold text-secondary">Observações Gerais do Turno</label>
-          <textarea id="observacoesTurno" class="form-control" rows="2" placeholder="Ocorrências relevantes, manutenções, ajustes de processo..."></textarea>
+          <label class="form-label fw-bold text-secondary"
+            >Observações Gerais do Turno</label
+          >
+          <textarea
+            id="observacoesTurno"
+            class="form-control"
+            rows="2"
+            placeholder="Ocorrências relevantes, manutenções, ajustes de processo..."
+          ></textarea>
         </div>
         <div class="card-footer bg-white p-3">
-          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div
+            class="d-flex justify-content-between align-items-center flex-wrap gap-2"
+          >
             <div>
               <span id="indicadorRascunho" class="text-secondary small d-none">
                 <i class="bi bi-check2 me-1"></i>
               </span>
             </div>
             <div class="d-flex gap-2">
-              <button id="btnSalvarRascunho" class="btn btn-outline-secondary btn-lg px-4" onclick="salvarRascunho()" title="Salva o progresso sem gerar PDF nem enviar e-mail - pode continuar preenchendo depois.">
+              <button
+                id="btnSalvarRascunho"
+                class="btn btn-outline-secondary btn-lg px-4"
+                onclick="salvarRascunho()"
+                title="Salva o progresso sem gerar PDF nem enviar e-mail - pode continuar preenchendo depois."
+              >
                 <i class="bi bi-save me-2"></i>Salvar Rascunho
               </button>
-              <button class="btn btn-success btn-lg px-4 shadow" onclick="confirmarFechamento()">
+              <button
+                class="btn btn-success btn-lg px-4 shadow"
+                onclick="confirmarFechamento()"
+              >
                 <i class="bi bi-check-circle me-2"></i>Assinar e Finalizar Turno
               </button>
             </div>
