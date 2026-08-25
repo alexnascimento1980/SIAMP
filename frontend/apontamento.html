@@ -142,7 +142,7 @@
       </ul>
 
       <!-- 4. Formulário de novo lançamento -->
-      <div class="card shadow-sm mb-3">
+      <div class="card shadow-sm mb-3" id="cardNovoLancamento">
         <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
           <h5 class="mb-0 fw-bold text-primary" id="tituloMaquina">Injetora</h5>
           <div class="badge bg-secondary fs-6" id="badgeDetalheMaquina"></div>
@@ -160,7 +160,7 @@
           </div>
 
           <div class="row g-2" id="camposProducao">
-            <div class="col-12 col-md-3">
+            <div class="col-12 col-md-5">
               <label class="form-label small mb-1">Peça <span class="text-danger">*</span></label>
               <input
                 type="text"
@@ -173,21 +173,28 @@
               <datalist id="listaPecasDatalist"></datalist>
               <input type="hidden" id="lancPeca" />
             </div>
-            <div class="col-6 col-md-3">
+            <div class="col-6 col-md-4">
               <label class="form-label small mb-1">Ordem de Produção</label>
               <select id="lancOp" class="form-select">
                 <option value="">— Nenhuma —</option>
               </select>
             </div>
-            <div class="col-6 col-md-2">
+            <div class="col-6 col-md-3">
               <label class="form-label small mb-1">Quantidade <span class="text-danger">*</span></label>
               <input type="number" id="lancQuantidade" class="form-control" min="0">
             </div>
-            <div class="col-6 col-md-2">
+          </div>
+          <div class="row g-2 mt-1" id="camposProducaoLinha2">
+            <div class="col-6 col-md-4">
+              <label class="form-label small mb-1">Ciclo real (s)</label>
+              <input type="number" id="lancCiclo" class="form-control" min="0.1" step="0.1" placeholder="opcional">
+              <div class="form-text" id="dicaCicloPadrao"></div>
+            </div>
+            <div class="col-6 col-md-4">
               <label class="form-label small mb-1">Início <span class="text-danger">*</span></label>
               <input type="time" id="lancInicio" class="form-control">
             </div>
-            <div class="col-6 col-md-2">
+            <div class="col-6 col-md-4">
               <label class="form-label small mb-1">Fim <span class="text-danger">*</span></label>
               <input type="time" id="lancFim" class="form-control">
             </div>
@@ -209,7 +216,10 @@
           </div>
 
           <div class="text-end mt-3">
-            <button class="btn btn-primary" onclick="adicionarLancamento()">
+            <button class="btn btn-outline-secondary d-none" id="btnCancelarEdicaoLancamento" onclick="cancelarEdicaoLancamento()">
+              Cancelar edição
+            </button>
+            <button class="btn btn-primary" id="btnAdicionarLancamento" onclick="adicionarLancamento()">
               <i class="bi bi-plus-circle me-1"></i>Adicionar Lançamento
             </button>
           </div>
@@ -231,12 +241,13 @@
                 <th>Peça / Motivo</th>
                 <th>OP</th>
                 <th class="text-center">Qtde</th>
+                <th class="text-center">Ciclo (padrão)</th>
                 <th class="text-center">Esperado</th>
                 <th class="text-center">Ação</th>
               </tr>
             </thead>
             <tbody id="corpoListaLancamentos">
-              <tr><td colspan="8" class="text-center text-secondary py-3">Nenhum lançamento ainda nesta injetora.</td></tr>
+              <tr><td colspan="9" class="text-center text-secondary py-3">Nenhum lançamento ainda nesta injetora.</td></tr>
             </tbody>
           </table>
         </div>
