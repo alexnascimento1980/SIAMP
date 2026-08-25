@@ -133,3 +133,107 @@ def test_dashboard_limita_a_8_ordens_de_producao(client, db_session, usuario_tes
     res = client.get("/api/v1/dashboard/metricas-gerais")
     assert res.status_code == 200
     assert len(res.json()["comparativo_ordens_producao"]) == 8
+
+
+def _criar_turno_com_data(db_session, maquina, quando, quantidade=100):
+    from app.models.lancamento import Lancamento
+
+    turno = Turno(
+        nome_turno="1º Turno", responsavel_nome="Teste",
+        status_assinatura="ASSINADO_DIGITALMENTE", modelo_apontamento="LANCAMENTO",
+        data_registro=quando,
+    )
+    db_session.add(turno)
+    db_session.flush()
+    db_session.add(Lancamento(
+        turno_id=turno.id, maquina_id=maquina.id, tipo="PRODUCAO",
+        horario_inicio=time(5, 0), horario_fim=time(6, 0), quantidade=quantidade,
+    ))
+    db_session.commit()
+    return turno
+
+
+def test_dashboard_periodo_diario_exclui_turnos_de_outros_dias(client, db_session, usuario_teste):
+    from datetime import timedelta
+    from app.core.timezone import agora_brasilia
+
+    _login(client, usuario_teste)
+    maquina = Maquina(numero_maquina="1", descricao="Injetora", ativo=True)
+    db_session.add(maquina)
+    db_session.commit()
+    db_session.refresh(maquina)
+
+    agora = agora_brasilia()
+    _criar_turno_com_data(db_session, maquina, agora, quantidade=100)
+    _criar_turno_com_data(db_session, maquina, agora - timedelta(days=10), quantidade=999)
+
+    res = client.get("/api/v1/dashboard/metricas-gerais?periodo=diario")
+    assert res.status_code == 200
+    dados = res.json()
+    assert dados["periodo"] == "diario"
+    assert dados["kpis"]["total_pecas_produzidas"] == 100
+    assert dados["kpis"]["total_turnos_encerrados"] == 1
+
+
+def test_dashboard_periodo_semanal_inclui_ultimos_7_dias(client, db_session, usuario_teste):
+    from datetime import timedelta
+    from app.core.timezone import agora_brasilia
+
+    _login(client, usuario_teste)
+    maquina = Maquina(numero_maquina="1", descricao="Injetora", ativo=True)
+    db_session.add(maquina)
+    db_session.commit()
+    db_session.refresh(maquina)
+
+    agora = agora_brasilia()
+    _criar_turno_com_data(db_session, maquina, agora - timedelta(days=3), quantidade=100)
+    _criar_turno_com_data(db_session, maquina, agora - timedelta(days=40), quantidade=999)
+
+    res = client.get("/api/v1/dashboard/metricas-gerais?periodo=semanal")
+    dados = res.json()
+    assert dados["kpis"]["total_pecas_produzidas"] == 100
+
+
+def test_dashboard_periodo_mensal_inclui_ultimos_30_dias(client, db_session, usuario_teste):
+    from datetime import timedelta
+    from app.core.timezone import agora_brasilia
+
+    _login(client, usuario_teste)
+    maquina = Maquina(numero_maquina="1", descricao="Injetora", ativo=True)
+    db_session.add(maquina)
+    db_session.commit()
+    db_session.refresh(maquina)
+
+    agora = agora_brasilia()
+    _criar_turno_com_data(db_session, maquina, agora - timedelta(days=20), quantidade=100)
+    _criar_turno_com_data(db_session, maquina, agora - timedelta(days=45), quantidade=999)
+
+    res = client.get("/api/v1/dashboard/metricas-gerais?periodo=mensal")
+    dados = res.json()
+    assert dados["kpis"]["total_pecas_produzidas"] == 100
+
+
+def test_dashboard_periodo_total_inclui_tudo(client, db_session, usuario_teste):
+    from datetime import timedelta
+    from app.core.timezone import agora_brasilia
+
+    _login(client, usuario_teste)
+    maquina = Maquina(numero_maquina="1", descricao="Injetora", ativo=True)
+    db_session.add(maquina)
+    db_session.commit()
+    db_session.refresh(maquina)
+
+    agora = agora_brasilia()
+    _criar_turno_com_data(db_session, maquina, agora, quantidade=100)
+    _criar_turno_com_data(db_session, maquina, agora - timedelta(days=400), quantidade=200)
+
+    res = client.get("/api/v1/dashboard/metricas-gerais?periodo=total")
+    dados = res.json()
+    assert dados["kpis"]["total_pecas_produzidas"] == 300
+
+
+def test_dashboard_periodo_invalido_cai_para_total(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    res = client.get("/api/v1/dashboard/metricas-gerais?periodo=bagunca")
+    assert res.status_code == 200
+    assert res.json()["periodo"] == "total"

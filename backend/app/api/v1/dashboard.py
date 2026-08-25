@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import case, func
+from sqlalchemy import func
 from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.models.lancamento import Lancamento
@@ -10,6 +10,7 @@ from app.models.registro_turno import RegistroHorario
 from app.models.turno import Turno
 from app.models.usuario import Usuario
 from app.services.analytics import calcular_kpis_varios_turnos_generico
+from app.services.dashboard_service import PERIODOS_VALIDOS, calcular_metricas_acumuladas
 from app.services.ml_engine import prever_risco_operacional
 from app.services.turno_service import STATUS_ASSINADO
 
@@ -112,101 +113,23 @@ def _montar_comparativo_ordens_producao(db: Session) -> list[dict]:
 
 @router.get("/metricas-gerais")
 def obter_metricas_dashboard(
+    periodo: str = "total",
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_current_user),
 ):
-    # Só turnos fechados contam nas métricas gerais - um rascunho em
-    # andamento não deve inflar/distorcer os agregados até ser
-    # efetivamente encerrado. Soma os dois modelos de apontamento.
-    total_turnos = (
-        db.query(func.count(Turno.id))
-        .filter(Turno.status_assinatura == STATUS_ASSINADO)
-        .scalar()
-        or 0
-    )
-    total_pecas_horario = (
-        db.query(func.sum(RegistroHorario.prod_executada))
-        .join(Turno, RegistroHorario.turno_id == Turno.id)
-        .filter(Turno.status_assinatura == STATUS_ASSINADO)
-        .scalar()
-        or 0
-    )
-    total_pecas_lancamento = (
-        db.query(func.sum(Lancamento.quantidade))
-        .join(Turno, Lancamento.turno_id == Turno.id)
-        .filter(Lancamento.tipo == "PRODUCAO")
-        .filter(Turno.status_assinatura == STATUS_ASSINADO)
-        .scalar()
-        or 0
-    )
-    total_pecas = total_pecas_horario + total_pecas_lancamento
+    """
+    periodo: 'diario' (hoje), 'semanal' (últimos 7 dias), 'mensal'
+    (últimos 30 dias) ou 'total' (todo o histórico, padrão) - filtra
+    os KPIs acumulados e a produção por injetora. O gráfico de
+    'Produção por Turno' (últimos 10 turnos) e o comparativo de
+    Ordens de Produção continuam sempre mostrando os mais recentes,
+    independente do período escolhido - são naturalmente "por turno",
+    não acumulados por data.
+    """
+    if periodo not in PERIODOS_VALIDOS:
+        periodo = "total"
 
-    # OEE médio real, calculado a partir dos KPIs de cada turno encerrado
-    # (antes era um valor fixo de 82.4%, que não refletia os dados reais).
-    # Cobre os dois modelos de apontamento.
-    turnos_fechados = (
-        db.query(Turno).filter(Turno.status_assinatura == STATUS_ASSINADO).all()
-    )
-    kpis_por_turno = calcular_kpis_varios_turnos_generico(db, turnos_fechados)
-    if kpis_por_turno:
-        oee_medio_estimado = round(
-            sum(k["eficiencia_oee"] for k in kpis_por_turno.values())
-            / len(kpis_por_turno),
-            2,
-        )
-    else:
-        oee_medio_estimado = 0.0
-    
-    # Consulta produção agrupada por máquina (Injetoras 1 a 6) - só de
-    # turnos fechados, somando os dois modelos de apontamento. CASE
-    # WHEN dentro do SUM (não um filtro na condição do JOIN) é
-    # necessário para preservar máquinas sem nenhuma produção fechada
-    # ainda na lista (LEFT JOIN), zerando só a soma, sem sumir a linha
-    # da máquina.
-    producao_horario_por_maquina = dict(
-        db.query(
-            Maquina.numero_maquina,
-            func.sum(
-                case(
-                    (Turno.status_assinatura == STATUS_ASSINADO, RegistroHorario.prod_executada),
-                    else_=0,
-                )
-            ),
-        ).outerjoin(
-            RegistroHorario, Maquina.id == RegistroHorario.maquina_id
-        ).outerjoin(
-            Turno, RegistroHorario.turno_id == Turno.id
-        ).group_by(Maquina.numero_maquina).all()
-    )
-    producao_lancamento_por_maquina = dict(
-        db.query(
-            Maquina.numero_maquina,
-            func.sum(
-                case(
-                    (
-                        (Turno.status_assinatura == STATUS_ASSINADO) & (Lancamento.tipo == "PRODUCAO"),
-                        Lancamento.quantidade,
-                    ),
-                    else_=0,
-                )
-            ),
-        ).outerjoin(
-            Lancamento, Maquina.id == Lancamento.maquina_id
-        ).outerjoin(
-            Turno, Lancamento.turno_id == Turno.id
-        ).group_by(Maquina.numero_maquina).all()
-    )
-    numeros_maquina = sorted(
-        set(producao_horario_por_maquina) | set(producao_lancamento_por_maquina)
-    )
-    producao_por_maquina = [
-        (
-            numero,
-            (producao_horario_por_maquina.get(numero) or 0)
-            + (producao_lancamento_por_maquina.get(numero) or 0),
-        )
-        for numero in numeros_maquina
-    ]
+    metricas = calcular_metricas_acumuladas(db, periodo=periodo)
 
     # Diagnóstico da IA baseado no registro mais recente com parada,
     # em vez de valores fixos que ignoravam os dados reais do turno.
@@ -240,16 +163,17 @@ def obter_metricas_dashboard(
         }
 
     return {
+        "periodo": periodo,
         "kpis": {
-            "total_turnos_encerrados": total_turnos,
-            "total_pecas_produzidas": total_pecas,
-            "oee_medio_estimado": oee_medio_estimado
+            "total_turnos_encerrados": metricas["total_turnos_encerrados"],
+            "total_pecas_produzidas": metricas["total_pecas_produzidas"],
+            "oee_medio_estimado": metricas["oee_medio_estimado"],
         },
         "grafico_producao": {
-            "labels": [f"Injetora {numero}" for numero, _ in producao_por_maquina],
-            "valores": [total or 0 for _, total in producao_por_maquina]
+            "labels": [f"Injetora {m['numero_maquina']}" for m in metricas["producao_por_maquina"]],
+            "valores": [m["total_produzido"] for m in metricas["producao_por_maquina"]],
         },
         "producao_por_turno": _montar_producao_por_turno(db),
         "comparativo_ordens_producao": _montar_comparativo_ordens_producao(db),
-        "insight_ml": insight_ia
+        "insight_ml": insight_ia,
     }
