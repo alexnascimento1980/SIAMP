@@ -4,6 +4,7 @@ let maquinasDisponiveis = [];
 let pecasDisponiveis = [];
 let ordensProducaoDisponiveis = [];
 let maquinaAtiva = null;
+let indiceEditando = null; // índice do lançamento sendo corrigido (dentro de lancamentosState[maquinaAtiva]), ou null se estiver adicionando um novo
 
 let turnoEditandoId = null; // corrigir turno LANCAMENTO já fechado (ADMIN/SUPERVISOR)
 let rascunhoTurnoId = null; // continuar um rascunho LANCAMENTO em andamento
@@ -91,6 +92,11 @@ async function carregarPecas() {
         (p) => `${p.codigo} - ${p.descricao}` === evento.target.value,
       );
       document.getElementById("lancPeca").value = peca ? peca.id : "";
+
+      const dica = document.getElementById("dicaCicloPadrao");
+      dica.innerText = peca && peca.ciclo_padrao
+        ? `Ciclo padrão cadastrado na peça: ${peca.ciclo_padrao}s`
+        : "";
     });
   } catch (erro) {
     console.error(erro);
@@ -175,6 +181,7 @@ function renderizarAbasMaquinas() {
 
 function selecionarMaquina(numeroMaquina) {
   maquinaAtiva = numeroMaquina;
+  cancelarEdicaoLancamento(); // evita confusão de estar editando um lançamento de outra injetora
   document.querySelectorAll(".btn-maq").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.numeroMaquina === numeroMaquina);
   });
@@ -205,6 +212,7 @@ function adicionarLancamento() {
   if (tipo === "PRODUCAO") {
     const pecaId = document.getElementById("lancPeca").value;
     const quantidade = document.getElementById("lancQuantidade").value;
+    const ciclo = document.getElementById("lancCiclo").value;
     const inicio = document.getElementById("lancInicio").value;
     const fim = document.getElementById("lancFim").value;
 
@@ -222,10 +230,13 @@ function adicionarLancamento() {
         ? parseInt(document.getElementById("lancOp").value)
         : null,
       quantidade: parseInt(quantidade),
+      ciclo_informado: ciclo !== "" ? parseFloat(ciclo) : null,
       motivo: null,
     };
 
     document.getElementById("lancQuantidade").value = "";
+    document.getElementById("lancCiclo").value = "";
+    document.getElementById("dicaCicloPadrao").innerText = "";
     document.getElementById("lancInicio").value = "";
     document.getElementById("lancFim").value = "";
     document.getElementById("lancPecaBusca").value = "";
@@ -243,6 +254,7 @@ function adicionarLancamento() {
       produto_id: null,
       ordem_producao_id: null,
       quantidade: null,
+      ciclo_informado: null,
       motivo: document.getElementById("lancMotivo").value.trim() || null,
     };
 
@@ -251,14 +263,66 @@ function adicionarLancamento() {
     document.getElementById("lancFimParada").value = "";
   }
 
-  lancamentosState[maquinaAtiva].push(lancamento);
+  if (indiceEditando !== null) {
+    lancamentosState[maquinaAtiva][indiceEditando] = lancamento;
+    cancelarEdicaoLancamento();
+  } else {
+    lancamentosState[maquinaAtiva].push(lancamento);
+  }
+
   renderizarAbasMaquinas();
   renderizarListaLancamentos();
   atualizarResumoTurno();
 }
 
+// Preenche o formulário com os dados de um lançamento já adicionado,
+// para corrigir um erro de cadastro sem precisar apagar e lançar de
+// novo do zero. "Adicionar Lançamento" vira "Salvar Alteração"
+// enquanto a edição está em andamento.
+function editarLancamento(indice) {
+  const lanc = lancamentosState[maquinaAtiva][indice];
+  indiceEditando = indice;
+
+  document.getElementById(`tipo${lanc.tipo === "PRODUCAO" ? "Producao" : lanc.tipo === "PARADA_PROGRAMADA" ? "ParadaProgramada" : "ParadaFalha"}`).checked = true;
+  onTipoLancamentoMudou();
+
+  if (lanc.tipo === "PRODUCAO") {
+    const peca = pecasDisponiveis.find((p) => String(p.id) === String(lanc.produto_id));
+    document.getElementById("lancPecaBusca").value = peca ? `${peca.codigo} - ${peca.descricao}` : "";
+    document.getElementById("lancPeca").value = lanc.produto_id;
+    document.getElementById("dicaCicloPadrao").innerText = peca && peca.ciclo_padrao
+      ? `Ciclo padrão cadastrado na peça: ${peca.ciclo_padrao}s`
+      : "";
+    document.getElementById("lancOp").value = lanc.ordem_producao_id || "";
+    document.getElementById("lancQuantidade").value = lanc.quantidade;
+    document.getElementById("lancCiclo").value = lanc.ciclo_informado ?? "";
+    document.getElementById("lancInicio").value = lanc.horario_inicio;
+    document.getElementById("lancFim").value = lanc.horario_fim;
+  } else {
+    document.getElementById("lancMotivo").value = lanc.motivo || "";
+    document.getElementById("lancInicioParada").value = lanc.horario_inicio;
+    document.getElementById("lancFimParada").value = lanc.horario_fim;
+  }
+
+  const btn = document.getElementById("btnAdicionarLancamento");
+  btn.innerHTML = `<i class="bi bi-check-circle me-1"></i>Salvar Alteração`;
+  btn.classList.replace("btn-primary", "btn-warning");
+  document.getElementById("btnCancelarEdicaoLancamento").classList.remove("d-none");
+
+  document.getElementById("cardNovoLancamento").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function cancelarEdicaoLancamento() {
+  indiceEditando = null;
+  const btn = document.getElementById("btnAdicionarLancamento");
+  btn.innerHTML = `<i class="bi bi-plus-circle me-1"></i>Adicionar Lançamento`;
+  btn.classList.replace("btn-warning", "btn-primary");
+  document.getElementById("btnCancelarEdicaoLancamento").classList.add("d-none");
+}
+
 function removerLancamento(indice) {
   lancamentosState[maquinaAtiva].splice(indice, 1);
+  if (indiceEditando === indice) cancelarEdicaoLancamento();
   renderizarAbasMaquinas();
   renderizarListaLancamentos();
   atualizarResumoTurno();
@@ -269,7 +333,9 @@ function calcularEsperadoLancamento(lanc, maquina) {
   const peca = lanc.produto_id
     ? pecasDisponiveis.find((p) => String(p.id) === String(lanc.produto_id))
     : null;
-  const ciclo = peca?.ciclo_padrao || maquina?.ciclo_padrao;
+  // Ciclo informado manualmente (campo editável, comparado ao padrão da
+  // peça) tem prioridade máxima - mesma lógica do backend.
+  const ciclo = lanc.ciclo_informado || peca?.ciclo_padrao || maquina?.ciclo_padrao;
   const cavidades = peca?.cavidades || maquina?.cavidades;
   if (!ciclo || !cavidades) return 0;
 
@@ -291,7 +357,7 @@ function renderizarListaLancamentos() {
   const maquina = maquinasDisponiveis.find((m) => m.numero_maquina === maquinaAtiva);
 
   if (lista.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-secondary py-3">Nenhum lançamento ainda nesta injetora.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center text-secondary py-3">Nenhum lançamento ainda nesta injetora.</td></tr>`;
     return;
   }
 
@@ -312,19 +378,39 @@ function renderizarListaLancamentos() {
       const pecaOuMotivo = lanc.tipo === "PRODUCAO" ? (peca?.descricao || "-") : (lanc.motivo || "-");
       const esperado = calcularEsperadoLancamento(lanc, maquina);
 
+      // Ciclo real informado x ciclo padrão da peça, lado a lado - o
+      // líder de turno pediu essa comparação para identificar quando o
+      // molde está regulado diferente do cadastrado.
+      let ciclos = "-";
+      if (lanc.tipo === "PRODUCAO") {
+        const informado = lanc.ciclo_informado ? `${lanc.ciclo_informado}s` : "-";
+        const padrao = peca?.ciclo_padrao ? `${peca.ciclo_padrao}s` : "-";
+        const divergente = lanc.ciclo_informado && peca?.ciclo_padrao
+          && Math.abs(lanc.ciclo_informado - peca.ciclo_padrao) > 0.05;
+        ciclos = `<span class="${divergente ? 'text-danger fw-bold' : ''}">${informado}</span> <span class="text-secondary">(${padrao})</span>`;
+      }
+
+      const emEdicao = i === indiceEditando;
+
       return `
-        <tr>
+        <tr class="${emEdicao ? 'table-warning' : ''}">
           <td>${rotuloTipo[lanc.tipo]}</td>
           <td>${lanc.horario_inicio}</td>
           <td>${lanc.horario_fim}</td>
           <td>${escaparHtml(pecaOuMotivo)}</td>
           <td>${op ? escaparHtml(op.numero_op) : "-"}</td>
           <td class="text-center">${lanc.quantidade ?? "-"}</td>
+          <td class="text-center">${ciclos}</td>
           <td class="text-center">${lanc.tipo === "PRODUCAO" ? esperado : "-"}</td>
           <td class="text-center">
-            <button class="btn btn-sm btn-outline-danger" onclick="removerLancamento(${i})">
-              <i class="bi bi-trash"></i>
-            </button>
+            <div class="d-flex gap-1 justify-content-center">
+              <button class="btn btn-sm btn-outline-secondary" onclick="editarLancamento(${i})" title="Corrigir">
+                <i class="bi bi-pencil-square"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-danger" onclick="removerLancamento(${i})" title="Excluir">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
           </td>
         </tr>
       `;
@@ -388,6 +474,7 @@ async function carregarTurnoParaEdicao(turnoId) {
         produto_id: lanc.produto_id,
         ordem_producao_id: lanc.ordem_producao_id,
         quantidade: lanc.quantidade,
+        ciclo_informado: lanc.ciclo_informado,
         motivo: lanc.motivo,
       });
     });
