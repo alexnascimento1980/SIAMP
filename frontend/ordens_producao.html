@@ -181,6 +181,42 @@
       </div>
     </div>
 
+    <!-- Importação em lote (CSV/XML) -->
+    <div class="card shadow-sm mb-3">
+      <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 fw-bold text-primary"><i class="bi bi-upload me-2"></i>Importar Ordens de Produção</h5>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#importColapsavel">
+          Mostrar
+        </button>
+      </div>
+      <div class="collapse" id="importColapsavel">
+        <div class="card-body p-3">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-8">
+              <label class="form-label mb-1">Arquivo (.csv ou .xml)</label>
+              <input type="file" id="arquivoImportacao" class="form-control" accept=".csv,.xml">
+            </div>
+            <div class="col-md-4">
+              <button class="btn btn-primary w-100" id="btnImportar" onclick="importarArquivo()">
+                <i class="bi bi-upload me-1"></i>Importar
+              </button>
+            </div>
+          </div>
+          <div class="form-text mt-1">
+            Colunas obrigatórias: <code>numero_op</code>, <code>produto_codigo</code>, <code>numero_maquina</code>,
+            <code>quantidade_a_produzir</code>, <code>periodo_inicio</code>, <code>periodo_fim</code> (datas em
+            AAAA-MM-DD ou DD/MM/AAAA). Peça e máquina precisam já estar cadastradas - linhas com código
+            desconhecido são rejeitadas e listadas, sem travar a importação das demais.
+          </div>
+
+          <div id="resultadoImportacao" class="mt-3 d-none">
+            <div class="alert" id="resumoImportacao"></div>
+            <div id="detalheErrosImportacao"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Lista de OPs -->
     <div class="card shadow-sm mb-4">
       <div class="card-header bg-white py-2">

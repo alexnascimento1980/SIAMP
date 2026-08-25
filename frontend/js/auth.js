@@ -19,8 +19,9 @@ const API_BASE_URL =
  * Use isto em vez de fetch() puro para chamar a API autenticada.
  */
 async function chamarApi(caminho, opcoes = {}) {
+  const ehFormData = opcoes.body instanceof FormData;
   const precisaJson =
-    opcoes.body !== undefined && !(opcoes.headers || {})["Content-Type"];
+    opcoes.body !== undefined && !ehFormData && !(opcoes.headers || {})["Content-Type"];
 
   const res = await fetch(`${API_BASE_URL}${caminho}`, {
     ...opcoes,
