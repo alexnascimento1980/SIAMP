@@ -21,20 +21,24 @@ def _settings_falsas(**overrides):
     return SimpleNamespace(**base)
 
 
+UM_ANEXO = [(b"%PDF-1.4", "relatorio.pdf")]
+DOIS_ANEXOS = [(b"%PDF-1.4 turno", "relatorio.pdf"), (b"%PDF-1.4 dashboard", "relatorio_dashboard.pdf")]
+
+
 # --- Caminho SMTP (fallback, sem BREVO_API_KEY) -----------------------
 
 
 def test_pula_envio_sem_credenciais():
     with patch("app.services.mailer.settings", _settings_falsas(smtp_user="", smtp_pass="")):
         with patch("smtplib.SMTP") as mock_smtp:
-            enviar_relatorio_email(["dest@empresa.com"], "Assunto", "<p>corpo</p>", b"%PDF-1.4")
+            enviar_relatorio_email(["dest@empresa.com"], "Assunto", "<p>corpo</p>", UM_ANEXO)
             mock_smtp.assert_not_called()
 
 
 def test_pula_envio_sem_destinatarios():
     with patch("app.services.mailer.settings", _settings_falsas()):
         with patch("smtplib.SMTP") as mock_smtp:
-            enviar_relatorio_email([], "Assunto", "<p>corpo</p>", b"%PDF-1.4")
+            enviar_relatorio_email([], "Assunto", "<p>corpo</p>", UM_ANEXO)
             mock_smtp.assert_not_called()
 
 
@@ -47,7 +51,7 @@ def test_envio_bem_sucedido_chama_login_e_send_message():
                 ["dest1@empresa.com", "dest2@empresa.com"],
                 "Fechamento de turno",
                 "<p>corpo</p>",
-                b"%PDF-1.4 conteudo falso",
+                UM_ANEXO,
             )
 
             mock_smtp.assert_called_once_with("smtp.exemplo.com", 587, timeout=15)
@@ -61,6 +65,25 @@ def test_envio_bem_sucedido_chama_login_e_send_message():
             assert mensagem_enviada["Subject"] == "Fechamento de turno"
 
 
+def test_envio_com_dois_anexos_smtp():
+    with patch("app.services.mailer.settings", _settings_falsas()):
+        with patch("smtplib.SMTP") as mock_smtp:
+            mock_smtp.return_value.__enter__.return_value = mock_smtp.return_value
+
+            enviar_relatorio_email(
+                ["dest@empresa.com"], "Fechamento de turno", "<p>corpo</p>", DOIS_ANEXOS,
+            )
+
+            mensagem_enviada = mock_smtp.return_value.send_message.call_args[0][0]
+            partes_anexo = [
+                p for p in mensagem_enviada.walk()
+                if p.get_content_disposition() == "attachment"
+            ]
+            assert len(partes_anexo) == 2
+            nomes = {p.get_filename() for p in partes_anexo}
+            assert nomes == {"relatorio.pdf", "relatorio_dashboard.pdf"}
+
+
 def test_from_usa_smtp_from_quando_diferente_do_smtp_user():
     fake_settings = _settings_falsas(
         smtp_user="b610a9001@smtp-brevo.com", smtp_from="siamp@empresa.com"
@@ -70,7 +93,7 @@ def test_from_usa_smtp_from_quando_diferente_do_smtp_user():
             mock_smtp.return_value.__enter__.return_value = mock_smtp.return_value
 
             enviar_relatorio_email(
-                ["dest@empresa.com"], "Assunto", "<p>corpo</p>", b"%PDF-1.4"
+                ["dest@empresa.com"], "Assunto", "<p>corpo</p>", UM_ANEXO
             )
 
             mensagem_enviada = mock_smtp.return_value.send_message.call_args[0][0]
@@ -90,7 +113,7 @@ def test_falha_autenticacao_levanta_envio_email_error():
 
             with pytest.raises(EnvioEmailError):
                 enviar_relatorio_email(
-                    ["dest@empresa.com"], "Assunto", "<p>corpo</p>", b"%PDF-1.4"
+                    ["dest@empresa.com"], "Assunto", "<p>corpo</p>", UM_ANEXO
                 )
 
 
@@ -101,7 +124,7 @@ def test_falha_de_rede_levanta_envio_email_error():
 
             with pytest.raises(EnvioEmailError):
                 enviar_relatorio_email(
-                    ["dest@empresa.com"], "Assunto", "<p>corpo</p>", b"%PDF-1.4"
+                    ["dest@empresa.com"], "Assunto", "<p>corpo</p>", UM_ANEXO
                 )
 
 
@@ -116,7 +139,7 @@ def test_usa_brevo_quando_api_key_configurada_ignora_smtp():
                 mock_post.return_value = MagicMock(status_code=201, text="")
 
                 enviar_relatorio_email(
-                    ["dest@empresa.com"], "Assunto", "<p>corpo</p>", b"%PDF-1.4"
+                    ["dest@empresa.com"], "Assunto", "<p>corpo</p>", UM_ANEXO
                 )
 
                 mock_smtp.assert_not_called()
@@ -133,8 +156,7 @@ def test_brevo_monta_payload_correto_com_anexo_em_base64():
                 ["dest1@empresa.com", "dest2@empresa.com"],
                 "Fechamento de turno",
                 "<p>corpo</p>",
-                b"conteudo-do-pdf",
-                "relatorio.pdf",
+                [(b"conteudo-do-pdf", "relatorio.pdf")],
             )
 
             kwargs = mock_post.call_args[1]
@@ -155,6 +177,22 @@ def test_brevo_monta_payload_correto_com_anexo_em_base64():
             assert base64.b64decode(payload["attachment"][0]["content"]) == b"conteudo-do-pdf"
 
 
+def test_brevo_monta_payload_com_dois_anexos():
+    fake_settings = _settings_falsas(brevo_api_key="chave-brevo-falsa")
+    with patch("app.services.mailer.settings", fake_settings):
+        with patch("requests.post") as mock_post:
+            mock_post.return_value = MagicMock(status_code=201, text="")
+
+            enviar_relatorio_email(
+                ["dest@empresa.com"], "Fechamento de turno", "<p>corpo</p>", DOIS_ANEXOS,
+            )
+
+            payload = mock_post.call_args[1]["json"]
+            assert len(payload["attachment"]) == 2
+            nomes = {a["name"] for a in payload["attachment"]}
+            assert nomes == {"relatorio.pdf", "relatorio_dashboard.pdf"}
+
+
 def test_brevo_erro_http_levanta_envio_email_error():
     fake_settings = _settings_falsas(brevo_api_key="chave-brevo-falsa")
     with patch("app.services.mailer.settings", fake_settings):
@@ -165,7 +203,7 @@ def test_brevo_erro_http_levanta_envio_email_error():
 
             with pytest.raises(EnvioEmailError):
                 enviar_relatorio_email(
-                    ["dest@empresa.com"], "Assunto", "<p>corpo</p>", b"%PDF-1.4"
+                    ["dest@empresa.com"], "Assunto", "<p>corpo</p>", UM_ANEXO
                 )
 
 
@@ -177,5 +215,5 @@ def test_brevo_falha_de_rede_levanta_envio_email_error():
 
             with pytest.raises(EnvioEmailError):
                 enviar_relatorio_email(
-                    ["dest@empresa.com"], "Assunto", "<p>corpo</p>", b"%PDF-1.4"
+                    ["dest@empresa.com"], "Assunto", "<p>corpo</p>", UM_ANEXO
                 )

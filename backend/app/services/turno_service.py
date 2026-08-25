@@ -17,7 +17,7 @@ from app.models.turno import Turno
 from app.schemas.turno_schema import FechamentoTurnoCreate, RascunhoTurnoCreate
 from app.services.analytics import calcular_capacidade_esperada_registro, calcular_kpis_turno
 from app.services.mailer import enviar_relatorio_email
-from app.services.pdf_generator import gerar_relatorio_turno_pdf
+from app.services.pdf_generator import gerar_relatorio_dashboard_pdf, gerar_relatorio_turno_pdf
 
 
 STATUS_ASSINADO = "ASSINADO_DIGITALMENTE"
@@ -288,9 +288,10 @@ def agendar_email_relatorio(
     background_tasks: BackgroundTasks,
     registros_pdf: list[dict] | None = None,
 ) -> bool:
-    """Monta o PDF e agenda o envio do relatório em background. Retorna
-    True se o envio foi agendado (SMTP configurado e há pelo menos um
-    destinatário), False se foi pulado.
+    """Monta os PDFs (relatório de fechamento + dashboard do turno) e
+    agenda o envio do e-mail em background. Retorna True se o envio
+    foi agendado (algum provedor de e-mail configurado e há pelo menos
+    um destinatário), False se foi pulado.
 
     registros_pdf: se não informado, monta a partir de
     buscar_registros_para_relatorio (modelo por hora). Passar
@@ -298,7 +299,13 @@ def agendar_email_relatorio(
     lançamentos livres (ver lancamento_service.py), que monta os
     registros num formato equivalente."""
     destinatarios = _resolver_destinatarios(db)
-    if not (settings.smtp_user and settings.smtp_pass and destinatarios):
+    # Verifica os dois provedores possíveis (Brevo OU SMTP) - checar só
+    # smtp_user/smtp_pass aqui faria o envio parar silenciosamente se
+    # só o Brevo estivesse configurado (caso de produção no Render).
+    provedor_configurado = bool(settings.brevo_api_key) or bool(
+        settings.smtp_user and settings.smtp_pass
+    )
+    if not (provedor_configurado and destinatarios):
         return False
 
     dados_turno = {
@@ -307,24 +314,38 @@ def agendar_email_relatorio(
     }
     if registros_pdf is None:
         registros_pdf = buscar_registros_para_relatorio(db, turno.id)
-    pdf_bytes = gerar_relatorio_turno_pdf(dados_turno, kpis, registros_pdf)
+    pdf_turno = gerar_relatorio_turno_pdf(dados_turno, kpis, registros_pdf)
+
+    # Import local para evitar ciclo de import: dashboard_service.py
+    # já importa STATUS_ASSINADO deste mesmo módulo.
+    from app.services.dashboard_service import calcular_metricas_acumuladas
+
+    metricas_por_periodo = {
+        periodo: calcular_metricas_acumuladas(db, periodo=periodo)
+        for periodo in ("diario", "semanal", "mensal")
+    }
+    pdf_dashboard = gerar_relatorio_dashboard_pdf(dados_turno, kpis, metricas_por_periodo)
 
     assunto = (
         f"[SIAMP] Fechamento de Turno: {turno.nome_turno} - "
         f"{turno.data_registro.strftime('%d/%m/%y')}"
     )
     corpo = (
-        "<p>Segue em anexo o relatório de produção.</p>"
+        "<p>Segue em anexo o relatório de produção e o dashboard do "
+        "turno (desempenho comparado ao acumulado diário/semanal/"
+        "mensal).</p>"
         f"<p>Eficiência calculada: <b>{kpis['eficiencia_oee']}%</b>.</p>"
     )
+
+    nome_base = montar_nome_arquivo_relatorio(turno.nome_turno, turno.data_registro)
+    nome_dashboard = nome_base.replace(".pdf", "_dashboard.pdf")
 
     background_tasks.add_task(
         enviar_relatorio_email,
         destinatarios,
         assunto,
         corpo,
-        pdf_bytes,
-        montar_nome_arquivo_relatorio(turno.nome_turno, turno.data_registro),
+        [(pdf_turno, nome_base), (pdf_dashboard, nome_dashboard)],
     )
     return True
 
@@ -539,10 +560,10 @@ def reenviar_email_turno(
 
     if not email_agendado:
         raise ValueError(
-            "Envio de e-mail não está configurado: confira se SMTP_USER/"
-            "SMTP_PASS estão definidos no .env e se há pelo menos um "
-            "destinatário ativo cadastrado (tela Destinatários) ou em "
-            "REPORT_RECIPIENTS."
+            "Envio de e-mail não está configurado: confira se BREVO_API_KEY "
+            "ou SMTP_USER/SMTP_PASS estão definidos no .env e se há pelo "
+            "menos um destinatário ativo cadastrado (tela Destinatários) ou "
+            "em REPORT_RECIPIENTS."
         )
 
     return {

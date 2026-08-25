@@ -108,10 +108,10 @@ def main() -> None:
                 "gerado a partir dos dados reais quando um turno é "
                 "fechado.</p>"
             ),
-            pdf_bytes=_gerar_pdf_de_exemplo(),
-            nome_arquivo=montar_nome_arquivo_relatorio(
-                "[EXEMPLO] 1º Turno", agora_brasilia()
-            ),
+            anexos=[(
+                _gerar_pdf_de_exemplo(),
+                montar_nome_arquivo_relatorio("[EXEMPLO] 1º Turno", agora_brasilia()),
+            )],
         )
     except EnvioEmailError as exc:
         print(f"[testar_email] Falha ao enviar: {exc}", file=sys.stderr)
