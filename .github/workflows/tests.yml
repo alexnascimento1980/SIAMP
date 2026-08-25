@@ -33,5 +33,5 @@ jobs:
       - name: Rodar testes
         env:
           JWT_SECRET_KEY: chave-de-teste-ci-nao-usar-em-producao
-          DATABASE_URL: sqlite:///:memory:
+          DATABASE_URL: "sqlite:///:memory:"
         run: pytest -v
