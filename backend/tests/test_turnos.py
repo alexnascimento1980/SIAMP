@@ -653,3 +653,46 @@ def test_exportar_csv_filtra_por_periodo(client, db_session, usuario_teste):
     conteudo = res.content.decode("utf-8-sig")
     # Período no passado, antes do turno criado agora -> não deve aparecer
     assert "42" not in conteudo
+
+
+def test_fechamento_agenda_email_so_com_brevo_configurado_sem_smtp(client, db_session, usuario_teste):
+    # Regressão: agendar_email_relatorio checava só smtp_user/smtp_pass
+    # para decidir se agendava o envio, ignorando o caminho via Brevo -
+    # se só BREVO_API_KEY estivesse configurada (caso real de
+    # produção), o e-mail parava de ser agendado silenciosamente.
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock, patch
+
+    _login(client, usuario_teste)
+    maquina, _peca = _criar_maquina_e_peca(db_session)
+
+    fake_settings = SimpleNamespace(
+        smtp_user="", smtp_pass="", smtp_from="siamp@empresa.com",
+        smtp_server="", smtp_port=587,
+        brevo_api_key="chave-brevo-falsa",
+        report_recipients=["gerente@empresa.com"],
+    )
+    payload = {
+        "nome_turno": "1º Turno (05:00 - 13:00)",
+        "responsavel_nome": "Líder Teste",
+        "registros": [
+            {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 100},
+        ],
+    }
+    with patch("app.services.turno_service.settings", fake_settings), patch(
+        "app.services.mailer.settings", fake_settings
+    ):
+        with patch("requests.post") as mock_post:
+            mock_post.return_value = MagicMock(status_code=201, text="")
+            res = client.post("/api/v1/turnos/fechamento", json=payload)
+
+    assert res.status_code == 201, res.text
+    assert res.json()["relatorio_email_agendado"] is True
+    mock_post.assert_called_once()
+
+    # Confere que os DOIS PDFs (relatório de fechamento + dashboard)
+    # foram anexados no mesmo e-mail.
+    payload_enviado = mock_post.call_args[1]["json"]
+    assert len(payload_enviado["attachment"]) == 2
+    nomes_anexo = [a["name"] for a in payload_enviado["attachment"]]
+    assert any("dashboard" in nome for nome in nomes_anexo)

@@ -25,8 +25,7 @@ def _montar_mensagem(
     destinatarios: list[str],
     assunto: str,
     corpo_html: str,
-    pdf_bytes: bytes,
-    nome_arquivo: str,
+    anexos: list[tuple[bytes, str]],
 ) -> MIMEMultipart:
     mensagem = MIMEMultipart()
     mensagem["From"] = settings.smtp_from
@@ -35,13 +34,14 @@ def _montar_mensagem(
 
     mensagem.attach(MIMEText(corpo_html, "html"))
 
-    anexo = MIMEApplication(pdf_bytes, _subtype="pdf")
-    anexo.add_header(
-        "Content-Disposition",
-        "attachment",
-        filename=nome_arquivo,
-    )
-    mensagem.attach(anexo)
+    for conteudo, nome_arquivo in anexos:
+        anexo = MIMEApplication(conteudo, _subtype="pdf")
+        anexo.add_header(
+            "Content-Disposition",
+            "attachment",
+            filename=nome_arquivo,
+        )
+        mensagem.attach(anexo)
     return mensagem
 
 
@@ -49,8 +49,7 @@ def _enviar_via_brevo_api(
     destinatarios: list[str],
     assunto: str,
     corpo_html: str,
-    pdf_bytes: bytes,
-    nome_arquivo: str,
+    anexos: list[tuple[bytes, str]],
 ) -> None:
     """Envia via API HTTP do Brevo (porta 443/HTTPS), em vez de SMTP
     (portas 25/465/587). Necessário porque hospedagens com plano
@@ -63,9 +62,10 @@ def _enviar_via_brevo_api(
         "htmlContent": corpo_html,
         "attachment": [
             {
-                "content": base64.b64encode(pdf_bytes).decode("ascii"),
+                "content": base64.b64encode(conteudo).decode("ascii"),
                 "name": nome_arquivo,
             }
+            for conteudo, nome_arquivo in anexos
         ],
     }
     headers = {
@@ -99,15 +99,14 @@ def _enviar_via_smtp(
     destinatarios: list[str],
     assunto: str,
     corpo_html: str,
-    pdf_bytes: bytes,
-    nome_arquivo: str,
+    anexos: list[tuple[bytes, str]],
 ) -> None:
     """Caminho tradicional via smtplib - funciona bem em desenvolvimento
     local (ex.: Gmail), mas costuma ser bloqueado em hospedagens com
     plano gratuito que restringem portas SMTP de saída (ver
     _enviar_via_brevo_api, o caminho preferido quando BREVO_API_KEY
     está configurada)."""
-    mensagem = _montar_mensagem(destinatarios, assunto, corpo_html, pdf_bytes, nome_arquivo)
+    mensagem = _montar_mensagem(destinatarios, assunto, corpo_html, anexos)
 
     try:
         with smtplib.SMTP(settings.smtp_server, settings.smtp_port, timeout=15) as server:
@@ -141,11 +140,15 @@ def enviar_relatorio_email(
     destinatarios: list[str],
     assunto: str,
     corpo_html: str,
-    pdf_bytes: bytes,
-    nome_arquivo: str = "relatorio_siamp.pdf",
+    anexos: list[tuple[bytes, str]],
 ) -> None:
     """Envia o relatório de fechamento de turno por e-mail (chamado em
     background após o fechamento - ver turno_service.fechar_turno).
+
+    anexos: lista de (conteudo_bytes, nome_arquivo) - normalmente o
+    relatório de fechamento em PDF e, junto, o PDF do dashboard
+    (desempenho do turno comparado ao acumulado diário/semanal/
+    mensal). Aceita qualquer quantidade de anexos, não só um.
 
     Usa a API HTTP do Brevo quando BREVO_API_KEY está configurada
     (necessário em hospedagens que bloqueiam portas SMTP de saída, como
@@ -163,7 +166,7 @@ def enviar_relatorio_email(
         return
 
     if settings.brevo_api_key:
-        _enviar_via_brevo_api(destinatarios, assunto, corpo_html, pdf_bytes, nome_arquivo)
+        _enviar_via_brevo_api(destinatarios, assunto, corpo_html, anexos)
         return
 
     if not settings.smtp_user or not settings.smtp_pass:
@@ -173,4 +176,4 @@ def enviar_relatorio_email(
         )
         return
 
-    _enviar_via_smtp(destinatarios, assunto, corpo_html, pdf_bytes, nome_arquivo)
+    _enviar_via_smtp(destinatarios, assunto, corpo_html, anexos)
