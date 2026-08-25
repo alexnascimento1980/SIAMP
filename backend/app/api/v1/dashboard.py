@@ -9,46 +9,20 @@ from app.models.ordem_producao import OrdemProducao
 from app.models.registro_turno import RegistroHorario
 from app.models.turno import Turno
 from app.models.usuario import Usuario
-from app.services.analytics import calcular_kpis_varios_turnos_generico
-from app.services.dashboard_service import PERIODOS_VALIDOS, calcular_metricas_acumuladas
+from app.services.dashboard_service import (
+    PERIODOS_VALIDOS,
+    calcular_metricas_acumuladas,
+    montar_producao_por_turno,
+)
 from app.services.ml_engine import prever_risco_operacional
 from app.services.turno_service import STATUS_ASSINADO
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
-# Quantos turnos/OPs mais recentes aparecem nos gráficos do dashboard -
-# limite para não sobrecarregar a tela com um histórico muito longo.
-LIMITE_TURNOS_GRAFICO = 10
+# Quantas Ordens de Produção mais recentes aparecem no comparativo do
+# dashboard - limite para não sobrecarregar a tela com um histórico
+# muito longo.
 LIMITE_ORDENS_COMPARATIVO = 8
-
-
-def _montar_producao_por_turno(db: Session) -> dict:
-    """Produção e OEE dos turnos mais recentes, em ordem cronológica
-    (mais antigo primeiro) - para o gráfico de tendência. Só turnos
-    fechados (ASSINADO_DIGITALMENTE) entram aqui - rascunhos em
-    andamento não devem aparecer como se já fossem dado consolidado.
-    Cobre os dois modelos de apontamento (HORARIO e LANCAMENTO)."""
-    ultimos_turnos = (
-        db.query(Turno)
-        .filter(Turno.status_assinatura == STATUS_ASSINADO)
-        .order_by(Turno.data_registro.desc())
-        .limit(LIMITE_TURNOS_GRAFICO)
-        .all()
-    )
-    ultimos_turnos.reverse()
-
-    kpis_por_turno = calcular_kpis_varios_turnos_generico(db, ultimos_turnos)
-
-    labels = []
-    for t in ultimos_turnos:
-        prefixo = t.nome_turno.split("(")[0].strip()
-        labels.append(f"{prefixo} {t.data_registro.strftime('%d/%m')}")
-
-    return {
-        "labels": labels,
-        "produzido": [kpis_por_turno[t.id]["total_produzido"] for t in ultimos_turnos],
-        "oee": [kpis_por_turno[t.id]["eficiencia_oee"] for t in ultimos_turnos],
-    }
 
 
 def _montar_comparativo_ordens_producao(db: Session) -> list[dict]:
@@ -173,7 +147,7 @@ def obter_metricas_dashboard(
             "labels": [f"Injetora {m['numero_maquina']}" for m in metricas["producao_por_maquina"]],
             "valores": [m["total_produzido"] for m in metricas["producao_por_maquina"]],
         },
-        "producao_por_turno": _montar_producao_por_turno(db),
+        "producao_por_turno": montar_producao_por_turno(db),
         "comparativo_ordens_producao": _montar_comparativo_ordens_producao(db),
         "insight_ml": insight_ia,
     }
