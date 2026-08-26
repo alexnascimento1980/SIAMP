@@ -20,6 +20,10 @@ class UsuarioUpdateStatus(BaseModel):
     ativo: bool
 
 
+class UsuarioResetSenha(BaseModel):
+    nova_senha: str = Field(..., min_length=8, max_length=72)
+
+
 class UsuarioResponse(BaseModel):
     id: int
     nome: str
