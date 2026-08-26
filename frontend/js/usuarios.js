@@ -44,13 +44,16 @@ function renderizarUsuarios(usuarios) {
     const botaoAcao = u.ativo
       ? `<button class="btn btn-sm btn-outline-danger" onclick="alterarStatus(${u.id}, false)">Desativar</button>`
       : `<button class="btn btn-sm btn-outline-success" onclick="alterarStatus(${u.id}, true)">Reativar</button>`;
+    const botaoReset = `<button class="btn btn-sm btn-outline-secondary" onclick="abrirResetSenha(${u.id}, '${escaparHtml(u.nome).replace(/'/g, "\\'")}')" title="Resetar senha">
+      <i class="bi bi-key"></i>
+    </button>`;
 
     tr.innerHTML = `
       <td>${escaparHtml(u.nome)}</td>
       <td>${escaparHtml(u.email)}</td>
       <td><span class="badge bg-primary">${escaparHtml(u.perfil)}</span></td>
       <td class="text-center">${badgeStatus}</td>
-      <td class="text-center">${botaoAcao}</td>
+      <td class="text-center"><div class="d-flex gap-1 justify-content-center">${botaoReset}${botaoAcao}</div></td>
     `;
     tbody.appendChild(tr);
   });
@@ -140,4 +143,63 @@ function escaparHtml(texto) {
   const div = document.createElement("div");
   div.textContent = texto;
   return div.innerHTML;
+}
+
+let usuarioIdParaResetar = null;
+let modalResetSenha = null;
+
+function abrirResetSenha(usuarioId, nomeUsuario) {
+  usuarioIdParaResetar = usuarioId;
+  document.getElementById("resetNomeUsuario").innerText = nomeUsuario;
+  document.getElementById("resetNovaSenha").value = "";
+  document.getElementById("resetConfirmarSenha").value = "";
+  document.getElementById("resetErro").classList.add("d-none");
+
+  if (!modalResetSenha) {
+    modalResetSenha = new bootstrap.Modal(document.getElementById("modalResetSenha"));
+  }
+  modalResetSenha.show();
+}
+
+async function confirmarResetSenha() {
+  const novaSenha = document.getElementById("resetNovaSenha").value;
+  const confirmarSenha = document.getElementById("resetConfirmarSenha").value;
+  const erroEl = document.getElementById("resetErro");
+  erroEl.classList.add("d-none");
+
+  if (novaSenha.length < 8) {
+    erroEl.innerText = "A senha precisa ter pelo menos 8 caracteres.";
+    erroEl.classList.remove("d-none");
+    return;
+  }
+  if (novaSenha !== confirmarSenha) {
+    erroEl.innerText = "As senhas digitadas não coincidem.";
+    erroEl.classList.remove("d-none");
+    return;
+  }
+
+  const btn = document.getElementById("btnConfirmarReset");
+  btn.disabled = true;
+
+  try {
+    const res = await chamarApi(`/usuarios/${usuarioIdParaResetar}/senha`, {
+      method: "PATCH",
+      body: JSON.stringify({ nova_senha: novaSenha }),
+    });
+
+    if (!res.ok) {
+      const erro = await res.json().catch(() => null);
+      erroEl.innerText = erro?.detail || "Não foi possível resetar a senha.";
+      erroEl.classList.remove("d-none");
+      return;
+    }
+
+    modalResetSenha.hide();
+    mostrarMensagem("Senha redefinida com sucesso.", "success");
+  } catch (erro) {
+    erroEl.innerText = erro.message;
+    erroEl.classList.remove("d-none");
+  } finally {
+    btn.disabled = false;
+  }
 }
