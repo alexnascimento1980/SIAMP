@@ -6,6 +6,7 @@ from app.core.database import get_db
 from app.models.lancamento import Lancamento
 from app.models.maquina import Maquina
 from app.models.ordem_producao import OrdemProducao
+from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
 from app.models.turno import Turno
 from app.models.usuario import Usuario
@@ -14,7 +15,7 @@ from app.services.dashboard_service import (
     calcular_metricas_acumuladas,
     montar_producao_por_turno,
 )
-from app.services.ml_engine import prever_risco_operacional
+from app.services.ml_engine import prever_risco_parada
 from app.services.turno_service import STATUS_ASSINADO
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
@@ -85,6 +86,62 @@ def _montar_comparativo_ordens_producao(db: Session) -> list[dict]:
     return resultado
 
 
+def _montar_diagnostico_ia(db: Session) -> dict:
+    """Risco de a próxima produção de uma injetora ser seguida por uma
+    parada não programada, calculado a partir do lançamento de
+    produção mais recente registrado no sistema (modelo de
+    lançamentos livres - o modelo por hora, descontinuado, não tem os
+    dados de ciclo real necessários para esta previsão)."""
+    ultimo = (
+        db.query(Lancamento, Turno, Maquina, Produto)
+        .join(Turno, Turno.id == Lancamento.turno_id)
+        .join(Maquina, Maquina.id == Lancamento.maquina_id)
+        .outerjoin(Produto, Produto.id == Lancamento.produto_id)
+        .filter(Lancamento.tipo == "PRODUCAO")
+        .order_by(Lancamento.id.desc())
+        .first()
+    )
+
+    if not ultimo:
+        return {
+            "risco_desvio": False,
+            "probabilidade_critica": 0.0,
+            "mensagem": "Sem lançamentos de produção suficientes para diagnóstico.",
+            "fonte": "sem_dados",
+            "detalhe": {},
+        }
+
+    lanc, turno, maq, produto = ultimo
+
+    ciclo_efetivo = lanc.ciclo_informado or (produto.ciclo_padrao if produto else None) or maq.ciclo_padrao
+    cavidades_efetivas = (produto.cavidades if produto else None) or maq.cavidades
+
+    inicio_seg = (
+        lanc.horario_inicio.hour * 3600 + lanc.horario_inicio.minute * 60 + lanc.horario_inicio.second
+    )
+    fim_seg = lanc.horario_fim.hour * 3600 + lanc.horario_fim.minute * 60 + lanc.horario_fim.second
+    if fim_seg <= inicio_seg:
+        fim_seg += 24 * 3600
+    duracao_min = (fim_seg - inicio_seg) / 60
+
+    primeiro_char = turno.nome_turno[0] if turno.nome_turno else "1"
+    turno_num = int(primeiro_char) if primeiro_char.isdigit() else 1
+    dia_semana = turno.data_registro.weekday()
+
+    return prever_risco_parada(
+        db=db,
+        maquina_id=maq.id,
+        produto_id=produto.id if produto else None,
+        ciclo_efetivo=ciclo_efetivo,
+        ciclo_padrao_peca=produto.ciclo_padrao if produto else None,
+        cavidades_efetivas=cavidades_efetivas,
+        duracao_min=duracao_min,
+        quantidade=lanc.quantidade,
+        turno_num=turno_num,
+        dia_semana=dia_semana,
+    )
+
+
 @router.get("/metricas-gerais")
 def obter_metricas_dashboard(
     periodo: str = "total",
@@ -104,37 +161,7 @@ def obter_metricas_dashboard(
         periodo = "total"
 
     metricas = calcular_metricas_acumuladas(db, periodo=periodo)
-
-    # Diagnóstico da IA baseado no registro mais recente com parada,
-    # em vez de valores fixos que ignoravam os dados reais do turno.
-    ultimo_registro = (
-        db.query(RegistroHorario, Maquina)
-        .join(Maquina, Maquina.id == RegistroHorario.maquina_id)
-        .filter(RegistroHorario.inicio_parada.isnot(None))
-        .order_by(RegistroHorario.id.desc())
-        .first()
-    )
-
-    if ultimo_registro:
-        reg, maq = ultimo_registro
-        tempo_parada = 0.0
-        if reg.inicio_parada and reg.retomada:
-            inicio_min = reg.inicio_parada.hour * 60 + reg.inicio_parada.minute
-            fim_min = reg.retomada.hour * 60 + reg.retomada.minute
-            tempo_parada = max(0, fim_min - inicio_min)
-
-        insight_ia = prever_risco_operacional(
-            numero_maquina=int(maq.numero_maquina) if str(maq.numero_maquina).isdigit() else 0,
-            cavidades=maq.cavidades,
-            ciclo_padrao=maq.ciclo_padrao,
-            tempo_parada_minutos=tempo_parada,
-        )
-    else:
-        insight_ia = {
-            "risco_desvio": False,
-            "probabilidade_critica": 0.0,
-            "mensagem": "Sem registros de parada suficientes para diagnóstico.",
-        }
+    insight_ia = _montar_diagnostico_ia(db)
 
     return {
         "periodo": periodo,
