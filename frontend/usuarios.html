@@ -42,7 +42,6 @@
 
     <div class="container-fluid p-3" style="max-width: 900px">
       <div id="alertaMsg" class="alert d-none" role="alert"></div>
-
       <!-- Formulário de novo usuário -->
       <div class="card shadow-sm mb-3">
         <div class="card-header bg-white py-2">
@@ -133,6 +132,38 @@
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de reset de senha -->
+    <div class="modal fade" id="modalResetSenha" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="bi bi-key me-2"></i>Resetar Senha
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-3">
+              Definindo uma nova senha para <strong id="resetNomeUsuario"></strong>.
+              A senha atual não pode ser recuperada (é guardada apenas como hash) —
+              essa ação substitui por uma nova senha, que você deve repassar ao usuário.
+            </p>
+            <label class="form-label fw-bold text-secondary mb-1">Nova senha</label>
+            <input type="password" id="resetNovaSenha" class="form-control" minlength="8" placeholder="Mínimo 8 caracteres" />
+            <label class="form-label fw-bold text-secondary mb-1 mt-2">Confirmar nova senha</label>
+            <input type="password" id="resetConfirmarSenha" class="form-control" minlength="8" />
+            <div id="resetErro" class="text-danger small mt-2 d-none"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-primary" id="btnConfirmarReset" onclick="confirmarResetSenha()">
+              <i class="bi bi-check-circle me-1"></i>Salvar Nova Senha
+            </button>
+          </div>
         </div>
       </div>
     </div>
