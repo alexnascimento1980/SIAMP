@@ -13,8 +13,22 @@ sinal de verdade para aprender, em vez de dados puramente
 aleatórios (que não ensinariam nada útil a um classificador).
 """
 
+import os
 import random
+import sys
 from datetime import date, time, timedelta
+
+# Este script importa os modelos do SQLAlchemy direto de backend/app/
+# (mesma definição de tabela usada pela aplicação, evitando duplicar
+# a modelagem aqui) - mas nada garante que backend/ esteja no caminho
+# de busca do Python quando o script é executado a partir de
+# data_science/ (ex.: "python -m src.synthetic_data_generator" dá
+# ModuleNotFoundError: No module named 'app'). Resolve o caminho de
+# forma relativa ao próprio arquivo, então funciona independente de
+# onde o comando é chamado.
+_BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "backend"))
+if _BACKEND_DIR not in sys.path:
+    sys.path.insert(0, _BACKEND_DIR)
 
 from app.core.database import SessionLocal
 from app.models.lancamento import Lancamento
