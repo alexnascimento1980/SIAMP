@@ -99,7 +99,7 @@
         <div class="col-lg-4">
           <div class="card shadow-sm border-0 p-3 h-100 bg-white">
             <h5 class="fw-bold text-primary mb-3">
-              <i class="bi bi-cpu-fill me-2"></i>Súmula de IA & Predição
+              <i class="bi bi-cpu-fill me-2"></i>Risco de Próxima Parada
             </h5>
             <div class="p-3 bg-light rounded border mb-3">
               <h6 class="fw-bold text-secondary mb-1">Diagnóstico do Modelo</h6>
@@ -117,6 +117,10 @@
               <small class="text-muted d-block mt-2" id="iaProbTexto"
                 >Probabilidade de desvio: --%</small
               >
+            </div>
+            <div id="iaDetalheContainer" class="mb-2 d-none">
+              <small class="text-muted fw-bold d-block mb-1">Sinais considerados:</small>
+              <ul class="small text-secondary mb-0 ps-3" id="iaListaDetalhe"></ul>
             </div>
             <small class="text-muted" id="iaFonteTexto">
               <i class="bi bi-info-circle me-1"></i>Carregando origem do

@@ -51,15 +51,36 @@ async function carregarDashboard(periodo = "total") {
     document.getElementById("iaBarraProbabilidade").style.width =
       dados.insight_ml.probabilidade_critica + "%";
 
-    // Deixa claro se o diagnóstico veio do modelo scikit-learn treinado
-    // ou da heurística de fallback (usada enquanto o modelo não existe).
+    // Deixa claro a origem do diagnóstico - modelo scikit-learn
+    // treinado, heurística de fallback (enquanto o modelo não existe
+    // ou não pôde ser carregado), ou nenhum lançamento de produção
+    // ainda registrado para basear qualquer diagnóstico.
     const fonteEl = document.getElementById("iaFonteTexto");
     if (dados.insight_ml.fonte === "modelo_ml") {
       fonteEl.innerHTML =
-        '<i class="bi bi-cpu me-1"></i>Modelo de Machine Learning treinado, avaliando tempo de ciclo, cavidades e histórico de paradas.';
+        '<i class="bi bi-cpu me-1"></i>Modelo de Machine Learning treinado, prevendo o risco de parada não programada na próxima produção desta injetora.';
+    } else if (dados.insight_ml.fonte === "heuristica") {
+      fonteEl.innerHTML =
+        '<i class="bi bi-exclamation-triangle me-1"></i>Modelo ainda não treinado — diagnóstico por regra heurística (histórico de falha + divergência de ciclo).';
     } else {
       fonteEl.innerHTML =
-        '<i class="bi bi-exclamation-triangle me-1"></i>Modelo ainda não treinado — diagnóstico por regra heurística simples (parada &gt; 20 min).';
+        '<i class="bi bi-info-circle me-1"></i>Ainda não há lançamentos de produção suficientes para gerar um diagnóstico.';
+    }
+
+    // Sinais que embasaram o diagnóstico - dá transparência ao "porquê"
+    // em vez de só mostrar um percentual sem explicação.
+    const detalheContainer = document.getElementById("iaDetalheContainer");
+    const listaDetalhe = document.getElementById("iaListaDetalhe");
+    const detalhe = dados.insight_ml.detalhe;
+    if (detalhe && Object.keys(detalhe).length > 0) {
+      listaDetalhe.innerHTML = `
+        <li>Divergência do ciclo real vs. padrão da peça: <strong>${detalhe.ciclo_divergencia_pct}%</strong></li>
+        <li>Histórico de falha desta injetora: <strong>${detalhe.taxa_falha_historica_maquina}%</strong></li>
+        <li>Histórico de falha desta peça: <strong>${detalhe.taxa_falha_historica_peca}%</strong></li>
+      `;
+      detalheContainer.classList.remove("d-none");
+    } else {
+      detalheContainer.classList.add("d-none");
     }
 
     // Renderiza Gráfico Chart.js
