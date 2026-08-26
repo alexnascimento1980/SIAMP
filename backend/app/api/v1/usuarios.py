@@ -7,6 +7,7 @@ from app.core.security import gerar_hash_senha
 from app.models.usuario import Usuario
 from app.schemas.usuario_schema import (
     UsuarioCreate,
+    UsuarioResetSenha,
     UsuarioResponse,
     UsuarioUpdateStatus,
 )
@@ -69,6 +70,32 @@ def alterar_status_usuario(
         )
 
     alvo.ativo = dados.ativo
+    db.commit()
+    db.refresh(alvo)
+    return alvo
+
+
+@router.patch("/{usuario_id}/senha", response_model=UsuarioResponse)
+def resetar_senha_usuario(
+    usuario_id: int,
+    dados: UsuarioResetSenha,
+    db: Session = Depends(get_db),
+    usuario_atual: Usuario = Depends(exigir_perfil("ADMIN")),
+):
+    """Define uma nova senha para o usuário, sem exigir a senha atual -
+    fluxo de recuperação quando o usuário esqueceu a própria senha e
+    não tem outro jeito de entrar. Restrito a ADMIN. Não há como
+    'visualizar' a senha atual em nenhuma circunstância: senhas são
+    guardadas apenas como hash (bcrypt), uma função de mão única - só
+    é possível definir uma nova, nunca recuperar a antiga."""
+    alvo = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if alvo is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado.",
+        )
+
+    alvo.senha_hash = gerar_hash_senha(dados.nova_senha)
     db.commit()
     db.refresh(alvo)
     return alvo
