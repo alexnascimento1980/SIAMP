@@ -15,7 +15,11 @@ from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
 from app.models.turno import Turno
 from app.schemas.turno_schema import FechamentoTurnoCreate, RascunhoTurnoCreate
-from app.services.analytics import calcular_capacidade_esperada_registro, calcular_kpis_turno
+from app.services.analytics import (
+    calcular_capacidade_esperada_registro,
+    calcular_kpis_turno,
+    resolver_ciclo_cavidades,
+)
 from app.services.mailer import enviar_relatorio_email
 from app.services.pdf_generator import gerar_relatorio_dashboard_pdf, gerar_relatorio_turno_pdf
 
@@ -70,10 +74,28 @@ def buscar_registros_para_relatorio(db: Session, turno_id: int) -> list[dict]:
         # capacidade esperada para comparar - "0" parece meta cumprida
         # com folga, "N/D" deixa claro que falta cadastro.
         esperado_exibicao = "N/D" if esperado == 0 and (reg.prod_executada or 0) > 0 else esperado
+
+        # Mostra qual ciclo entrou de fato na conta (e de onde veio) -
+        # mesma transparência do modelo de lançamentos. Só faz sentido
+        # quando realmente houve produção nessa hora - uma linha de
+        # parada pura (prod_executada=0) não tem ciclo para mostrar.
+        descricao_com_ciclo = produto.descricao if produto else None
+        if (reg.prod_executada or 0) > 0:
+            ciclo_padrao, _cavidades = resolver_ciclo_cavidades(maq, produto)
+            if reg.ciclo_informado:
+                ciclo_texto = f"ciclo informado: {reg.ciclo_informado}s"
+            elif ciclo_padrao:
+                ciclo_texto = f"ciclo cadastrado: {ciclo_padrao}s"
+            else:
+                ciclo_texto = "sem ciclo cadastrado"
+            descricao_com_ciclo = (
+                f"{produto.descricao} ({ciclo_texto})" if produto else f"({ciclo_texto})"
+            )
+
         resultado.append({
             "hora_referencia": reg.hora_referencia.strftime("%H:%M"),
             "numero_maquina": maq.numero_maquina,
-            "produto_descricao": produto.descricao if produto else None,
+            "produto_descricao": descricao_com_ciclo,
             "numero_op": ordem.numero_op if ordem else None,
             "prod_executada": reg.prod_executada,
             "producao_esperada": esperado_exibicao,
