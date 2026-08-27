@@ -562,3 +562,75 @@ def test_exportar_csv_inclui_ciclo_informado_do_lancamento(client, db_session, u
     res = client.get("/api/v1/turnos/exportar/csv")
     conteudo = res.content.decode("utf-8-sig")
     assert "12.3" in conteudo
+
+
+def test_indice_producao_e_limitado_a_100_por_cento(client, db_session, usuario_teste):
+    # Regressão: ciclo real mais rápido que o ciclo padrão cadastrado
+    # fazia o índice de produção (e o OEE) passar de 100%, o que não
+    # tem sentido na convenção usual de OEE - acima de 100% indica
+    # ciclo padrão desatualizado, não desempenho sobre-humano.
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)
+    # peca: ciclo_padrao=10.0, cavidades=2 -> 1h = 3600/10*2 = 720 esperado
+
+    res = client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": peca.id,
+                    "quantidade": 900,  # bem acima do esperado (720)
+                }
+            ],
+        },
+    )
+    assert res.status_code == 201, res.text
+    kpis = res.json()["kpis"]
+    assert kpis["total_produzido"] == 900
+    assert kpis["total_esperado"] == 720
+    assert kpis["indice_producao"] == 100.0
+    assert kpis["eficiencia_oee"] == 100.0
+
+
+def test_pdf_mostra_nd_quando_producao_sem_ciclo_cadastrado(client, db_session, usuario_teste):
+    # Regressão: produção real numa peça sem ciclo/cavidades cadastrados
+    # mostrava "Esperado: 0" no PDF, que parece uma meta cumprida com
+    # folga em vez de "não há como calcular uma meta aqui".
+    _login(client, usuario_teste)
+    maquina = Maquina(numero_maquina="9", descricao="Injetora sem cadastro completo", ativo=True)
+    peca_incompleta = Produto(codigo="SEM-CICLO", descricao="Peça Sem Ciclo", ciclo_padrao=None, cavidades=None)
+    db_session.add_all([maquina, peca_incompleta])
+    db_session.commit()
+    db_session.refresh(maquina)
+    db_session.refresh(peca_incompleta)
+
+    turno_id = client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": peca_incompleta.id,
+                    "quantidade": 500,
+                }
+            ],
+        },
+    ).json()["turno_id"]
+
+    from app.services.lancamento_service import montar_registros_pdf_lancamento
+
+    linhas = montar_registros_pdf_lancamento(db_session, turno_id)
+    assert len(linhas) == 1
+    assert linhas[0]["prod_executada"] == 500
+    assert linhas[0]["producao_esperada"] == "N/D"

@@ -94,13 +94,21 @@ def montar_registros_pdf_lancamento(db: Session, turno_id: int) -> list[dict]:
         inicio_str = lanc.horario_inicio.strftime("%H:%M")
         fim_str = lanc.horario_fim.strftime("%H:%M")
         if lanc.tipo == TIPO_PRODUCAO:
+            esperado = calcular_capacidade_esperada_lancamento(lanc, maq, produto)
+            # Produção real aconteceu, mas não foi possível calcular uma
+            # capacidade esperada (peça/máquina sem ciclo ou cavidades
+            # cadastrados) - mostrar "0" nesse caso é enganoso, parece uma
+            # meta cumprida com folga quando na verdade não há meta
+            # nenhuma para comparar. "N/D" deixa isso explícito e aponta
+            # direto para o cadastro incompleto.
+            esperado_exibicao = "N/D" if esperado == 0 and (lanc.quantidade or 0) > 0 else esperado
             resultado.append({
                 "hora_referencia": f"{inicio_str}-{fim_str}",
                 "numero_maquina": maq.numero_maquina,
                 "produto_descricao": produto.descricao if produto else None,
                 "numero_op": ordem.numero_op if ordem else None,
                 "prod_executada": lanc.quantidade or 0,
-                "producao_esperada": calcular_capacidade_esperada_lancamento(lanc, maq, produto),
+                "producao_esperada": esperado_exibicao,
                 "inicio_parada": None,
                 "retomada": None,
                 "parada_programada": False,

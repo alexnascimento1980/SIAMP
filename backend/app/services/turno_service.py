@@ -59,22 +59,29 @@ def buscar_registros_para_relatorio(db: Session, turno_id: int) -> list[dict]:
         .order_by(RegistroHorario.hora_referencia, Maquina.numero_maquina)
         .all()
     )
-    return [
-        {
+    resultado = []
+    for reg, maq, produto, ordem in registros:
+        esperado = round(
+            calcular_capacidade_esperada_registro(reg, maq, produto)["capacidade_ajustada"]
+        )
+        # Mesma lógica do modelo de lançamentos (ver
+        # lancamento_service.montar_registros_pdf_lancamento): produção
+        # real aconteceu, mas sem ciclo/cavidades cadastrados não há
+        # capacidade esperada para comparar - "0" parece meta cumprida
+        # com folga, "N/D" deixa claro que falta cadastro.
+        esperado_exibicao = "N/D" if esperado == 0 and (reg.prod_executada or 0) > 0 else esperado
+        resultado.append({
             "hora_referencia": reg.hora_referencia.strftime("%H:%M"),
             "numero_maquina": maq.numero_maquina,
             "produto_descricao": produto.descricao if produto else None,
             "numero_op": ordem.numero_op if ordem else None,
             "prod_executada": reg.prod_executada,
-            "producao_esperada": round(
-                calcular_capacidade_esperada_registro(reg, maq, produto)["capacidade_ajustada"]
-            ),
+            "producao_esperada": esperado_exibicao,
             "inicio_parada": reg.inicio_parada.strftime("%H:%M") if reg.inicio_parada else None,
             "retomada": reg.retomada.strftime("%H:%M") if reg.retomada else None,
             "parada_programada": reg.parada_programada,
-        }
-        for reg, maq, produto, ordem in registros
-    ]
+        })
+    return resultado
 
 
 def exportar_registros_csv(
