@@ -706,3 +706,68 @@ def test_fechamento_agenda_email_so_com_brevo_configurado_sem_smtp(client, db_se
     conteudo_pdf = base64.b64decode(anexo_dashboard["content"])
     assert conteudo_pdf[:4] == b"%PDF"
     assert len(conteudo_pdf) > 10_000  # tabelas sozinhas ficam bem menores que isso
+
+
+def test_indice_producao_horario_e_limitado_a_100_por_cento(client, db_session, usuario_teste):
+    # Mesma regressão do modelo de lançamentos (ver test_lancamentos.py),
+    # replicada aqui para o modelo por hora: ciclo real mais rápido que
+    # o padrão cadastrado não deve fazer o índice passar de 100%.
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)
+    # maquina: cavidades=2 | peca: ciclo_padrao=5.0 (peça não define
+    # cavidades, cai no padrão da máquina) -> 1h = 3600/5*2 = 1440 esperado
+
+    res = client.post(
+        "/api/v1/turnos/fechamento",
+        json={
+            "nome_turno": "1º Turno (05:00 - 13:00)",
+            "responsavel_nome": "Líder Teste",
+            "registros": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "hora_referencia": "05:00",
+                    "prod_executada": 1600,  # acima do esperado (1440)
+                    "produto_id": peca.id,
+                },
+            ],
+        },
+    )
+    assert res.status_code == 201, res.text
+    kpis = res.json()["kpis"]
+    assert kpis["total_produzido"] == 1600
+    assert kpis["indice_producao"] == 100.0
+    assert kpis["eficiencia_oee"] == 100.0
+
+
+def test_pdf_horario_mostra_nd_quando_producao_sem_ciclo_cadastrado(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina = Maquina(numero_maquina="9", descricao="Injetora sem cadastro completo", ativo=True)
+    peca_incompleta = Produto(codigo="SEM-CICLO", descricao="Peça Sem Ciclo", ciclo_padrao=None, cavidades=None)
+    db_session.add_all([maquina, peca_incompleta])
+    db_session.commit()
+    db_session.refresh(maquina)
+    db_session.refresh(peca_incompleta)
+
+    res = client.post(
+        "/api/v1/turnos/fechamento",
+        json={
+            "nome_turno": "1º Turno (05:00 - 13:00)",
+            "responsavel_nome": "Líder Teste",
+            "registros": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "hora_referencia": "05:00",
+                    "prod_executada": 500,
+                    "produto_id": peca_incompleta.id,
+                },
+            ],
+        },
+    )
+    turno_id = res.json()["turno_id"]
+
+    from app.services.turno_service import buscar_registros_para_relatorio
+
+    registros = buscar_registros_para_relatorio(db_session, turno_id)
+    assert len(registros) == 1
+    assert registros[0]["prod_executada"] == 500
+    assert registros[0]["producao_esperada"] == "N/D"

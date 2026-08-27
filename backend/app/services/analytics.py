@@ -105,8 +105,13 @@ def _kpis_a_partir_de_registros(
 
     # Índice de Produção combina Disponibilidade e Performance: quanto do
     # volume teoricamente possível (já descontando paradas programadas) foi
-    # de fato produzido.
-    indice_producao = (total_produzido / total_esperado) if total_esperado > 0 else 0.0
+    # de fato produzido. Limitado a 100% - por convenção da literatura de
+    # OEE, um valor acima disso não significa desempenho sobre-humano, e
+    # sim que o ciclo padrão usado como referência está desatualizado
+    # (mais lento que o ciclo real da máquina/molde). Os números brutos
+    # (total_produzido/total_esperado) continuam expostos sem limite, para
+    # que essa divergência fique visível e possa ser investigada.
+    indice_producao = min(total_produzido / total_esperado, 1.0) if total_esperado > 0 else 0.0
 
     # Índice de Qualidade: proporção de peças boas sobre o total inspecionado
     # (boas + refugo). Sem apontamento de qualidade no turno, assume-se 100%
@@ -255,7 +260,10 @@ def _kpis_a_partir_de_lancamentos(
                 minutos_parados_nao_programados += duracao_min
 
     minutos_parados = minutos_parados_programados + minutos_parados_nao_programados
-    indice_producao = (total_produzido / total_esperado) if total_esperado > 0 else 0.0
+    # Limitado a 100% - mesma convenção do modelo por hora (ver comentário
+    # equivalente em _kpis_a_partir_de_registros): acima disso indica ciclo
+    # padrão desatualizado, não desempenho real acima do teórico.
+    indice_producao = min(total_produzido / total_esperado, 1.0) if total_esperado > 0 else 0.0
     # O modelo de lançamento não tem apontamento de peças boas/refugo -
     # qualidade sempre 100% (mesmo fallback do modelo por hora quando
     # não há apontamento de qualidade).
