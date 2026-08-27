@@ -51,6 +51,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     await carregarTurnoParaEdicao(rascunhoTurnoId);
   }
 
+  // Reavalia o preenchimento automático de início/fim para a injetora
+  // ativa - carregarTurnoParaEdicao só roda depois de selecionarMaquina
+  // já ter preenchido os campos com o horário padrão do turno, então
+  // sem isso os campos ficariam com um horário "fantasma" mesmo já
+  // havendo lançamentos reais carregados para aquela injetora.
+  aplicarHorarioPadraoOuLimpar();
+
   renderizarListaLancamentos();
   atualizarResumoTurno();
 });
@@ -179,6 +186,40 @@ function renderizarAbasMaquinas() {
   }
 }
 
+// Horário padrão de cada turno (mesmo texto das opções do seletor) -
+// usado para pré-preencher início/fim do primeiro lançamento de cada
+// injetora. Turnos que atravessam a meia-noite (3º) já são tratados
+// corretamente pelo cálculo de duração existente (fim < início =
+// atravessa o dia), então não precisa de tratamento especial aqui.
+const HORARIO_PADRAO_TURNO = {
+  "1": { inicio: "05:00", fim: "13:00" },
+  "2": { inicio: "14:00", fim: "21:00" },
+  "3": { inicio: "22:00", fim: "04:00" },
+};
+
+// Preenche início/fim da produção com o horário padrão do turno - só
+// quando essa injetora ainda não tem nenhum lançamento no turno atual.
+// A partir do segundo lançamento (mesma peça retomada após uma parada,
+// ou peça diferente), os campos ficam em branco de propósito: nenhum
+// lançamento depois do primeiro pode ocupar o turno inteiro, então
+// exigir digitação manual evita deixar por engano o horário cheio
+// num lançamento que na verdade é só uma fração do turno.
+function aplicarHorarioPadraoOuLimpar() {
+  const campoInicio = document.getElementById("lancInicio");
+  const campoFim = document.getElementById("lancFim");
+  if (!campoInicio || !campoFim || !maquinaAtiva) return;
+
+  const semLancamentoAinda = (lancamentosState[maquinaAtiva] || []).length === 0;
+  if (semLancamentoAinda) {
+    const turno = HORARIO_PADRAO_TURNO[document.getElementById("selectTurno").value];
+    campoInicio.value = turno ? turno.inicio : "";
+    campoFim.value = turno ? turno.fim : "";
+  } else {
+    campoInicio.value = "";
+    campoFim.value = "";
+  }
+}
+
 function selecionarMaquina(numeroMaquina) {
   maquinaAtiva = numeroMaquina;
   cancelarEdicaoLancamento(); // evita confusão de estar editando um lançamento de outra injetora
@@ -196,6 +237,7 @@ function selecionarMaquina(numeroMaquina) {
       : "Sem cavidades/ciclo padrão na máquina - use o cadastro da peça";
   }
 
+  aplicarHorarioPadraoOuLimpar();
   renderizarListaLancamentos();
 }
 
