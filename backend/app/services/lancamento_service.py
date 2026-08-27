@@ -11,6 +11,7 @@ from app.schemas.lancamento_schema import LancamentoCreate, TurnoLancamentoCreat
 from app.services.analytics import (
     calcular_capacidade_esperada_lancamento,
     calcular_kpis_turno_lancamento,
+    resolver_ciclo_cavidades,
 )
 from app.services.turno_service import STATUS_ASSINADO, STATUS_EM_ANDAMENTO, agendar_email_relatorio
 
@@ -102,10 +103,26 @@ def montar_registros_pdf_lancamento(db: Session, turno_id: int) -> list[dict]:
             # nenhuma para comparar. "N/D" deixa isso explícito e aponta
             # direto para o cadastro incompleto.
             esperado_exibicao = "N/D" if esperado == 0 and (lanc.quantidade or 0) > 0 else esperado
+
+            # Mostra qual ciclo entrou de fato na conta (e de onde veio) -
+            # sem isso, não dá pra saber, só olhando o relatório, se um
+            # "Esperado" divergente da produção real vem de um ciclo
+            # informado impreciso ou do cadastro da peça desatualizado.
+            ciclo_padrao, _cavidades = resolver_ciclo_cavidades(maq, produto)
+            if lanc.ciclo_informado:
+                ciclo_texto = f"ciclo informado: {lanc.ciclo_informado}s"
+            elif ciclo_padrao:
+                ciclo_texto = f"ciclo cadastrado: {ciclo_padrao}s"
+            else:
+                ciclo_texto = "sem ciclo cadastrado"
+            descricao_com_ciclo = (
+                f"{produto.descricao} ({ciclo_texto})" if produto else f"({ciclo_texto})"
+            )
+
             resultado.append({
                 "hora_referencia": f"{inicio_str}-{fim_str}",
                 "numero_maquina": maq.numero_maquina,
-                "produto_descricao": produto.descricao if produto else None,
+                "produto_descricao": descricao_com_ciclo,
                 "numero_op": ordem.numero_op if ordem else None,
                 "prod_executada": lanc.quantidade or 0,
                 "producao_esperada": esperado_exibicao,

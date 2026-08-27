@@ -140,6 +140,11 @@ def gerar_relatorio_turno_pdf(dados_turno: dict, kpis: dict, registros: list[dic
     if registros:
         cabecalho_detalhe = ["Hora", "Máquina", "OP", "Peça", "Produção", "Esperado", "Parada"]
         linhas_detalhe = [cabecalho_detalhe]
+        # Células de texto mais longo (peça + ciclo usado, motivo de
+        # parada) usam Paragraph em vez de string simples - string pura
+        # não quebra linha dentro da largura da coluna, só transborda
+        # por cima das colunas vizinhas.
+        estilo_celula = ParagraphStyle('Celula', fontSize=7.5, leading=9)
         for reg in registros:
             if reg.get("inicio_parada"):
                 parada_txt = f"{reg['inicio_parada']}–{reg.get('retomada') or '?'}"
@@ -150,10 +155,10 @@ def gerar_relatorio_turno_pdf(dados_turno: dict, kpis: dict, registros: list[dic
                 reg["hora_referencia"],
                 reg["numero_maquina"],
                 reg.get("numero_op") or "-",
-                reg.get("produto_descricao") or "-",
+                Paragraph(reg.get("produto_descricao") or "-", estilo_celula),
                 str(reg["prod_executada"]),
                 str(reg.get("producao_esperada", "-")),
-                parada_txt,
+                Paragraph(parada_txt, estilo_celula),
             ])
 
         tabela_detalhe = Table(
@@ -170,6 +175,7 @@ def gerar_relatorio_turno_pdf(dados_turno: dict, kpis: dict, registros: list[dic
             ('FONTSIZE', (0, 0), (-1, -1), 8),
             ('ALIGN', (0, 0), (0, -1), 'CENTER'),
             ('ALIGN', (4, 0), (5, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
             ('TOPPADDING', (0, 0), (-1, -1), 4),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),

@@ -184,7 +184,7 @@ def calcular_kpis_varios_turnos(db: Session, turno_ids: list[int]) -> dict[int, 
 # ======================================================================
 
 
-def _resolver_ciclo_cavidades(maq: Maquina, produto: Produto | None) -> tuple[float | None, int | None]:
+def resolver_ciclo_cavidades(maq: Maquina, produto: Produto | None) -> tuple[float | None, int | None]:
     """Mesma prioridade já usada no modelo por hora: ciclo/cavidades da
     peça (quando cadastrados) prevalecem sobre os padrão da máquina."""
     ciclo = maq.ciclo_padrao
@@ -221,7 +221,7 @@ def calcular_capacidade_esperada_lancamento(
     if lanc.tipo != TIPO_PRODUCAO:
         return 0
 
-    ciclo, cavidades = _resolver_ciclo_cavidades(maq, produto)
+    ciclo, cavidades = resolver_ciclo_cavidades(maq, produto)
 
     # Ciclo informado manualmente pelo operador (campo editável no
     # apontamento, para comparar com o ciclo médio padrão cadastrado na

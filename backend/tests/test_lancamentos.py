@@ -634,3 +634,36 @@ def test_pdf_mostra_nd_quando_producao_sem_ciclo_cadastrado(client, db_session, 
     assert len(linhas) == 1
     assert linhas[0]["prod_executada"] == 500
     assert linhas[0]["producao_esperada"] == "N/D"
+
+
+def test_pdf_mostra_origem_do_ciclo_usado_no_calculo(client, db_session, usuario_teste):
+    # Sem essa informação no relatório, não dá pra saber se um "Esperado"
+    # divergente da produção real vem do ciclo informado pelo operador ou
+    # do cadastro da peça - motivou dúvida real reportada pelo usuário.
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)  # ciclo_padrao=10.0, cavidades=2
+
+    turno_id = client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": peca.id,
+                    "quantidade": 500,
+                    "ciclo_informado": 8.0,
+                },
+            ],
+        },
+    ).json()["turno_id"]
+
+    from app.services.lancamento_service import montar_registros_pdf_lancamento
+
+    linhas = montar_registros_pdf_lancamento(db_session, turno_id)
+    assert "ciclo informado: 8.0s" in linhas[0]["produto_descricao"]
+    assert "ciclo cadastrado" not in linhas[0]["produto_descricao"]
