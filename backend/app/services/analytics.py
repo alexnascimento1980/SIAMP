@@ -223,12 +223,16 @@ def calcular_capacidade_esperada_lancamento(
 
     ciclo, cavidades = resolver_ciclo_cavidades(maq, produto)
 
-    # Ciclo informado manualmente pelo operador (campo editável no
-    # apontamento, para comparar com o ciclo médio padrão cadastrado na
-    # peça) tem prioridade máxima - mesma lógica já usada no modelo por
-    # hora (RegistroHorario.ciclo_informado).
+    # Ciclo e cavidades informados manualmente pelo operador (campos
+    # editáveis no apontamento, para comparar com o cadastro da peça)
+    # têm prioridade máxima - mesma lógica já usada no modelo por hora
+    # (RegistroHorario.ciclo_informado). Cavidades informadas cobrem o
+    # caso de uma ou mais cavidades do molde estarem temporariamente
+    # desativadas naquele lançamento.
     if lanc.ciclo_informado:
         ciclo = lanc.ciclo_informado
+    if lanc.cavidades_informado:
+        cavidades = lanc.cavidades_informado
 
     if not ciclo or not cavidades:
         return 0

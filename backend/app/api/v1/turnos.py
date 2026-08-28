@@ -321,6 +321,8 @@ def obter_turno(
                 quantidade=lanc.quantidade,
                 ciclo_informado=lanc.ciclo_informado,
                 ciclo_padrao_peca=produto.ciclo_padrao if produto else None,
+                cavidades_informado=lanc.cavidades_informado,
+                cavidades_padrao_peca=produto.cavidades if produto else None,
                 motivo=lanc.motivo,
                 producao_esperada=calcular_capacidade_esperada_lancamento(lanc, maq, produto),
             )
