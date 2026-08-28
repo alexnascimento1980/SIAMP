@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import inspect
 
-revision = "0012_lancamento_cavidades_informado"
+revision = "0012_cavidades_informado"
 down_revision = "0011_lancamento_ciclo_informado"
 branch_labels = None
 depends_on = None
