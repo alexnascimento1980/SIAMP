@@ -51,6 +51,14 @@ class Lancamento(Base):
     # diferente naquele momento).
     ciclo_informado: Mapped[float | None] = mapped_column(Float, nullable=True)
 
+    # Cavidades realmente utilizadas nesse lançamento - mesma ideia do
+    # ciclo_informado, mas para o número de cavidades do molde. Tem
+    # prioridade sobre as cavidades cadastradas na peça/máquina. Útil
+    # quando uma ou mais cavidades do molde estão temporariamente
+    # desativadas (manutenção, tamponamento) e a produção real por
+    # ciclo é menor do que o cadastro padrão prevê.
+    cavidades_informado: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     # Detalhe livre - motivo da falha (tipo=PARADA_FALHA) ou
     # observação da parada programada (tipo=PARADA_PROGRAMADA).
     motivo: Mapped[str | None] = mapped_column(String(150), nullable=True)

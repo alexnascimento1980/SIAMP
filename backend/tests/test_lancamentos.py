@@ -667,3 +667,126 @@ def test_pdf_mostra_origem_do_ciclo_usado_no_calculo(client, db_session, usuario
     linhas = montar_registros_pdf_lancamento(db_session, turno_id)
     assert "ciclo informado: 8.0s" in linhas[0]["produto_descricao"]
     assert "ciclo cadastrado" not in linhas[0]["produto_descricao"]
+
+
+def test_cavidades_informadas_no_lancamento_prevalece_sobre_peca(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)
+    # Peça tem ciclo_padrao=10.0, cavidades=2 (ver _criar_maquina_e_peca)
+
+    res = client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": peca.id,
+                    "quantidade": 100,
+                    "cavidades_informado": 1,  # metade das cavidades cadastradas (molde com 1 tamponada)
+                }
+            ],
+        },
+    )
+    assert res.status_code == 201, res.text
+    # 1h = 3600s / ciclo 10s (da peça) * 1 cavidade (informada, não as 2 da peça) = 360
+    assert res.json()["kpis"]["total_esperado"] == 360
+
+
+def test_ciclo_e_cavidades_informados_juntos(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)
+
+    res = client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": peca.id,
+                    "quantidade": 100,
+                    "ciclo_informado": 20.0,
+                    "cavidades_informado": 4,
+                }
+            ],
+        },
+    )
+    assert res.status_code == 201, res.text
+    # 1h = 3600s / ciclo 20s (informado) * 4 cavidades (informadas) = 720
+    assert res.json()["kpis"]["total_esperado"] == 720
+
+
+def test_cavidades_informadas_aparece_no_detalhe_do_turno(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)
+
+    turno_id = client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": peca.id,
+                    "quantidade": 100,
+                    "cavidades_informado": 1,
+                }
+            ],
+        },
+    ).json()["turno_id"]
+
+    detalhe = client.get(f"/api/v1/turnos/{turno_id}").json()
+    lanc = detalhe["lancamentos"][0]
+    assert lanc["cavidades_informado"] == 1
+    assert lanc["cavidades_padrao_peca"] == peca.cavidades
+
+
+def test_pdf_mostra_cavidades_informadas_e_cadastradas(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)
+
+    turno_id = client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": peca.id,
+                    "quantidade": 100,
+                    "cavidades_informado": 1,
+                },
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "06:00",
+                    "horario_fim": "07:00",
+                    "produto_id": peca.id,
+                    "quantidade": 200,
+                },
+            ],
+        },
+    ).json()["turno_id"]
+
+    from app.services.lancamento_service import montar_registros_pdf_lancamento
+
+    linhas = montar_registros_pdf_lancamento(db_session, turno_id)
+    assert "cavidades informadas: 1" in linhas[0]["produto_descricao"]
+    assert "cavidades cadastradas: 2" in linhas[1]["produto_descricao"]

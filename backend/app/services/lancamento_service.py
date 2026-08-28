@@ -70,6 +70,7 @@ def _criar_lancamentos(db: Session, turno: Turno, lancamentos: list[LancamentoCr
                 ordem_producao_id=lanc.ordem_producao_id,
                 quantidade=lanc.quantidade,
                 ciclo_informado=lanc.ciclo_informado,
+                cavidades_informado=lanc.cavidades_informado,
                 motivo=lanc.motivo,
             )
         )
@@ -104,19 +105,27 @@ def montar_registros_pdf_lancamento(db: Session, turno_id: int) -> list[dict]:
             # direto para o cadastro incompleto.
             esperado_exibicao = "N/D" if esperado == 0 and (lanc.quantidade or 0) > 0 else esperado
 
-            # Mostra qual ciclo entrou de fato na conta (e de onde veio) -
-            # sem isso, não dá pra saber, só olhando o relatório, se um
-            # "Esperado" divergente da produção real vem de um ciclo
-            # informado impreciso ou do cadastro da peça desatualizado.
-            ciclo_padrao, _cavidades = resolver_ciclo_cavidades(maq, produto)
+            # Mostra qual ciclo e quais cavidades entraram de fato na
+            # conta (e de onde vieram) - sem isso, não dá pra saber, só
+            # olhando o relatório, se um "Esperado" divergente da
+            # produção real vem de um valor informado impreciso ou do
+            # cadastro da peça desatualizado.
+            ciclo_padrao, cavidades_padrao = resolver_ciclo_cavidades(maq, produto)
             if lanc.ciclo_informado:
                 ciclo_texto = f"ciclo informado: {lanc.ciclo_informado}s"
             elif ciclo_padrao:
                 ciclo_texto = f"ciclo cadastrado: {ciclo_padrao}s"
             else:
                 ciclo_texto = "sem ciclo cadastrado"
+            if lanc.cavidades_informado:
+                cavidades_texto = f"cavidades informadas: {lanc.cavidades_informado}"
+            elif cavidades_padrao:
+                cavidades_texto = f"cavidades cadastradas: {cavidades_padrao}"
+            else:
+                cavidades_texto = "sem cavidades cadastradas"
             descricao_com_ciclo = (
-                f"{produto.descricao} ({ciclo_texto})" if produto else f"({ciclo_texto})"
+                f"{produto.descricao} ({ciclo_texto}; {cavidades_texto})"
+                if produto else f"({ciclo_texto}; {cavidades_texto})"
             )
 
             resultado.append({
