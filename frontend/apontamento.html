@@ -93,7 +93,11 @@
               <label class="form-label fw-bold text-secondary mb-1"
                 >Turno de Trabalho</label
               >
-              <select id="selectTurno" class="form-select form-select-lg" onchange="aplicarHorarioPadraoOuLimpar()">
+              <select
+                id="selectTurno"
+                class="form-select form-select-lg"
+                onchange="aplicarHorarioPadraoOuLimpar()"
+              >
                 <option value="1">1º Turno (05:00 - 13:00)</option>
                 <option value="2">2º Turno (14:00 - 21:00)</option>
                 <option value="3">3º Turno (22:00 - 04:00)</option>
@@ -157,7 +161,7 @@
             </div>
             <div class="col-md-3">
               <div class="small text-secondary" id="resumoLegenda">
-                Soma de todos os lançamentos de produção já adicionados.
+                Some de todos os lançamentos de produção já adicionados.
                 Estimativa - o valor final é calculado no fechamento.
               </div>
             </div>
@@ -259,7 +263,7 @@
             </div>
           </div>
           <div class="row g-2 mt-1" id="camposProducaoLinha2">
-            <div class="col-6 col-md-4">
+            <div class="col-6 col-md-3">
               <label class="form-label small mb-1">Ciclo real (s)</label>
               <input
                 type="number"
@@ -271,13 +275,25 @@
               />
               <div class="form-text" id="dicaCicloPadrao"></div>
             </div>
-            <div class="col-6 col-md-4">
+            <div class="col-6 col-md-3">
+              <label class="form-label small mb-1">Cavidades usadas</label>
+              <input
+                type="number"
+                id="lancCavidades"
+                class="form-control"
+                min="1"
+                step="1"
+                placeholder="opcional"
+              />
+              <div class="form-text" id="dicaCavidadesPadrao"></div>
+            </div>
+            <div class="col-6 col-md-3">
               <label class="form-label small mb-1"
                 >Início <span class="text-danger">*</span></label
               >
               <input type="time" id="lancInicio" class="form-control" />
             </div>
-            <div class="col-6 col-md-4">
+            <div class="col-6 col-md-3">
               <label class="form-label small mb-1"
                 >Fim <span class="text-danger">*</span></label
               >
@@ -346,13 +362,14 @@
                 <th>OP</th>
                 <th class="text-center">Qtde</th>
                 <th class="text-center">Ciclo (padrão)</th>
+                <th class="text-center">Cavid. (padrão)</th>
                 <th class="text-center">Esperado</th>
                 <th class="text-center">Ação</th>
               </tr>
             </thead>
             <tbody id="corpoListaLancamentos">
               <tr>
-                <td colspan="9" class="text-center text-secondary py-3">
+                <td colspan="10" class="text-center text-secondary py-3">
                   Nenhum lançamento ainda nesta injetora.
                 </td>
               </tr>

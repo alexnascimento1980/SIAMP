@@ -29,7 +29,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   if (idParaEditar) {
     if (perfil !== "ADMIN" && perfil !== "SUPERVISOR") {
-      alert("Apenas administradores e supervisores podem corrigir um turno já fechado.");
+      alert(
+        "Apenas administradores e supervisores podem corrigir um turno já fechado.",
+      );
       window.location.href = "historico.html";
       return;
     }
@@ -43,7 +45,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   atualizarRelogio();
   setInterval(atualizarRelogio, 30000);
 
-  await Promise.all([carregarMaquinas(), carregarPecas(), carregarOrdensProducao()]);
+  await Promise.all([
+    carregarMaquinas(),
+    carregarPecas(),
+    carregarOrdensProducao(),
+  ]);
 
   if (turnoEditandoId) {
     await carregarTurnoParaEdicao(turnoEditandoId);
@@ -72,10 +78,13 @@ function ativarModoEdicao() {
 
 function atualizarRelogio() {
   const agora = new Date();
-  document.getElementById("relogio").innerText = agora.toLocaleTimeString("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  document.getElementById("relogio").innerText = agora.toLocaleTimeString(
+    "pt-BR",
+    {
+      hour: "2-digit",
+      minute: "2-digit",
+    },
+  );
 }
 
 async function carregarPecas() {
@@ -94,17 +103,26 @@ async function carregarPecas() {
     // produto_id correspondente (campo oculto usado no restante do
     // código) - permite filtrar por código ou descrição em vez de
     // rolar uma lista longa, importante conforme o catálogo cresce.
-    document.getElementById("lancPecaBusca").addEventListener("input", (evento) => {
-      const peca = pecasDisponiveis.find(
-        (p) => `${p.codigo} - ${p.descricao}` === evento.target.value,
-      );
-      document.getElementById("lancPeca").value = peca ? peca.id : "";
+    document
+      .getElementById("lancPecaBusca")
+      .addEventListener("input", (evento) => {
+        const peca = pecasDisponiveis.find(
+          (p) => `${p.codigo} - ${p.descricao}` === evento.target.value,
+        );
+        document.getElementById("lancPeca").value = peca ? peca.id : "";
 
-      const dica = document.getElementById("dicaCicloPadrao");
-      dica.innerText = peca && peca.ciclo_padrao
-        ? `Ciclo padrão cadastrado na peça: ${peca.ciclo_padrao}s`
-        : "";
-    });
+        const dica = document.getElementById("dicaCicloPadrao");
+        dica.innerText =
+          peca && peca.ciclo_padrao
+            ? `Ciclo padrão cadastrado na peça: ${peca.ciclo_padrao}s`
+            : "";
+
+        const dicaCavidades = document.getElementById("dicaCavidadesPadrao");
+        dicaCavidades.innerText =
+          peca && peca.cavidades
+            ? `Cavidades cadastradas na peça: ${peca.cavidades}`
+            : "";
+      });
   } catch (erro) {
     console.error(erro);
     pecasDisponiveis = [];
@@ -114,7 +132,8 @@ async function carregarPecas() {
 async function carregarOrdensProducao() {
   try {
     const res = await chamarApi("/ordens-producao/");
-    if (!res.ok) throw new Error("Não foi possível carregar as ordens de produção.");
+    if (!res.ok)
+      throw new Error("Não foi possível carregar as ordens de produção.");
     ordensProducaoDisponiveis = await res.json();
     const select = document.getElementById("lancOp");
     ordensProducaoDisponiveis.forEach((o) => {
@@ -169,9 +188,14 @@ function renderizarAbasMaquinas() {
     const btn = document.createElement("button");
     btn.className = "nav-link btn-maq";
     btn.dataset.numeroMaquina = m.numero_maquina;
-    const rotulo = m.descricao ? `Injetora ${m.numero_maquina}` : `Máquina ${m.numero_maquina}`;
+    const rotulo = m.descricao
+      ? `Injetora ${m.numero_maquina}`
+      : `Máquina ${m.numero_maquina}`;
     const qtdLancamentos = (lancamentosState[m.numero_maquina] || []).length;
-    btn.innerHTML = qtdLancamentos > 0 ? `${rotulo} <span class="badge bg-light text-dark ms-1">${qtdLancamentos}</span>` : rotulo;
+    btn.innerHTML =
+      qtdLancamentos > 0
+        ? `${rotulo} <span class="badge bg-light text-dark ms-1">${qtdLancamentos}</span>`
+        : rotulo;
     btn.addEventListener("click", () => selecionarMaquina(m.numero_maquina));
     li.appendChild(btn);
     container.appendChild(li);
@@ -181,7 +205,10 @@ function renderizarAbasMaquinas() {
   // do zero, perdendo a classe "active" anterior).
   if (maquinaAtiva) {
     document.querySelectorAll(".btn-maq").forEach((btn) => {
-      btn.classList.toggle("active", btn.dataset.numeroMaquina === maquinaAtiva);
+      btn.classList.toggle(
+        "active",
+        btn.dataset.numeroMaquina === maquinaAtiva,
+      );
     });
   }
 }
@@ -192,9 +219,9 @@ function renderizarAbasMaquinas() {
 // corretamente pelo cálculo de duração existente (fim < início =
 // atravessa o dia), então não precisa de tratamento especial aqui.
 const HORARIO_PADRAO_TURNO = {
-  "1": { inicio: "05:00", fim: "13:00" },
-  "2": { inicio: "14:00", fim: "21:00" },
-  "3": { inicio: "22:00", fim: "04:00" },
+  1: { inicio: "05:00", fim: "13:00" },
+  2: { inicio: "14:00", fim: "21:00" },
+  3: { inicio: "22:00", fim: "04:00" },
 };
 
 // Preenche início/fim da produção com o horário padrão do turno - só
@@ -209,9 +236,11 @@ function aplicarHorarioPadraoOuLimpar() {
   const campoFim = document.getElementById("lancFim");
   if (!campoInicio || !campoFim || !maquinaAtiva) return;
 
-  const semLancamentoAinda = (lancamentosState[maquinaAtiva] || []).length === 0;
+  const semLancamentoAinda =
+    (lancamentosState[maquinaAtiva] || []).length === 0;
   if (semLancamentoAinda) {
-    const turno = HORARIO_PADRAO_TURNO[document.getElementById("selectTurno").value];
+    const turno =
+      HORARIO_PADRAO_TURNO[document.getElementById("selectTurno").value];
     campoInicio.value = turno ? turno.inicio : "";
     campoFim.value = turno ? turno.fim : "";
   } else {
@@ -227,14 +256,17 @@ function selecionarMaquina(numeroMaquina) {
     btn.classList.toggle("active", btn.dataset.numeroMaquina === numeroMaquina);
   });
 
-  const info = maquinasDisponiveis.find((m) => m.numero_maquina === numeroMaquina);
+  const info = maquinasDisponiveis.find(
+    (m) => m.numero_maquina === numeroMaquina,
+  );
   if (info) {
     document.getElementById("tituloMaquina").innerText =
       info.descricao || `Injetora ${info.numero_maquina}`;
     const badge = document.getElementById("badgeDetalheMaquina");
-    badge.innerText = info.cavidades && info.ciclo_padrao
-      ? `Cavidades: ${info.cavidades} | Ciclo: ${info.ciclo_padrao}s (padrão da máquina)`
-      : "Sem cavidades/ciclo padrão na máquina - use o cadastro da peça";
+    badge.innerText =
+      info.cavidades && info.ciclo_padrao
+        ? `Cavidades: ${info.cavidades} | Ciclo: ${info.ciclo_padrao}s (padrão da máquina)`
+        : "Sem cavidades/ciclo padrão na máquina - use o cadastro da peça";
   }
 
   aplicarHorarioPadraoOuLimpar();
@@ -242,26 +274,37 @@ function selecionarMaquina(numeroMaquina) {
 }
 
 function onTipoLancamentoMudou() {
-  const tipo = document.querySelector('input[name="tipoLancamento"]:checked').value;
-  document.getElementById("camposProducao").classList.toggle("d-none", tipo !== "PRODUCAO");
-  document.getElementById("camposParada").classList.toggle("d-none", tipo === "PRODUCAO");
+  const tipo = document.querySelector(
+    'input[name="tipoLancamento"]:checked',
+  ).value;
+  document
+    .getElementById("camposProducao")
+    .classList.toggle("d-none", tipo !== "PRODUCAO");
+  document
+    .getElementById("camposParada")
+    .classList.toggle("d-none", tipo === "PRODUCAO");
 }
 
 function adicionarLancamento() {
-  const tipo = document.querySelector('input[name="tipoLancamento"]:checked').value;
+  const tipo = document.querySelector(
+    'input[name="tipoLancamento"]:checked',
+  ).value;
 
   let lancamento;
   if (tipo === "PRODUCAO") {
     const pecaId = document.getElementById("lancPeca").value;
     const quantidade = document.getElementById("lancQuantidade").value;
     const ciclo = document.getElementById("lancCiclo").value;
+    const cavidades = document.getElementById("lancCavidades").value;
     const inicio = document.getElementById("lancInicio").value;
     const fim = document.getElementById("lancFim").value;
 
     if (!pecaId) return alert("Selecione a peça produzida.");
-    if (quantidade === "" || quantidade === null) return alert("Informe a quantidade produzida.");
+    if (quantidade === "" || quantidade === null)
+      return alert("Informe a quantidade produzida.");
     if (!inicio || !fim) return alert("Informe o horário de início e fim.");
-    if (fim === inicio) return alert("O horário de fim não pode ser igual ao início.");
+    if (fim === inicio)
+      return alert("O horário de fim não pode ser igual ao início.");
 
     lancamento = {
       tipo: "PRODUCAO",
@@ -273,12 +316,15 @@ function adicionarLancamento() {
         : null,
       quantidade: parseInt(quantidade),
       ciclo_informado: ciclo !== "" ? parseFloat(ciclo) : null,
+      cavidades_informado: cavidades !== "" ? parseInt(cavidades) : null,
       motivo: null,
     };
 
     document.getElementById("lancQuantidade").value = "";
     document.getElementById("lancCiclo").value = "";
     document.getElementById("dicaCicloPadrao").innerText = "";
+    document.getElementById("lancCavidades").value = "";
+    document.getElementById("dicaCavidadesPadrao").innerText = "";
     document.getElementById("lancInicio").value = "";
     document.getElementById("lancFim").value = "";
     document.getElementById("lancPecaBusca").value = "";
@@ -286,8 +332,10 @@ function adicionarLancamento() {
   } else {
     const inicio = document.getElementById("lancInicioParada").value;
     const fim = document.getElementById("lancFimParada").value;
-    if (!inicio || !fim) return alert("Informe o horário de início e fim da parada.");
-    if (fim === inicio) return alert("O horário de fim não pode ser igual ao início.");
+    if (!inicio || !fim)
+      return alert("Informe o horário de início e fim da parada.");
+    if (fim === inicio)
+      return alert("O horário de fim não pode ser igual ao início.");
 
     lancamento = {
       tipo,
@@ -297,6 +345,7 @@ function adicionarLancamento() {
       ordem_producao_id: null,
       quantidade: null,
       ciclo_informado: null,
+      cavidades_informado: null,
       motivo: document.getElementById("lancMotivo").value.trim() || null,
     };
 
@@ -325,19 +374,32 @@ function editarLancamento(indice) {
   const lanc = lancamentosState[maquinaAtiva][indice];
   indiceEditando = indice;
 
-  document.getElementById(`tipo${lanc.tipo === "PRODUCAO" ? "Producao" : lanc.tipo === "PARADA_PROGRAMADA" ? "ParadaProgramada" : "ParadaFalha"}`).checked = true;
+  document.getElementById(
+    `tipo${lanc.tipo === "PRODUCAO" ? "Producao" : lanc.tipo === "PARADA_PROGRAMADA" ? "ParadaProgramada" : "ParadaFalha"}`,
+  ).checked = true;
   onTipoLancamentoMudou();
 
   if (lanc.tipo === "PRODUCAO") {
-    const peca = pecasDisponiveis.find((p) => String(p.id) === String(lanc.produto_id));
-    document.getElementById("lancPecaBusca").value = peca ? `${peca.codigo} - ${peca.descricao}` : "";
-    document.getElementById("lancPeca").value = lanc.produto_id;
-    document.getElementById("dicaCicloPadrao").innerText = peca && peca.ciclo_padrao
-      ? `Ciclo padrão cadastrado na peça: ${peca.ciclo_padrao}s`
+    const peca = pecasDisponiveis.find(
+      (p) => String(p.id) === String(lanc.produto_id),
+    );
+    document.getElementById("lancPecaBusca").value = peca
+      ? `${peca.codigo} - ${peca.descricao}`
       : "";
+    document.getElementById("lancPeca").value = lanc.produto_id;
+    document.getElementById("dicaCicloPadrao").innerText =
+      peca && peca.ciclo_padrao
+        ? `Ciclo padrão cadastrado na peça: ${peca.ciclo_padrao}s`
+        : "";
+    document.getElementById("dicaCavidadesPadrao").innerText =
+      peca && peca.cavidades
+        ? `Cavidades cadastradas na peça: ${peca.cavidades}`
+        : "";
     document.getElementById("lancOp").value = lanc.ordem_producao_id || "";
     document.getElementById("lancQuantidade").value = lanc.quantidade;
     document.getElementById("lancCiclo").value = lanc.ciclo_informado ?? "";
+    document.getElementById("lancCavidades").value =
+      lanc.cavidades_informado ?? "";
     document.getElementById("lancInicio").value = lanc.horario_inicio;
     document.getElementById("lancFim").value = lanc.horario_fim;
   } else {
@@ -349,9 +411,13 @@ function editarLancamento(indice) {
   const btn = document.getElementById("btnAdicionarLancamento");
   btn.innerHTML = `<i class="bi bi-check-circle me-1"></i>Salvar Alteração`;
   btn.classList.replace("btn-primary", "btn-warning");
-  document.getElementById("btnCancelarEdicaoLancamento").classList.remove("d-none");
+  document
+    .getElementById("btnCancelarEdicaoLancamento")
+    .classList.remove("d-none");
 
-  document.getElementById("cardNovoLancamento").scrollIntoView({ behavior: "smooth", block: "center" });
+  document
+    .getElementById("cardNovoLancamento")
+    .scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function cancelarEdicaoLancamento() {
@@ -359,7 +425,9 @@ function cancelarEdicaoLancamento() {
   const btn = document.getElementById("btnAdicionarLancamento");
   btn.innerHTML = `<i class="bi bi-plus-circle me-1"></i>Adicionar Lançamento`;
   btn.classList.replace("btn-warning", "btn-primary");
-  document.getElementById("btnCancelarEdicaoLancamento").classList.add("d-none");
+  document
+    .getElementById("btnCancelarEdicaoLancamento")
+    .classList.add("d-none");
 }
 
 function removerLancamento(indice) {
@@ -375,10 +443,13 @@ function calcularEsperadoLancamento(lanc, maquina) {
   const peca = lanc.produto_id
     ? pecasDisponiveis.find((p) => String(p.id) === String(lanc.produto_id))
     : null;
-  // Ciclo informado manualmente (campo editável, comparado ao padrão da
-  // peça) tem prioridade máxima - mesma lógica do backend.
-  const ciclo = lanc.ciclo_informado || peca?.ciclo_padrao || maquina?.ciclo_padrao;
-  const cavidades = peca?.cavidades || maquina?.cavidades;
+  // Ciclo e cavidades informados manualmente (campos editáveis,
+  // comparados ao padrão da peça) têm prioridade máxima - mesma
+  // lógica do backend.
+  const ciclo =
+    lanc.ciclo_informado || peca?.ciclo_padrao || maquina?.ciclo_padrao;
+  const cavidades =
+    lanc.cavidades_informado || peca?.cavidades || maquina?.cavidades;
   if (!ciclo || !cavidades) return 0;
 
   const [hIni, mIni] = lanc.horario_inicio.split(":").map(Number);
@@ -396,16 +467,19 @@ function calcularEsperadoLancamento(lanc, maquina) {
 function renderizarListaLancamentos() {
   const tbody = document.getElementById("corpoListaLancamentos");
   const lista = lancamentosState[maquinaAtiva] || [];
-  const maquina = maquinasDisponiveis.find((m) => m.numero_maquina === maquinaAtiva);
+  const maquina = maquinasDisponiveis.find(
+    (m) => m.numero_maquina === maquinaAtiva,
+  );
 
   if (lista.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" class="text-center text-secondary py-3">Nenhum lançamento ainda nesta injetora.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="text-center text-secondary py-3">Nenhum lançamento ainda nesta injetora.</td></tr>`;
     return;
   }
 
   const rotuloTipo = {
     PRODUCAO: '<span class="badge bg-success">Produção</span>',
-    PARADA_PROGRAMADA: '<span class="badge bg-warning text-dark">Parada Programada</span>',
+    PARADA_PROGRAMADA:
+      '<span class="badge bg-warning text-dark">Parada Programada</span>',
     PARADA_FALHA: '<span class="badge bg-danger">Falha</span>',
   };
 
@@ -415,27 +489,43 @@ function renderizarListaLancamentos() {
         ? pecasDisponiveis.find((p) => String(p.id) === String(lanc.produto_id))
         : null;
       const op = lanc.ordem_producao_id
-        ? ordensProducaoDisponiveis.find((o) => String(o.id) === String(lanc.ordem_producao_id))
+        ? ordensProducaoDisponiveis.find(
+            (o) => String(o.id) === String(lanc.ordem_producao_id),
+          )
         : null;
-      const pecaOuMotivo = lanc.tipo === "PRODUCAO" ? (peca?.descricao || "-") : (lanc.motivo || "-");
+      const pecaOuMotivo =
+        lanc.tipo === "PRODUCAO" ? peca?.descricao || "-" : lanc.motivo || "-";
       const esperado = calcularEsperadoLancamento(lanc, maquina);
 
       // Ciclo real informado x ciclo padrão da peça, lado a lado - o
       // líder de turno pediu essa comparação para identificar quando o
       // molde está regulado diferente do cadastrado.
       let ciclos = "-";
+      let cavidadesTexto = "-";
       if (lanc.tipo === "PRODUCAO") {
-        const informado = lanc.ciclo_informado ? `${lanc.ciclo_informado}s` : "-";
+        const informado = lanc.ciclo_informado
+          ? `${lanc.ciclo_informado}s`
+          : "-";
         const padrao = peca?.ciclo_padrao ? `${peca.ciclo_padrao}s` : "-";
-        const divergente = lanc.ciclo_informado && peca?.ciclo_padrao
-          && Math.abs(lanc.ciclo_informado - peca.ciclo_padrao) > 0.05;
-        ciclos = `<span class="${divergente ? 'text-danger fw-bold' : ''}">${informado}</span> <span class="text-secondary">(${padrao})</span>`;
+        const divergente =
+          lanc.ciclo_informado &&
+          peca?.ciclo_padrao &&
+          Math.abs(lanc.ciclo_informado - peca.ciclo_padrao) > 0.05;
+        ciclos = `<span class="${divergente ? "text-danger fw-bold" : ""}">${informado}</span> <span class="text-secondary">(${padrao})</span>`;
+
+        const cavidadesInformadas = lanc.cavidades_informado ?? "-";
+        const cavidadesPadrao = peca?.cavidades ?? "-";
+        const cavidadesDivergentes =
+          lanc.cavidades_informado &&
+          peca?.cavidades &&
+          lanc.cavidades_informado !== peca.cavidades;
+        cavidadesTexto = `<span class="${cavidadesDivergentes ? "text-danger fw-bold" : ""}">${cavidadesInformadas}</span> <span class="text-secondary">(${cavidadesPadrao})</span>`;
       }
 
       const emEdicao = i === indiceEditando;
 
       return `
-        <tr class="${emEdicao ? 'table-warning' : ''}">
+        <tr class="${emEdicao ? "table-warning" : ""}">
           <td>${rotuloTipo[lanc.tipo]}</td>
           <td>${lanc.horario_inicio}</td>
           <td>${lanc.horario_fim}</td>
@@ -443,6 +533,7 @@ function renderizarListaLancamentos() {
           <td>${op ? escaparHtml(op.numero_op) : "-"}</td>
           <td class="text-center">${lanc.quantidade ?? "-"}</td>
           <td class="text-center">${ciclos}</td>
+          <td class="text-center">${cavidadesTexto}</td>
           <td class="text-center">${lanc.tipo === "PRODUCAO" ? esperado : "-"}</td>
           <td class="text-center">
             <div class="d-flex gap-1 justify-content-center">
@@ -473,8 +564,10 @@ function atualizarResumoTurno() {
     });
   });
 
-  document.getElementById("resumoEsperado").innerText = totalEsperado.toLocaleString("pt-BR");
-  document.getElementById("resumoApontado").innerText = totalApontado.toLocaleString("pt-BR");
+  document.getElementById("resumoEsperado").innerText =
+    totalEsperado.toLocaleString("pt-BR");
+  document.getElementById("resumoApontado").innerText =
+    totalApontado.toLocaleString("pt-BR");
 
   const percEl = document.getElementById("resumoPercentual");
   if (totalEsperado > 0) {
@@ -551,9 +644,12 @@ function montarPayloadFechamento() {
 
 async function confirmarFechamento() {
   const { lider, payload } = montarPayloadFechamento();
-  if (!lider) return alert("Por favor, preencha o nome do líder antes de finalizar.");
+  if (!lider)
+    return alert("Por favor, preencha o nome do líder antes de finalizar.");
   if (payload.lancamentos.length === 0) {
-    return alert("Adicione pelo menos um lançamento (produção ou parada) antes de finalizar.");
+    return alert(
+      "Adicione pelo menos um lançamento (produção ou parada) antes de finalizar.",
+    );
   }
 
   let caminho, metodo, tipo;
@@ -572,7 +668,10 @@ async function confirmarFechamento() {
   }
 
   try {
-    const res = await chamarApi(caminho, { method: metodo, body: JSON.stringify(payload) });
+    const res = await chamarApi(caminho, {
+      method: metodo,
+      body: JSON.stringify(payload),
+    });
 
     if (res.status === 403) {
       alert("Você não tem permissão para corrigir este turno.");
@@ -583,12 +682,18 @@ async function confirmarFechamento() {
       if (tipo === "correcao") {
         alert("✅ Turno corrigido com sucesso!");
       } else {
-        alert("✅ Fechamento de turno registrado e assinado com sucesso! O relatório será gerado.");
+        alert(
+          "✅ Fechamento de turno registrado e assinado com sucesso! O relatório será gerado.",
+        );
       }
       window.location.href = "historico.html";
     } else {
       const erro = await res.json().catch(() => null);
-      alert("⚠️ " + (erro?.detail || "Erro ao registrar dados. Verifique a conexão com o servidor."));
+      alert(
+        "⚠️ " +
+          (erro?.detail ||
+            "Erro ao registrar dados. Verifique a conexão com o servidor."),
+      );
     }
   } catch (error) {
     if (error.message === "Sessão expirada.") return;
@@ -599,9 +704,14 @@ async function confirmarFechamento() {
 
 async function salvarRascunho() {
   const { lider, payload } = montarPayloadFechamento();
-  if (!lider) return alert("Por favor, preencha o nome do líder antes de salvar o rascunho.");
+  if (!lider)
+    return alert(
+      "Por favor, preencha o nome do líder antes de salvar o rascunho.",
+    );
   if (turnoEditandoId) {
-    return alert("Este turno já está fechado - use 'Salvar Correção' em vez de rascunho.");
+    return alert(
+      "Este turno já está fechado - use 'Salvar Correção' em vez de rascunho.",
+    );
   }
 
   const btn = document.getElementById("btnSalvarRascunho");
@@ -615,7 +725,10 @@ async function salvarRascunho() {
   const metodo = rascunhoTurnoId ? "PATCH" : "POST";
 
   try {
-    const res = await chamarApi(caminho, { method: metodo, body: JSON.stringify(payload) });
+    const res = await chamarApi(caminho, {
+      method: metodo,
+      body: JSON.stringify(payload),
+    });
 
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
@@ -630,7 +743,10 @@ async function salvarRascunho() {
     window.history.replaceState({}, "", novaUrl);
 
     const indicador = document.getElementById("indicadorRascunho");
-    const agora = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    const agora = new Date().toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
     indicador.innerText = `Rascunho salvo às ${agora}`;
     indicador.classList.remove("d-none");
   } catch (error) {
