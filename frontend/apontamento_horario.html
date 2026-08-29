@@ -94,6 +94,14 @@
                 class="form-select form-select-lg"
                 onchange="atualizarHorariosTurno()"
               >
+                <!-- ATENÇÃO: não sincronizar com o horário atual dos
+                turnos (ver frontend/apontamento.html) - esta tela só
+                edita turnos antigos do modelo por hora, e
+                apontamento_horario.js casa o nome_turno salvo com o
+                TEXTO exato dessas opções para pré-selecionar a grade
+                (ver carregarTurnoParaEdicao). Mudar o texto aqui
+                quebraria esse casamento para todo turno antigo já
+                salvo com o rótulo original. -->
                 <option value="1">1º Turno (05:00 - 13:00)</option>
                 <option value="2">2º Turno (14:00 - 21:00)</option>
                 <option value="3">3º Turno (22:00 - 04:00)</option>
