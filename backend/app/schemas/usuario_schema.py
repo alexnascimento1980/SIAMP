@@ -20,6 +20,16 @@ class UsuarioUpdateStatus(BaseModel):
     ativo: bool
 
 
+class UsuarioUpdatePerfil(BaseModel):
+    perfil: str
+
+    def perfil_normalizado(self) -> str:
+        valor = self.perfil.upper().strip()
+        if valor not in PERFIS_VALIDOS:
+            raise ValueError(f"Perfil inválido. Use um de: {', '.join(PERFIS_VALIDOS)}")
+        return valor
+
+
 class UsuarioResetSenha(BaseModel):
     nova_senha: str = Field(..., min_length=8, max_length=72)
 

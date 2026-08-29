@@ -1,3 +1,5 @@
+from datetime import date
+
 from app.core.security import gerar_hash_senha, verificar_senha
 from app.models.usuario import Usuario
 
@@ -204,3 +206,170 @@ def test_admin_pode_resetar_a_propria_senha(client, db_session):
         f"/api/v1/usuarios/{admin.id}/senha", json={"nova_senha": "senha-nova-admin"}
     )
     assert res.status_code == 200
+
+
+# --- Alterar perfil -----------------------------------------------------
+
+
+def test_admin_altera_perfil_de_operador_para_supervisor(client, db_session):
+    admin = _criar_admin(db_session)
+    op = _criar_operador(db_session)
+    _login(client, admin)
+
+    res = client.patch(f"/api/v1/usuarios/{op.id}/perfil", json={"perfil": "SUPERVISOR"})
+    assert res.status_code == 200, res.text
+    assert res.json()["perfil"] == "SUPERVISOR"
+
+    db_session.refresh(op)
+    assert op.perfil == "SUPERVISOR"
+
+
+def test_admin_altera_perfil_de_supervisor_para_operador(client, db_session):
+    admin = _criar_admin(db_session)
+    sup = Usuario(
+        nome="Supervisor Teste", email="sup@siamp.test",
+        senha_hash=gerar_hash_senha("senha-forte-123"), perfil="SUPERVISOR", ativo=True,
+    )
+    db_session.add(sup)
+    db_session.commit()
+    db_session.refresh(sup)
+    _login(client, admin)
+
+    res = client.patch(f"/api/v1/usuarios/{sup.id}/perfil", json={"perfil": "OPERADOR"})
+    assert res.status_code == 200
+    assert res.json()["perfil"] == "OPERADOR"
+
+
+def test_perfil_invalido_e_rejeitado(client, db_session):
+    admin = _criar_admin(db_session)
+    op = _criar_operador(db_session)
+    _login(client, admin)
+
+    res = client.patch(f"/api/v1/usuarios/{op.id}/perfil", json={"perfil": "GERENTE"})
+    assert res.status_code == 422
+
+
+def test_admin_nao_pode_alterar_o_proprio_perfil(client, db_session):
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+
+    res = client.patch(f"/api/v1/usuarios/{admin.id}/perfil", json={"perfil": "OPERADOR"})
+    assert res.status_code == 400
+
+
+def test_admin_pode_reenviar_o_mesmo_perfil_da_propria_conta(client, db_session):
+    # Reenviar o MESMO perfil que já tem não é uma troca de verdade -
+    # não há razão para bloquear (evita um alerta confuso de "não pode
+    # alterar" quando na prática nada mudaria).
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+
+    res = client.patch(f"/api/v1/usuarios/{admin.id}/perfil", json={"perfil": "ADMIN"})
+    assert res.status_code == 200
+
+
+def test_operador_nao_pode_alterar_perfil_de_ninguem(client, db_session):
+    op1 = _criar_operador(db_session, email="op1@siamp.test")
+    op2 = _criar_operador(db_session, email="op2@siamp.test")
+    _login(client, op1)
+
+    res = client.patch(f"/api/v1/usuarios/{op2.id}/perfil", json={"perfil": "SUPERVISOR"})
+    assert res.status_code == 403
+
+
+# --- Excluir definitivamente ---------------------------------------------
+
+
+def test_admin_exclui_usuario_de_teste_sem_historico(client, db_session):
+    admin = _criar_admin(db_session)
+    op = _criar_operador(db_session)
+    _login(client, admin)
+
+    res = client.delete(f"/api/v1/usuarios/{op.id}")
+    assert res.status_code == 204
+
+    assert db_session.query(Usuario).filter(Usuario.id == op.id).first() is None
+
+
+def test_admin_nao_pode_excluir_a_propria_conta(client, db_session):
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+
+    res = client.delete(f"/api/v1/usuarios/{admin.id}")
+    assert res.status_code == 400
+
+
+def test_excluir_usuario_inexistente_retorna_404(client, db_session):
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+
+    res = client.delete("/api/v1/usuarios/99999")
+    assert res.status_code == 404
+
+
+def test_operador_nao_pode_excluir_ninguem(client, db_session):
+    op1 = _criar_operador(db_session, email="op1@siamp.test")
+    op2 = _criar_operador(db_session, email="op2@siamp.test")
+    _login(client, op1)
+
+    res = client.delete(f"/api/v1/usuarios/{op2.id}")
+    assert res.status_code == 403
+
+
+def test_excluir_usuario_com_turno_editado_nao_quebra_e_desvincula(client, db_session):
+    # O caso real que motivou a migration 0013: um colaborador
+    # desligado quase sempre tem histórico de turnos editados. Sem
+    # ON DELETE SET NULL nas FKs, isso bloquearia a exclusão
+    # (RESTRICT, padrão do Postgres).
+    from app.models.turno import Turno
+
+    admin = _criar_admin(db_session)
+    colaborador_desligado = _criar_operador(db_session, email="desligado@siamp.test")
+
+    turno = Turno(
+        nome_turno="1º Turno", responsavel_nome="Alguém",
+        status_assinatura="ASSINADO_DIGITALMENTE", modelo_apontamento="LANCAMENTO",
+        editado_por_id=colaborador_desligado.id,
+    )
+    db_session.add(turno)
+    db_session.commit()
+    db_session.refresh(turno)
+
+    _login(client, admin)
+    res = client.delete(f"/api/v1/usuarios/{colaborador_desligado.id}")
+    assert res.status_code == 204, res.text
+
+    db_session.refresh(turno)
+    assert turno.editado_por_id is None
+    # O turno em si continua existindo normalmente, intacto
+    assert db_session.query(Turno).filter(Turno.id == turno.id).first() is not None
+
+
+def test_excluir_usuario_com_ordem_producao_criada_desvincula(client, db_session):
+    from app.models.ordem_producao import OrdemProducao
+    from app.models.produto import Produto
+
+    admin = _criar_admin(db_session)
+    colaborador_desligado = _criar_operador(db_session, email="desligado2@siamp.test")
+
+    peca = Produto(codigo="OP-TESTE", descricao="Peça Teste", ciclo_padrao=10.0, cavidades=2)
+    db_session.add(peca)
+    db_session.commit()
+    db_session.refresh(peca)
+
+    ordem = OrdemProducao(
+        numero_op="OP-2026-0001", produto_id=peca.id,
+        periodo_inicio=date(2026, 9, 1), periodo_fim=date(2026, 9, 30),
+        quantidade_a_produzir=1000, criado_por_id=colaborador_desligado.id,
+    )
+    db_session.add(ordem)
+    db_session.commit()
+    db_session.refresh(ordem)
+
+    _login(client, admin)
+    res = client.delete(f"/api/v1/usuarios/{colaborador_desligado.id}")
+    assert res.status_code == 204, res.text
+
+    db_session.refresh(ordem)
+    assert ordem.criado_por_id is None
+    assert db_session.query(OrdemProducao).filter(OrdemProducao.id == ordem.id).first() is not None

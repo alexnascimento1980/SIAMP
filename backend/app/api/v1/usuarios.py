@@ -9,6 +9,7 @@ from app.schemas.usuario_schema import (
     UsuarioCreate,
     UsuarioResetSenha,
     UsuarioResponse,
+    UsuarioUpdatePerfil,
     UsuarioUpdateStatus,
 )
 
@@ -73,6 +74,77 @@ def alterar_status_usuario(
     db.commit()
     db.refresh(alvo)
     return alvo
+
+
+@router.patch("/{usuario_id}/perfil", response_model=UsuarioResponse)
+def alterar_perfil_usuario(
+    usuario_id: int,
+    dados: UsuarioUpdatePerfil,
+    db: Session = Depends(get_db),
+    usuario_atual: Usuario = Depends(exigir_perfil("ADMIN")),
+):
+    """Muda o perfil de acesso (ADMIN/SUPERVISOR/OPERADOR) de um
+    usuário. Restrito a ADMIN. Um ADMIN não pode alterar o próprio
+    perfil por aqui - mesma lógica de proteção já usada para
+    desativação de conta: evita que uma troca acidental (ex.: rebaixar
+    a própria conta para OPERADOR) tire o próprio acesso administrativo
+    sem querer."""
+    alvo = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if alvo is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado.",
+        )
+
+    try:
+        novo_perfil = dados.perfil_normalizado()
+    except ValueError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(erro),
+        )
+
+    if alvo.id == usuario_atual.id and novo_perfil != usuario_atual.perfil:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Você não pode alterar o próprio perfil de acesso.",
+        )
+
+    alvo.perfil = novo_perfil
+    db.commit()
+    db.refresh(alvo)
+    return alvo
+
+
+@router.delete("/{usuario_id}", status_code=status.HTTP_204_NO_CONTENT)
+def excluir_usuario(
+    usuario_id: int,
+    db: Session = Depends(get_db),
+    usuario_atual: Usuario = Depends(exigir_perfil("ADMIN")),
+):
+    """Exclui definitivamente um usuário (não é reversível, diferente
+    de desativar). Pensado para contas de teste ou de colaboradores
+    desligados. Turnos editados, Ordens de Produção criadas ou paradas
+    registradas por esse usuário NÃO são apagados - continuam
+    normalmente no histórico, só perdem a referência de quem foi
+    (comportamento configurado nas chaves estrangeiras, ON DELETE SET
+    NULL - ver migration 0013). Restrito a ADMIN; um ADMIN não pode
+    excluir a própria conta."""
+    alvo = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if alvo is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado.",
+        )
+
+    if alvo.id == usuario_atual.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Você não pode excluir a própria conta.",
+        )
+
+    db.delete(alvo)
+    db.commit()
 
 
 @router.patch("/{usuario_id}/senha", response_model=UsuarioResponse)
