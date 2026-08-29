@@ -44,16 +44,23 @@ function renderizarUsuarios(usuarios) {
     const botaoAcao = u.ativo
       ? `<button class="btn btn-sm btn-outline-danger" onclick="alterarStatus(${u.id}, false)">Desativar</button>`
       : `<button class="btn btn-sm btn-outline-success" onclick="alterarStatus(${u.id}, true)">Reativar</button>`;
-    const botaoReset = `<button class="btn btn-sm btn-outline-secondary" onclick="abrirResetSenha(${u.id}, '${escaparHtml(u.nome).replace(/'/g, "\\'")}')" title="Resetar senha">
+    const nomeEscapado = escaparHtml(u.nome).replace(/'/g, "\\'");
+    const botaoReset = `<button class="btn btn-sm btn-outline-secondary" onclick="abrirResetSenha(${u.id}, '${nomeEscapado}')" title="Resetar senha">
       <i class="bi bi-key"></i>
     </button>`;
+    const botaoExcluir = `<button class="btn btn-sm btn-outline-danger" onclick="abrirExcluirUsuario(${u.id}, '${nomeEscapado}')" title="Excluir definitivamente">
+      <i class="bi bi-trash"></i>
+    </button>`;
+    const perfilClicavel = `<span class="badge bg-primary" role="button" onclick="abrirAlterarPerfil(${u.id}, '${nomeEscapado}', '${u.perfil}')" title="Clique para alterar">
+      ${escaparHtml(u.perfil)} <i class="bi bi-pencil-square ms-1" style="font-size: 0.7em;"></i>
+    </span>`;
 
     tr.innerHTML = `
       <td>${escaparHtml(u.nome)}</td>
       <td>${escaparHtml(u.email)}</td>
-      <td><span class="badge bg-primary">${escaparHtml(u.perfil)}</span></td>
+      <td>${perfilClicavel}</td>
       <td class="text-center">${badgeStatus}</td>
-      <td class="text-center"><div class="d-flex gap-1 justify-content-center">${botaoReset}${botaoAcao}</div></td>
+      <td class="text-center"><div class="d-flex gap-1 justify-content-center">${botaoReset}${botaoAcao}${botaoExcluir}</div></td>
     `;
     tbody.appendChild(tr);
   });
@@ -196,6 +203,97 @@ async function confirmarResetSenha() {
 
     modalResetSenha.hide();
     mostrarMensagem("Senha redefinida com sucesso.", "success");
+  } catch (erro) {
+    erroEl.innerText = erro.message;
+    erroEl.classList.remove("d-none");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+let usuarioIdParaAlterarPerfil = null;
+let modalAlterarPerfil = null;
+
+function abrirAlterarPerfil(usuarioId, nomeUsuario, perfilAtual) {
+  usuarioIdParaAlterarPerfil = usuarioId;
+  document.getElementById("perfilNomeUsuario").innerText = nomeUsuario;
+  document.getElementById("perfilNovoValor").value = perfilAtual;
+  document.getElementById("perfilErro").classList.add("d-none");
+
+  if (!modalAlterarPerfil) {
+    modalAlterarPerfil = new bootstrap.Modal(document.getElementById("modalAlterarPerfil"));
+  }
+  modalAlterarPerfil.show();
+}
+
+async function confirmarAlterarPerfil() {
+  const novoPerfil = document.getElementById("perfilNovoValor").value;
+  const erroEl = document.getElementById("perfilErro");
+  erroEl.classList.add("d-none");
+
+  const btn = document.getElementById("btnConfirmarPerfil");
+  btn.disabled = true;
+
+  try {
+    const res = await chamarApi(`/usuarios/${usuarioIdParaAlterarPerfil}/perfil`, {
+      method: "PATCH",
+      body: JSON.stringify({ perfil: novoPerfil }),
+    });
+
+    if (!res.ok) {
+      const erro = await res.json().catch(() => null);
+      erroEl.innerText = erro?.detail || "Não foi possível alterar o perfil.";
+      erroEl.classList.remove("d-none");
+      return;
+    }
+
+    modalAlterarPerfil.hide();
+    mostrarMensagem("Perfil alterado com sucesso.", "success");
+    carregarUsuarios();
+  } catch (erro) {
+    erroEl.innerText = erro.message;
+    erroEl.classList.remove("d-none");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+let usuarioIdParaExcluir = null;
+let modalExcluirUsuario = null;
+
+function abrirExcluirUsuario(usuarioId, nomeUsuario) {
+  usuarioIdParaExcluir = usuarioId;
+  document.getElementById("excluirNomeUsuario").innerText = nomeUsuario;
+  document.getElementById("excluirErro").classList.add("d-none");
+
+  if (!modalExcluirUsuario) {
+    modalExcluirUsuario = new bootstrap.Modal(document.getElementById("modalExcluirUsuario"));
+  }
+  modalExcluirUsuario.show();
+}
+
+async function confirmarExcluirUsuario() {
+  const erroEl = document.getElementById("excluirErro");
+  erroEl.classList.add("d-none");
+
+  const btn = document.getElementById("btnConfirmarExclusao");
+  btn.disabled = true;
+
+  try {
+    const res = await chamarApi(`/usuarios/${usuarioIdParaExcluir}`, {
+      method: "DELETE",
+    });
+
+    if (!res.ok) {
+      const erro = await res.json().catch(() => null);
+      erroEl.innerText = erro?.detail || "Não foi possível excluir o usuário.";
+      erroEl.classList.remove("d-none");
+      return;
+    }
+
+    modalExcluirUsuario.hide();
+    mostrarMensagem("Usuário excluído definitivamente.", "success");
+    carregarUsuarios();
   } catch (erro) {
     erroEl.innerText = erro.message;
     erroEl.classList.remove("d-none");
