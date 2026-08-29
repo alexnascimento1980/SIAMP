@@ -27,7 +27,7 @@ class Parada(Base):
     categoria: Mapped[str | None] = mapped_column(String(50), nullable=True)
     observacao: Mapped[str | None] = mapped_column(Text, nullable=True)
     usuario_id: Mapped[int | None] = mapped_column(
-        ForeignKey("usuarios.id"),
+        ForeignKey("usuarios.id", ondelete="SET NULL"),
         nullable=True,
     )
     created_at: Mapped[datetime] = mapped_column(

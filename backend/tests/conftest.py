@@ -8,7 +8,7 @@ os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("COOKIE_SECURE", "false")
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
@@ -24,6 +24,20 @@ engine = create_engine(
     connect_args={"check_same_thread": False},
     poolclass=StaticPool,
 )
+
+
+@event.listens_for(engine, "connect")
+def _ativar_chaves_estrangeiras_sqlite(conexao_dbapi, _registro_conexao):
+    # SQLite não valida chaves estrangeiras por padrão (diferente do
+    # Postgres, que bloqueia por padrão - RESTRICT - a menos que a FK
+    # seja explicitamente configurada com ON DELETE). Sem isso, um bug
+    # real de FK (ex.: tentar excluir um usuário referenciado por um
+    # turno) passa despercebido pelos testes e só aparece em produção.
+    cursor = conexao_dbapi.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
+
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
