@@ -136,6 +136,71 @@
       </div>
     </div>
 
+    <!-- Modal de alterar perfil -->
+    <div class="modal fade" id="modalAlterarPerfil" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="bi bi-person-gear me-2"></i>Alterar Perfil de Acesso
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-3">
+              Alterando o perfil de acesso de <strong id="perfilNomeUsuario"></strong>.
+            </p>
+            <label class="form-label fw-bold text-secondary mb-1">Novo perfil</label>
+            <select id="perfilNovoValor" class="form-select">
+              <option value="OPERADOR">Operador</option>
+              <option value="SUPERVISOR">Supervisor</option>
+              <option value="ADMIN">Admin</option>
+            </select>
+            <div id="perfilErro" class="text-danger small mt-2 d-none"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-primary" id="btnConfirmarPerfil" onclick="confirmarAlterarPerfil()">
+              <i class="bi bi-check-circle me-1"></i>Salvar Perfil
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de exclusão definitiva -->
+    <div class="modal fade" id="modalExcluirUsuario" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title text-danger">
+              <i class="bi bi-exclamation-triangle me-2"></i>Excluir Usuário Definitivamente
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p>
+              Tem certeza que deseja excluir <strong id="excluirNomeUsuario"></strong>?
+              Essa ação <strong>não pode ser desfeita</strong>.
+            </p>
+            <p class="text-secondary small mb-0">
+              Turnos, Ordens de Produção ou paradas já registrados por esse usuário
+              <strong>não são apagados</strong> — continuam normalmente no histórico,
+              só perdem a referência de quem foi. Se você só precisa impedir o acesso
+              (sem apagar o cadastro), use <strong>Desativar</strong> em vez disso.
+            </p>
+            <div id="excluirErro" class="text-danger small mt-2 d-none"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-danger" id="btnConfirmarExclusao" onclick="confirmarExcluirUsuario()">
+              <i class="bi bi-trash me-1"></i>Excluir Definitivamente
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal de reset de senha -->
     <div class="modal fade" id="modalResetSenha" tabindex="-1">
       <div class="modal-dialog">
