@@ -45,7 +45,7 @@ class Turno(Base):
     # editado por SUPERVISOR/ADMIN (ex.: corrigir erro de digitação),
     # e aqui fica registrado quem foi e quando.
     editado_por_id: Mapped[int | None] = mapped_column(
-        ForeignKey("usuarios.id"),
+        ForeignKey("usuarios.id", ondelete="SET NULL"),
         nullable=True,
     )
     editado_em: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

@@ -66,7 +66,7 @@ class OrdemProducao(Base):
     composicao_mistura: Mapped[str | None] = mapped_column(Text, nullable=True)
     observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    criado_por_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"), nullable=True)
+    criado_por_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
     criado_em: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=agora_brasilia
     )
