@@ -53,6 +53,28 @@ Plataforma para digitalização e automação do processo de fechamento de turno
 <td align="center"><sub>Editar um lançamento já adicionado (sem apagar e relançar)</sub></td>
 <td align="center"><sub>PDF do dashboard anexado ao e-mail de fechamento, com gráficos de verdade</sub></td>
 </tr>
+<tr>
+<td><img src="docs/screenshots/13-dashboard-risco-parada.png" alt="Risco de Próxima Parada" width="400"></td>
+<td><img src="docs/screenshots/17-apontamento-cavidades.png" alt="Ciclo e cavidades informados" width="400"></td>
+</tr>
+<tr>
+<td align="center"><sub>Risco de Próxima Parada — modelo de Machine Learning treinado, com os sinais explicados</sub></td>
+<td align="center"><sub>Ciclo e cavidades informados x cadastro da peça, divergência destacada</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/14-usuarios-alterar-perfil.png" alt="Alterar perfil de usuário" width="400"></td>
+<td><img src="docs/screenshots/15-usuarios-excluir.png" alt="Excluir usuário definitivamente" width="400"></td>
+</tr>
+<tr>
+<td align="center"><sub>Alterar o perfil de acesso de um usuário (ADMIN)</sub></td>
+<td align="center"><sub>Excluir usuário definitivamente, com aviso claro do que acontece com o histórico</sub></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><img src="docs/screenshots/16-usuarios-resetar-senha.png" alt="Resetar senha de usuário" width="400"></td>
+</tr>
+<tr>
+<td colspan="2" align="center"><sub>Resetar a senha de um usuário sem precisar da senha atual</sub></td>
+</tr>
 </table>
 
 ## 🚀 Funcionalidades Principais
@@ -60,12 +82,14 @@ Plataforma para digitalização e automação do processo de fechamento de turno
 - **Autenticação por usuário:** login com e-mail/senha, sessão via cookie `httpOnly` (não exposto ao JavaScript) — sem cadastro público, contas são criadas por um administrador.
 - **Controle de acesso por perfil:** `ADMIN`, `SUPERVISOR` e `OPERADOR`, com permissões diferentes em cada tela (ver tabela abaixo). O frontend esconde o que o perfil não pode usar, mas a permissão de verdade é sempre revalidada pelo backend em cada endpoint.
 - **Hub de navegação:** depois do login, a tela **Início** reúne um card de acesso rápido para cada tela do sistema, já filtrados pelo perfil de quem está logado.
-- **Apontamento por lançamento livre:** em vez de uma grade fixa por hora, cada apontamento é um lançamento com horário de início/fim livre dentro do turno — produção (peça, Ordem de Produção, quantidade) ou parada (programada ou falha na injetora), quantos forem necessários por injetora. O cálculo de produção esperada usa a duração real de cada lançamento (`3600/ciclo × cavidades`), não mais uma hora cheia fixa — funciona nativamente com turnos que cruzam a meia-noite (ex.: 3º turno, 22h–05h). Cada lançamento pode ser **editado depois de adicionado** (corrige erro de digitação sem precisar apagar e relançar do zero). *Turnos criados antes dessa mudança continuam no modelo antigo (por hora), preservados para consulta e correção.*
-- **Ciclo real informado x padrão da peça:** opcionalmente, o operador digita o ciclo real observado na injetora durante o lançamento — a tela mostra os dois valores lado a lado e destaca em vermelho quando divergem, ajudando a identificar rápido quando o molde está regulado diferente do cadastrado. O ciclo informado tem prioridade no cálculo de produção esperada.
+- **Apontamento por lançamento livre:** em vez de uma grade fixa por hora, cada apontamento é um lançamento com horário de início/fim livre dentro do turno — produção (peça, Ordem de Produção, quantidade) ou parada (programada ou falha na injetora), quantos forem necessários por injetora. Início/fim já vêm preenchidos com o horário padrão do turno selecionado (editável), mas exigem digitação manual a partir do segundo lançamento de cada injetora — nenhum lançamento além do primeiro pode ocupar o turno inteiro. O cálculo de produção esperada usa a duração real de cada lançamento (`duração/ciclo × cavidades`), não mais uma hora cheia fixa — funciona nativamente com o 3º turno, que atravessa a meia-noite. Cada lançamento pode ser **editado depois de adicionado** (corrige erro de digitação sem precisar apagar e relançar do zero). *Turnos criados antes dessa mudança continuam no modelo antigo (por hora), preservados para consulta e correção.*
+- **Horário dos turnos:** 1º Turno 05:00–13:20, 2º Turno 13:20–21:40, 3º Turno 21:40–05:00 — contíguos, cobrindo as 24h sem lacunas entre eles.
+- **Ciclo e cavidades reais informados x cadastro da peça:** opcionalmente, o operador digita o ciclo real observado e/ou o número de cavidades realmente usadas na injetora durante o lançamento (ex.: uma cavidade do molde temporariamente tamponada) — a tela mostra os valores informados lado a lado com o cadastro da peça, destacando em vermelho quando divergem. Os dois têm prioridade no cálculo de produção esperada quando informados, e o relatório de fechamento mostra explicitamente qual foi usado em cada linha (`ciclo informado: 18.5s; cavidades informadas: 3`, por exemplo) — ajuda a diagnosticar se uma divergência entre produção real e esperada vem do valor informado ou do cadastro desatualizado.
+- **Cálculo de OEE limitado a 100%:** o índice de produção nunca passa de 100%, seguindo a convenção usual do indicador — quando o ciclo real da injetora é mais rápido que o cadastrado, isso geralmente indica que o cadastro da peça está desatualizado, não desempenho acima do teórico. Quando uma peça não tem ciclo/cavidades cadastrados, o relatório mostra **N/D** em vez de um "0" enganoso, apontando direto para o cadastro incompleto.
 - **Salvar o progresso do turno (rascunho):** o responsável não precisa mais esperar o fim do turno para conferir os números — dá para salvar o que já foi apontado a qualquer momento (sem disparar PDF/e-mail), continuar depois de fechar o navegador, e só finalizar de verdade quando o turno realmente encerrar.
 - **Injetoras e Peças configuráveis:** administradores e supervisores cadastram/editam máquinas e o catálogo de peças (código, ciclo médio, cavidades — obrigatórios e editáveis) pela própria interface — nada fixo no código. Peças têm um campo de busca por código/descrição, pensado para catálogos grandes.
 - **Ordens de Produção:** cadastro manual ou **importação em lote via CSV/XML** — peça e máquina são resolvidas pelo código já cadastrado, linhas com código desconhecido são rejeitadas e listadas (sem travar a importação das demais). Comparativo automático de meta x produção real, correto mesmo quando a mesma OP é produzida em mais de uma injetora ao mesmo tempo.
-- **Gestão de usuários:** administradores cadastram novos usuários (operador, supervisor ou admin) e ativam/desativam contas.
+- **Gestão de usuários:** administradores cadastram novos usuários (operador, supervisor ou admin), ativam/desativam contas, **alteram o perfil de acesso** de qualquer usuário existente, **resetam a senha** de um usuário sem precisar da senha atual (a senha em si nunca é recuperável — é guardada só como hash), e **excluem definitivamente** contas de teste ou de colaboradores desligados. A exclusão não apaga turnos, Ordens de Produção ou paradas que o usuário tenha registrado — eles continuam no histórico, só perdem a referência de quem foi.
 - **Destinatários de relatório configuráveis:** quem recebe o e-mail de fechamento de turno é cadastrado pela tela **Destinatários** (ADMIN) — não depende mais de editar variável de ambiente e reiniciar o servidor.
 - **Fechamento de turno com cálculo automático de OEE:** índice de produção e qualidade combinados automaticamente; parada programada (troca de molde, manutenção preventiva etc.) não penaliza o cálculo — só o que efetivamente parou a linha sem planejamento conta contra a eficiência.
 - **Histórico de Turnos:** listagem dos turnos encerrados (e dos rascunhos em andamento, com indicação clara de status) com produção total, eficiência e status; download do relatório em PDF a qualquer momento, reenvio por e-mail sob demanda, e **exportação em CSV** (uma linha por lançamento/hora apontada) para análise em Excel ou Power BI.
@@ -317,4 +341,4 @@ pip install -r requirements-dev.txt
 pytest -v
 ```
 
-Deve dar **124 testes passando**.
+Deve dar **170 testes passando**.
