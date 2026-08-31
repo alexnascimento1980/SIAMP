@@ -193,21 +193,20 @@ function renderizarAbasMaquinas() {
 
 // Horário padrão de cada turno (mesmo texto das opções do seletor) -
 // usado para pré-preencher início/fim do primeiro lançamento de cada
-// injetora. Três turnos contíguos cobrindo as 24h, sem lacunas entre
-// eles - 1º e 2º com 8h20min cada, 3º com 7h20min (a virada de um
-// turno pro outro sempre no minuto exato: 05:00, 13:20, 21:40).
-// Duração desigual é intencional, confirmado com o time: os 20/40min
-// "a mais" em cada turno cobrem a passagem para o turno seguinte,
-// incluindo um checkpoint de apuração de produção no meio do turno
-// anterior (às 13h/21h/4h) que não tem efeito nenhum no cálculo do
-// sistema - é só um horário de referência operacional da equipe.
-// Turno que atravessa a meia-noite (3º) já é tratado corretamente
-// pelo cálculo de duração existente (fim < início = atravessa o
-// dia), então não precisa de tratamento especial aqui.
+// injetora. IMPORTANTE: existe de propósito uma lacuna de 60min entre
+// o fim de um turno e o início do próximo (13:00→14:00, 21:00→22:00,
+// 04:00→05:00) - confirmado com a empresa que esse intervalo é usado
+// para manutenção, troca de molde e troca de matéria-prima da
+// injetora, não é falha de agenda nem tempo "perdido" para preencher.
+// Não "consertar" isso fechando a lacuna - já foi tentado antes e
+// revertido a pedido da empresa. Turno que atravessa a meia-noite (3º)
+// já é tratado corretamente pelo cálculo de duração existente (fim <
+// início = atravessa o dia), então não precisa de tratamento especial
+// aqui.
 const HORARIO_PADRAO_TURNO = {
-  "1": { inicio: "05:00", fim: "13:20" },
-  "2": { inicio: "13:20", fim: "21:40" },
-  "3": { inicio: "21:40", fim: "05:00" },
+  "1": { inicio: "05:00", fim: "13:00" },
+  "2": { inicio: "14:00", fim: "21:00" },
+  "3": { inicio: "22:00", fim: "04:00" },
 };
 
 // Preenche início/fim da produção com o horário padrão do turno - só
