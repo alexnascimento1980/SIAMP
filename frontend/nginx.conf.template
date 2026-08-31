@@ -28,6 +28,21 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
+    # Sem isso, o navegador pode continuar usando uma cópia antiga de
+    # JS/CSS em cache por um bom tempo depois de um deploy, mesmo com o
+    # arquivo novo já disponível no servidor (comportamento padrão sem
+    # cabeçalho de cache explícito é decidido pelo navegador, não pelo
+    # servidor). "no-cache" aqui não significa "não guarda em cache" -
+    # significa "sempre revalida com o servidor antes de usar a cópia
+    # guardada" (via Last-Modified/ETag): se o arquivo não mudou, o
+    # servidor responde 304 e nada é rebaixado; se mudou, busca a
+    # versão nova. Resolve o problema sem exigir cache-busting por hash
+    # no nome do arquivo (mudança maior no pipeline de build).
+    location ~* \.(js|css)$ {
+        add_header Cache-Control "no-cache";
+        try_files $uri =404;
+    }
+
     location / {
         try_files $uri $uri/ =404;
     }

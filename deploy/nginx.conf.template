@@ -24,6 +24,16 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
+    # Ver comentário equivalente em frontend/nginx.conf.template -
+    # sem isso, o navegador pode manter uma cópia antiga de JS/CSS em
+    # cache por bastante tempo depois de um deploy em produção, mesmo
+    # já sendo o cenário mais crítico de acontecer (usuário real de
+    # verdade, não só ambiente de teste).
+    location ~* \.(js|css)$ {
+        add_header Cache-Control "no-cache";
+        try_files $uri =404;
+    }
+
     location / {
         try_files $uri $uri/ =404;
     }
