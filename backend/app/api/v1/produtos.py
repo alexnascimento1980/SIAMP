@@ -3,7 +3,9 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import exigir_perfil, get_current_user
 from app.core.database import get_db
+from app.models.lancamento import Lancamento
 from app.models.produto import Produto
+from app.models.registro_turno import RegistroHorario
 from app.models.usuario import Usuario
 from app.schemas.produto_schema import ProdutoCreate, ProdutoResponse, ProdutoUpdate
 
@@ -84,3 +86,51 @@ def atualizar_produto(
     db.commit()
     db.refresh(produto)
     return produto
+
+
+@router.delete("/{produto_id}", status_code=status.HTTP_204_NO_CONTENT)
+def excluir_produto(
+    produto_id: int,
+    db: Session = Depends(get_db),
+    usuario_atual: Usuario = Depends(exigir_perfil("ADMIN")),
+):
+    """
+    Exclusão permanente do catálogo - pensada para remover peças
+    inseridas por engano ou só para teste. Só é permitida se a peça
+    nunca tiver sido usada em nenhum lançamento (grade fixa antiga em
+    RegistroHorario ou lançamento livre em Lancamento); nesse caso o
+    fluxo correto é desativar a peça (PATCH ativo=false) em vez de
+    excluir, para preservar o histórico.
+    """
+    produto = db.query(Produto).filter(Produto.id == produto_id).first()
+    if produto is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Peça não encontrada.",
+        )
+
+    tem_registro_horario = (
+        db.query(RegistroHorario.id)
+        .filter(RegistroHorario.produto_id == produto_id)
+        .first()
+        is not None
+    )
+    tem_lancamento = (
+        db.query(Lancamento.id)
+        .filter(Lancamento.produto_id == produto_id)
+        .first()
+        is not None
+    )
+
+    if tem_registro_horario or tem_lancamento:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Esta peça possui lançamentos registrados e não pode ser "
+                "excluída. Use 'Desativar' para removê-la das opções "
+                "ativas sem perder o histórico."
+            ),
+        )
+
+    db.delete(produto)
+    db.commit()
