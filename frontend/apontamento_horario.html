@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="pt-BR">
   <head>
-  <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
-  <link rel="icon" href="favicon-16.png" type="image/png" sizes="16x16">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="icon" href="favicon-16.png" type="image/png" sizes="16x16" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <meta charset="UTF-8" />
     <meta
       name="viewport"
@@ -29,7 +29,13 @@
         class="container-fluid d-flex justify-content-between align-items-center"
       >
         <span class="navbar-brand mb-0 h1 fw-bold d-flex align-items-center">
-          <img src="img/siamp-logo-branco.png" alt="SIAMP" height="26" class="me-2" /> • Registro Operacional
+          <img
+            src="img/siamp-logo-branco.png"
+            alt="SIAMP"
+            height="26"
+            class="me-2"
+          />
+          • Registro Operacional
         </span>
         <div class="d-flex align-items-center gap-3">
           <span id="relogio" class="text-white fw-bold"></span>
@@ -146,20 +152,27 @@
         <div class="card-body py-2 px-3">
           <div class="row text-center g-2 align-items-center">
             <div class="col-md-3">
-              <div class="small text-secondary fw-bold text-uppercase">Produção Esperada até agora</div>
+              <div class="small text-secondary fw-bold text-uppercase">
+                Produção Esperada até agora
+              </div>
               <div class="fs-4 fw-bold text-info" id="resumoEsperado">0</div>
             </div>
             <div class="col-md-3">
-              <div class="small text-secondary fw-bold text-uppercase">Produção Apontada</div>
+              <div class="small text-secondary fw-bold text-uppercase">
+                Produção Apontada
+              </div>
               <div class="fs-4 fw-bold text-primary" id="resumoApontado">0</div>
             </div>
             <div class="col-md-3">
-              <div class="small text-secondary fw-bold text-uppercase">Atingido</div>
+              <div class="small text-secondary fw-bold text-uppercase">
+                Atingido
+              </div>
               <div class="fs-4 fw-bold" id="resumoPercentual">-</div>
             </div>
             <div class="col-md-3">
               <div class="small text-secondary" id="resumoLegenda">
-                Some das horas já preenchidas, em todas as injetoras. Estimativa - o valor final é calculado no fechamento.
+                Soma das horas já preenchidas, em todas as injetoras. Estimativa
+                - o valor final é calculado no fechamento.
               </div>
             </div>
           </div>
@@ -198,12 +211,18 @@
                 <th style="width: 14%">Peça Produzida</th>
                 <th style="width: 9%">Ordem de Produção</th>
                 <th style="width: 8%">Prod. Executada (pçs)</th>
-                <th style="width: 7%" title="Ciclo real usado nessa hora. Pré-preenchido com o ciclo da peça selecionada, mas pode ser corrigido manualmente - útil quando o molde foi regulado diferente ou o ciclo ainda não está cadastrado.">
+                <th
+                  style="width: 7%"
+                  title="Ciclo real usado nessa hora. Pré-preenchido com o ciclo da peça selecionada, mas pode ser corrigido manualmente - útil quando o molde foi regulado diferente ou o ciclo ainda não está cadastrado."
+                >
                   Ciclo (s)
                 </th>
                 <th style="width: 12%">Parada</th>
                 <th style="width: 12%">Retomada</th>
-                <th style="width: 7%" title="Parada programada (troca de molde, manutenção preventiva, refeição etc.) não penaliza o cálculo do OEE.">
+                <th
+                  style="width: 7%"
+                  title="Parada programada (troca de molde, manutenção preventiva, refeição etc.) não penaliza o cálculo do OEE."
+                >
                   Programada?
                 </th>
                 <th style="width: 16%">Motivo Parada</th>
@@ -230,7 +249,9 @@
           ></textarea>
         </div>
         <div class="card-footer bg-white p-3">
-          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div
+            class="d-flex justify-content-between align-items-center flex-wrap gap-2"
+          >
             <div>
               <span id="indicadorRascunho" class="text-secondary small d-none">
                 <i class="bi bi-check2 me-1"></i>
