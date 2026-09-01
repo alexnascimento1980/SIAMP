@@ -22,6 +22,9 @@ numpy==2.5.2
 packaging==26.3
 pandas==3.0.5
 pillow==12.3.0
+pdfplumber==0.11.9
+pytesseract==0.3.13
+pdf2image==1.17.0
 psycopg2-binary==2.9.12
 pyparsing==3.3.2
 python-dateutil==2.9.0.post0

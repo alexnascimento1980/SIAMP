@@ -1,0 +1,37 @@
+De,
+ORDEM DE PRODUÇÃO e
+
+e SIAMP BRASIL IND COM VALV LOU SANIT LTDA — 281 7-2
+Qu S é AM P RUA OLTNTHO TREVISAN 490 - VILA BUZATO - ANDRADAS / MG - CEP 27839-456 BRASH, 026
+
+CiNrs 20 434 900/000 1-4 - inscrição Estadual: 0623 64750081 op Pi
+
+Teletone (554 D7M1-TBAQ - E-emad. financerobrasit Dslamp com | de apos!
+Págcs 5 dh
+tipo da OP PRODUÇÃO
+tetos Produtrvo. INJECAO LOTE
+periodo Programado da Produção Principal: 18/08/2026 até 20/08/2026 202 6081 7/ 281 7
+PRODUTO A PRODUZIR
+
+34-7506-00BR - CLIP TUBE - BRESIL - UN
+QUANTIDADE A PRODUZIR
+48.000
+
+Equipamento. 06 - INJETORA 06-120T
+
+> Cavidades: 8
+Ferramenta: 7506/1 - MOLDE CLIP TUBE - 22 Ls X O + Q C ç O Ciclo (segundos): 19
+Formula 2 - POM CINZA 7 Qtde Produzida por Hora: 1.516
+Embalagem 119 - CAIXA M PAPELÃO Peso líquido unitário: 0,0015
+Qtde por embalagem: 8.000 CX Peso bruto unitário: 0,0016
+Qrde de Embalagens Previstas: 6
+COMPOSIÇÃO DA MISTURA
+
+Produto — QTDETOTAL
+007555 - MISTURA POM CINZA SIAMP - (Produto Intermediário) 117,0000 KG
+
+TOTALIZADORES: 117,0000 KG
+
+Observações: Ordem de Produção Aberta pelo Kanban de Nível de Estoque
+
+S MAXMANAGER pr349Laspx / pr349 2 - Versão 2.26.0.14845

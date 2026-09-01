@@ -6,6 +6,7 @@ FROM python:3.12-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential libpq-dev nginx gettext-base \
+    tesseract-ocr tesseract-ocr-por poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # --- Backend ---------------------------------------------------------

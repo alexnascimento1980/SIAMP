@@ -25,6 +25,11 @@ jobs:
           cache: "pip"
           cache-dependency-path: backend/requirements-dev.txt
 
+      - name: Instalar Tesseract OCR (extração de dados de Ordem de Produção)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr tesseract-ocr-por poppler-utils
+
       - name: Instalar dependências
         run: |
           python -m pip install --upgrade pip
