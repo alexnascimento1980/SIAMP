@@ -104,6 +104,14 @@ function renderizarTurnos(turnos) {
            <i class="bi bi-envelope-arrow-up"></i>
          </button>`
       : "";
+    // Exclusão definitiva é mais restrita que as demais ações desta
+    // tela (só ADMIN, não SUPERVISOR) - mesma política já usada para
+    // excluir usuário e peça, por ser uma ação irreversível.
+    const botaoExcluir = perfilUsuario === "ADMIN"
+      ? `<button class="btn btn-sm btn-outline-danger" title="Excluir definitivamente" onclick="abrirExclusaoTurno(${t.id}, '${escaparHtml(t.nome_turno).replace(/'/g, "\\'")}', '${dataFormatada}')">
+           <i class="bi bi-trash"></i>
+         </button>`
+      : "";
 
     tr.innerHTML = `
       ${checkboxSelecao}
@@ -121,6 +129,7 @@ function renderizarTurnos(turnos) {
           </button>
           ${botaoReenviarEmail}
           ${botaoEditar}
+          ${botaoExcluir}
         </div>
       </td>
     `;
@@ -326,4 +335,48 @@ function escaparHtml(texto) {
   const div = document.createElement("div");
   div.textContent = texto;
   return div.innerHTML;
+}
+
+let turnoIdParaExcluir = null;
+let modalExcluirTurno = null;
+
+function abrirExclusaoTurno(turnoId, nomeTurno, dataFormatada) {
+  turnoIdParaExcluir = turnoId;
+  document.getElementById("excluirNomeTurno").innerText = `${nomeTurno} (${dataFormatada})`;
+  document.getElementById("excluirErroTurno").classList.add("d-none");
+
+  if (!modalExcluirTurno) {
+    modalExcluirTurno = new bootstrap.Modal(document.getElementById("modalExcluirTurno"));
+  }
+  modalExcluirTurno.show();
+}
+
+async function confirmarExclusaoTurno() {
+  const erroEl = document.getElementById("excluirErroTurno");
+  erroEl.classList.add("d-none");
+
+  const btn = document.getElementById("btnConfirmarExclusaoTurno");
+  btn.disabled = true;
+
+  try {
+    const res = await chamarApi(`/turnos/${turnoIdParaExcluir}`, {
+      method: "DELETE",
+    });
+
+    if (!res.ok) {
+      const erro = await res.json().catch(() => null);
+      erroEl.innerText = erro?.detail || "Não foi possível excluir o turno.";
+      erroEl.classList.remove("d-none");
+      return;
+    }
+
+    modalExcluirTurno.hide();
+    mostrarMensagem("Turno excluído definitivamente.", "success");
+    carregarTurnos();
+  } catch (erro) {
+    erroEl.innerText = erro.message;
+    erroEl.classList.remove("d-none");
+  } finally {
+    btn.disabled = false;
+  }
 }

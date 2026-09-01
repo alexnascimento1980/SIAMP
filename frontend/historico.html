@@ -125,6 +125,40 @@
       </div>
     </div>
 
+    <!-- Modal de exclusão definitiva de turno -->
+    <div class="modal fade" id="modalExcluirTurno" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title text-danger">
+              <i class="bi bi-exclamation-triangle me-2"></i>Excluir Turno Definitivamente
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p>
+              Tem certeza que deseja excluir <strong id="excluirNomeTurno"></strong>?
+              Essa ação <strong>não pode ser desfeita</strong>.
+            </p>
+            <p class="text-secondary small mb-0">
+              Todos os lançamentos ou registros desse turno são apagados junto -
+              diferente de <strong>Marcar como teste</strong>, que também tira o
+              turno das contas do dashboard, mas mantém tudo no histórico caso
+              precise conferir depois. Use a exclusão definitiva só quando tiver
+              certeza que não vai precisar desses dados nunca mais.
+            </p>
+            <div id="excluirErroTurno" class="text-danger small mt-2 d-none"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-danger" id="btnConfirmarExclusaoTurno" onclick="confirmarExclusaoTurno()">
+              <i class="bi bi-trash me-1"></i>Excluir Definitivamente
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/config.js"></script>
     <script src="js/auth.js"></script>
