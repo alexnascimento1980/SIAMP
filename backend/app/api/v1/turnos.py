@@ -24,6 +24,7 @@ from app.schemas.turno_schema import (
     RegistroHorarioDetail,
     TurnoDetail,
     TurnoListItem,
+    TurnosMarcarTeste,
 )
 from app.services.analytics import (
     calcular_capacidade_esperada_lancamento,
@@ -89,9 +90,45 @@ def listar_turnos(
                 eficiencia_oee=kpis["eficiencia_oee"],
                 indice_qualidade=kpis["indice_qualidade"],
                 editado=turno.editado_por_id is not None,
+                marcado_teste=turno.marcado_teste,
             )
         )
     return resultado
+
+
+@router.patch("/marcar-teste")
+def marcar_turnos_como_teste(
+    dados: TurnosMarcarTeste,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(exigir_perfil("ADMIN", "SUPERVISOR")),
+):
+    """Marca (ou desmarca) em lote uma lista de turnos como 'teste' -
+    exclui os turnos marcados do dashboard, dos indicadores acumulados
+    e da exportação em CSV, sem apagar o registro. Reversível a
+    qualquer momento (basta reenviar com marcado_teste=False). Turnos
+    marcados continuam aparecendo normalmente no Histórico, com um
+    indicador visual, e o relatório individual de cada um continua
+    disponível para download.
+
+    Registrada antes de qualquer rota com padrão /{turno_id} (path
+    genérico, sem tipo restrito a dígitos no roteamento do FastAPI/
+    Starlette) - se viesse depois, uma chamada para /marcar-teste
+    seria capturada por engano pela rota /{turno_id}, tentando
+    converter 'marcar-teste' para int e falhando com 422 antes mesmo
+    de chegar aqui."""
+    turnos = db.query(Turno).filter(Turno.id.in_(dados.turno_ids)).all()
+    encontrados = {t.id for t in turnos}
+    nao_encontrados = set(dados.turno_ids) - encontrados
+    if nao_encontrados:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Turno(s) não encontrado(s): {sorted(nao_encontrados)}",
+        )
+
+    for turno in turnos:
+        turno.marcado_teste = dados.marcado_teste
+    db.commit()
+    return {"atualizados": len(turnos), "marcado_teste": dados.marcado_teste}
 
 
 @router.post("/fechamento", status_code=status.HTTP_201_CREATED)
@@ -339,6 +376,7 @@ def obter_turno(
             modelo_apontamento=turno.modelo_apontamento,
             editado_por_nome=turno.editado_por.nome if turno.editado_por else None,
             editado_em=turno.editado_em,
+            marcado_teste=turno.marcado_teste,
             registros=[],
             lancamentos=lancamentos_detail,
         )
@@ -364,6 +402,7 @@ def obter_turno(
         modelo_apontamento=turno.modelo_apontamento,
         editado_por_nome=turno.editado_por.nome if turno.editado_por else None,
         editado_em=turno.editado_em,
+        marcado_teste=turno.marcado_teste,
         registros=[
             RegistroHorarioDetail(
                 numero_maquina=maq.numero_maquina,
