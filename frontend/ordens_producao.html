@@ -43,6 +43,11 @@
       </div>
       <div class="collapse" id="formOpColapsavel">
         <div class="card-body p-3">
+          <div id="avisoRevisarExtracao" class="alert alert-warning d-none">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Dados extraídos automaticamente de um documento - <strong>confira cada campo</strong>
+            antes de salvar. Leitura automática pode errar, principalmente em fotos.
+          </div>
           <form id="formNovaOp">
             <input type="hidden" id="opId">
 
@@ -179,6 +184,39 @@
               </button>
             </div>
           </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Extrair de PDF ou foto (OCR) -->
+    <div class="card shadow-sm mb-3">
+      <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 fw-bold text-primary"><i class="bi bi-camera me-2"></i>Importar de PDF ou Foto</h5>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#extracaoColapsavel">
+          Mostrar
+        </button>
+      </div>
+      <div class="collapse" id="extracaoColapsavel">
+        <div class="card-body p-3">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-8">
+              <label class="form-label mb-1">Arquivo (PDF digitalizado ou foto do documento)</label>
+              <input type="file" id="arquivoExtracao" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
+            </div>
+            <div class="col-md-4">
+              <button class="btn btn-primary w-100" id="btnExtrair" onclick="extrairDocumentoOp()">
+                <i class="bi bi-magic me-1"></i>Extrair Dados
+              </button>
+            </div>
+          </div>
+          <div class="form-text mt-1">
+            Lê os dados automaticamente de uma Ordem de Produção no layout do MaxManager
+            (número, peça, máquina, quantidade, período e demais campos) e preenche o
+            formulário abaixo para você <strong>conferir e completar antes de salvar</strong> -
+            a leitura automática nunca cria a OP sozinha, e pode errar (principalmente em
+            fotos tiradas de ângulo ou com pouca luz).
+          </div>
+          <div id="erroExtracao" class="alert alert-danger mt-2 d-none"></div>
         </div>
       </div>
     </div>
