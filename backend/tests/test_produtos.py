@@ -141,3 +141,120 @@ def test_editar_codigo_para_um_ja_existente_e_rejeitado(client, db_session):
 
     res = client.patch(f"/api/v1/produtos/{produto_b['id']}", json={"codigo": "COD-A"})
     assert res.status_code == 409
+
+
+# --- Excluir peça ---------------------------------------------------
+
+
+def test_admin_exclui_peca_sem_historico(client, db_session):
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+    produto_id = client.post(
+        "/api/v1/produtos/",
+        json={"codigo": "SEM-USO", "descricao": "Peça sem uso", "ciclo_padrao": 10.0, "cavidades": 2},
+    ).json()["id"]
+
+    res = client.delete(f"/api/v1/produtos/{produto_id}")
+    assert res.status_code == 204
+
+    # confirma que sumiu de verdade, não só desativou
+    res_listagem = client.get("/api/v1/produtos/")
+    assert not any(p["id"] == produto_id for p in res_listagem.json())
+
+
+def test_excluir_peca_com_lancamento_e_bloqueado(client, db_session):
+    from datetime import time
+    from app.models.maquina import Maquina
+
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+    produto_id = client.post(
+        "/api/v1/produtos/",
+        json={"codigo": "COM-USO", "descricao": "Peça com uso", "ciclo_padrao": 10.0, "cavidades": 2},
+    ).json()["id"]
+
+    maquina = Maquina(numero_maquina="1", descricao="Injetora 1", ativo=True)
+    db_session.add(maquina)
+    db_session.commit()
+    db_session.refresh(maquina)
+
+    client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": produto_id,
+                    "quantidade": 100,
+                }
+            ],
+        },
+    )
+
+    res = client.delete(f"/api/v1/produtos/{produto_id}")
+    assert res.status_code == 409
+    assert "Desativar" in res.json()["detail"]
+
+    # a peça continua existindo, só não foi excluída
+    res_listagem = client.get("/api/v1/produtos/")
+    assert any(p["id"] == produto_id for p in res_listagem.json())
+
+
+def test_excluir_peca_com_registro_horario_e_bloqueado(client, db_session):
+    from datetime import time
+    from app.models.maquina import Maquina
+    from app.models.registro_turno import RegistroHorario
+    from app.models.turno import Turno
+
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+    produto_id = client.post(
+        "/api/v1/produtos/",
+        json={"codigo": "MODELO-ANTIGO", "descricao": "Peça modelo antigo", "ciclo_padrao": 10.0, "cavidades": 2},
+    ).json()["id"]
+
+    maquina = Maquina(numero_maquina="1", descricao="Injetora 1", ativo=True)
+    turno = Turno(
+        nome_turno="1º Turno", responsavel_nome="Líder Teste",
+        status_assinatura="ASSINADO_DIGITALMENTE", modelo_apontamento="HORARIO",
+    )
+    db_session.add_all([maquina, turno])
+    db_session.commit()
+    db_session.refresh(maquina)
+    db_session.refresh(turno)
+    db_session.add(RegistroHorario(
+        turno_id=turno.id, maquina_id=maquina.id, produto_id=produto_id,
+        hora_referencia=time(5, 0), prod_executada=100,
+    ))
+    db_session.commit()
+
+    res = client.delete(f"/api/v1/produtos/{produto_id}")
+    assert res.status_code == 409
+
+
+def test_excluir_peca_inexistente_retorna_404(client, db_session):
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+
+    res = client.delete("/api/v1/produtos/99999")
+    assert res.status_code == 404
+
+
+def test_operador_nao_pode_excluir_peca(client, db_session, usuario_teste):
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+    produto_id = client.post(
+        "/api/v1/produtos/",
+        json={"codigo": "PROTEGIDA", "descricao": "Peça protegida", "ciclo_padrao": 10.0, "cavidades": 2},
+    ).json()["id"]
+
+    client.get("/api/v1/auth/logout")
+    _login(client, usuario_teste)
+
+    res = client.delete(f"/api/v1/produtos/{produto_id}")
+    assert res.status_code == 403
