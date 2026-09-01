@@ -1,0 +1,27 @@
+ORDEM DE PRODUÇÃO
+Nº: 3000-2026
+SIAMP BRASIL IND COM VALV LOU SANIT LTDA
+RUA OLYNTHO TREVISAN, 490 - VILA BUZATO - ANDRADAS / MG - CEP: 37839-456 - BRASIL
+terça-feira, 1 de setembro de 2026
+CNPJ: 20.434.900/0001-54 - Inscrição Estadual: 0023764750081
+Telefone: (35) 3731-7882 - E-mail: financeirobrasil@siamp.com Página1:6 1:1 d8e:5 71
+Tipo da OP: PRODUÇÃO LOTE
+Setor Produtivo: INJECAO
+20260901/3000
+Período Programado da Produção Principal: 02/09/2026 até 14/09/2026
+PRODUTO A PRODUZIR
+34-5721-00BR - BASCULE DV BRESIL - UN
+QUANTIDADE A PRODUZIR
+300.000
+Equipamento: 12 - INJETORA 12-250T Cavidades: 16
+Ferramenta: 5721 - BASCULE DV - 38 Ciclo (segundos): 25
+Fórmula: 1 - POM NATURAL Qtde Produzida por Hora: 2.304
+Embalagem: 146 - CAIXA G PAPELAO 1 Peso líquido unitário: 0,0036
+Qtde por embalagem: 2.700 CX Peso bruto unitário: 0,0044
+Qtde de Embalagens Previstas: 111
+COMPOSIÇÃO DA MISTURA
+Produto QTDE TOTAL
+007552 - MISTURA POM NATURAL - (Produto Intermediário) 1.679,0400 KG
+TOTALIZADORES: 1.679,0400 KG
+Observações: Ordem de Produção Aberta pelo Kanban de Nível de Estoque
+pr349l.aspx / pr349_I2 - Versão 2.26.0.14965
