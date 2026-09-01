@@ -630,7 +630,7 @@ def test_exportar_csv_nao_inclui_rascunho_em_andamento(client, db_session, usuar
 
 
 def test_exportar_csv_filtra_por_periodo(client, db_session, usuario_teste):
-    from datetime import date
+    from app.core.timezone import agora_brasilia
 
     _login(client, usuario_teste)
     maquina, _peca = _criar_maquina_e_peca(db_session)
@@ -646,9 +646,14 @@ def test_exportar_csv_filtra_por_periodo(client, db_session, usuario_teste):
         },
     )
 
-    ontem = (date.today().replace(day=1))
+    # Usa agora_brasilia() (mesma referência de fuso que o próprio turno
+    # recebeu ao ser criado), não date.today() (fuso do servidor, UTC
+    # no GitHub Actions) - datas diferentes numa janela de até 3h por
+    # dia (00h-03h UTC), já causou um teste instável de verdade quando
+    # essa janela caiu bem na virada do mês.
+    primeiro_dia_mes_atual = agora_brasilia().date().replace(day=1)
     res = client.get(
-        f"/api/v1/turnos/exportar/csv?data_inicio=2000-01-01&data_fim={ontem.isoformat()}"
+        f"/api/v1/turnos/exportar/csv?data_inicio=2000-01-01&data_fim={primeiro_dia_mes_atual.isoformat()}"
     )
     conteudo = res.content.decode("utf-8-sig")
     # Período no passado, antes do turno criado agora -> não deve aparecer
