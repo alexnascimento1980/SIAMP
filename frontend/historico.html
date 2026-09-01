@@ -82,10 +82,27 @@
             <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
           </button>
         </div>
+        <!-- Barra de ação em lote - só aparece com pelo menos 1 turno
+        selecionado (checkbox só existe para ADMIN/SUPERVISOR). -->
+        <div id="barraAcaoLote" class="card-body py-2 border-bottom bg-light d-none">
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="small fw-bold" id="contadorSelecionados">0 selecionados</span>
+            <button class="btn btn-sm btn-outline-secondary" onclick="marcarSelecionadosComoTeste(true)">
+              <i class="bi bi-flask me-1"></i>Marcar como teste
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="marcarSelecionadosComoTeste(false)">
+              <i class="bi bi-flask me-1"></i>Desmarcar teste
+            </button>
+            <button class="btn btn-sm btn-link text-secondary" onclick="limparSelecao()">Cancelar seleção</button>
+          </div>
+        </div>
         <div class="card-body p-0 table-responsive">
           <table class="table table-striped table-hover align-middle mb-0">
             <thead class="table-light">
               <tr>
+                <th class="text-center d-none" id="colunaSelecaoTodos" style="width: 40px;">
+                  <input type="checkbox" class="form-check-input" id="checkSelecionarTodos" onchange="alternarSelecionarTodos(this.checked)">
+                </th>
                 <th>Turno</th>
                 <th>Responsável</th>
                 <th>Data</th>
@@ -98,7 +115,7 @@
             </thead>
             <tbody id="corpoTabelaHistorico">
               <tr>
-                <td colspan="8" class="text-center text-secondary py-4">
+                <td colspan="9" class="text-center text-secondary py-4">
                   Carregando...
                 </td>
               </tr>

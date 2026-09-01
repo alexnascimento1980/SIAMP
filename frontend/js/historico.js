@@ -1,4 +1,5 @@
 let perfilUsuario = null;
+let turnosSelecionados = new Set();
 
 document.addEventListener("DOMContentLoaded", async () => {
   const sessao = await exigirSessao();
@@ -8,8 +9,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 async function carregarTurnos() {
+  turnosSelecionados.clear();
+  atualizarBarraAcaoLote();
   const tbody = document.getElementById("corpoTabelaHistorico");
-  tbody.innerHTML = `<tr><td colspan="8" class="text-center text-secondary py-4">Carregando...</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="9" class="text-center text-secondary py-4">Carregando...</td></tr>`;
 
   try {
     const res = await chamarApi("/turnos/");
@@ -18,7 +21,7 @@ async function carregarTurnos() {
     renderizarTurnos(turnos);
   } catch (erro) {
     console.error(erro);
-    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">${erro.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger py-4">${erro.message}</td></tr>`;
   }
 }
 
@@ -27,12 +30,17 @@ function renderizarTurnos(turnos) {
   tbody.innerHTML = "";
 
   if (turnos.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-secondary py-4">Nenhum turno encerrado ainda.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center text-secondary py-4">Nenhum turno encerrado ainda.</td></tr>`;
     return;
   }
 
   const podeEditar =
     perfilUsuario === "ADMIN" || perfilUsuario === "SUPERVISOR";
+
+  // Coluna de seleção só existe para quem pode marcar/desmarcar turnos
+  // como teste (mesma permissão de corrigir turno) - operador não vê
+  // checkbox nenhum.
+  document.getElementById("colunaSelecaoTodos").classList.toggle("d-none", !podeEditar);
 
   turnos.forEach((t) => {
     const tr = document.createElement("tr");
@@ -57,6 +65,16 @@ function renderizarTurnos(turnos) {
       : `<span class="badge bg-success">Fechado</span>`;
     const marcaEditado = t.editado
       ? ' <i class="bi bi-pencil-fill text-secondary" title="Turno corrigido"></i>'
+      : "";
+    const badgeTeste = t.marcado_teste
+      ? ' <span class="badge bg-secondary" title="Excluído do dashboard e dos relatórios">TESTE</span>'
+      : "";
+    const checkboxSelecao = podeEditar
+      ? `<td class="text-center">
+           <input type="checkbox" class="form-check-input check-turno" value="${t.id}"
+             ${turnosSelecionados.has(t.id) ? "checked" : ""}
+             onchange="alternarSelecaoTurno(${t.id}, this.checked)">
+         </td>`
       : "";
 
     // Turno em andamento: continuar preenchendo (liberado para
@@ -88,7 +106,8 @@ function renderizarTurnos(turnos) {
       : "";
 
     tr.innerHTML = `
-      <td class="fw-bold">${escaparHtml(t.nome_turno)}${marcaEditado}</td>
+      ${checkboxSelecao}
+      <td class="fw-bold">${escaparHtml(t.nome_turno)}${marcaEditado}${badgeTeste}</td>
       <td>${escaparHtml(t.responsavel_nome)}</td>
       <td>${dataFormatada}</td>
       <td class="text-center">${t.total_produzido} pçs</td>
@@ -227,6 +246,80 @@ function mostrarMensagem(texto, tipo) {
   el.textContent = texto;
   el.className = `alert alert-${tipo}`;
   el.classList.remove("d-none");
+}
+
+function alternarSelecaoTurno(turnoId, marcado) {
+  if (marcado) {
+    turnosSelecionados.add(turnoId);
+  } else {
+    turnosSelecionados.delete(turnoId);
+    // desmarca também o "selecionar todos", já que nem tudo está mais selecionado
+    document.getElementById("checkSelecionarTodos").checked = false;
+  }
+  atualizarBarraAcaoLote();
+}
+
+function alternarSelecionarTodos(marcarTodos) {
+  document.querySelectorAll(".check-turno").forEach((checkbox) => {
+    checkbox.checked = marcarTodos;
+    const turnoId = parseInt(checkbox.value);
+    if (marcarTodos) {
+      turnosSelecionados.add(turnoId);
+    } else {
+      turnosSelecionados.delete(turnoId);
+    }
+  });
+  atualizarBarraAcaoLote();
+}
+
+function limparSelecao() {
+  turnosSelecionados.clear();
+  document.querySelectorAll(".check-turno").forEach((c) => (c.checked = false));
+  const checkTodos = document.getElementById("checkSelecionarTodos");
+  if (checkTodos) checkTodos.checked = false;
+  atualizarBarraAcaoLote();
+}
+
+function atualizarBarraAcaoLote() {
+  const barra = document.getElementById("barraAcaoLote");
+  const contador = document.getElementById("contadorSelecionados");
+  const quantidade = turnosSelecionados.size;
+
+  barra.classList.toggle("d-none", quantidade === 0);
+  contador.innerText = `${quantidade} selecionado${quantidade === 1 ? "" : "s"}`;
+}
+
+async function marcarSelecionadosComoTeste(marcadoTeste) {
+  if (turnosSelecionados.size === 0) return;
+
+  const acao = marcadoTeste ? "marcar" : "desmarcar";
+  if (!confirm(`${marcadoTeste ? "Marcar" : "Desmarcar"} ${turnosSelecionados.size} turno(s) como teste? Turnos marcados saem do dashboard e dos relatórios, mas continuam aqui no Histórico.`)) {
+    return;
+  }
+
+  try {
+    const res = await chamarApi("/turnos/marcar-teste", {
+      method: "PATCH",
+      body: JSON.stringify({
+        turno_ids: Array.from(turnosSelecionados),
+        marcado_teste: marcadoTeste,
+      }),
+    });
+
+    if (!res.ok) {
+      const erro = await res.json().catch(() => null);
+      throw new Error(erro?.detail || `Não foi possível ${acao} os turnos selecionados.`);
+    }
+
+    mostrarMensagem(
+      `${turnosSelecionados.size} turno(s) ${marcadoTeste ? "marcado(s)" : "desmarcado(s)"} como teste.`,
+      "success",
+    );
+    limparSelecao();
+    carregarTurnos();
+  } catch (erro) {
+    mostrarMensagem(erro.message, "danger");
+  }
 }
 
 function escaparHtml(texto) {
