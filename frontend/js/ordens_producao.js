@@ -296,6 +296,7 @@ function cancelarEdicao() {
   document.getElementById("btnSalvarOp").innerHTML =
     '<i class="bi bi-check-circle me-1"></i>Salvar Ordem de Produção';
   document.getElementById("btnCancelarEdicao").style.display = "none";
+  document.getElementById("avisoRevisarExtracao").classList.add("d-none");
 }
 
 async function excluirOp(opId) {
@@ -428,4 +429,121 @@ function mostrarResultadoImportacao(resultado, erroGeral) {
   }
 
   detalhe.innerHTML = html;
+}
+
+// --- Extração de dados via PDF/foto (OCR) ---------------------------------
+
+function _dataBrParaISO(dataBr) {
+  // Converte "DD/MM/AAAA" (formato do texto extraído) para
+  // "AAAA-MM-DD" (formato exigido por <input type="date">)
+  if (!dataBr) return "";
+  const partes = dataBr.split("/");
+  if (partes.length !== 3) return "";
+  const [dia, mes, ano] = partes;
+  return `${ano}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
+}
+
+async function extrairDocumentoOp() {
+  const input = document.getElementById("arquivoExtracao");
+  const arquivo = input.files[0];
+  if (!arquivo) {
+    alert("Selecione um arquivo PDF, JPG ou PNG.");
+    return;
+  }
+
+  const btn = document.getElementById("btnExtrair");
+  const textoOriginal = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Lendo documento...`;
+  document.getElementById("erroExtracao").classList.add("d-none");
+
+  const formData = new FormData();
+  formData.append("arquivo", arquivo);
+
+  try {
+    const res = await chamarApi("/ordens-producao/extrair-documento", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const erro = await res.json().catch(() => null);
+      const erroEl = document.getElementById("erroExtracao");
+      erroEl.innerText = erro?.detail || "Não foi possível ler o documento.";
+      erroEl.classList.remove("d-none");
+      return;
+    }
+
+    const resultado = await res.json();
+    preencherFormularioComExtracao(resultado);
+  } catch (erro) {
+    const erroEl = document.getElementById("erroExtracao");
+    erroEl.innerText = erro.message;
+    erroEl.classList.remove("d-none");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = textoOriginal;
+  }
+}
+
+function preencherFormularioComExtracao(resultado) {
+  const campos = resultado.campos || {};
+  const avisos = [];
+
+  // Garante que o formulário está limpo antes de preencher (não
+  // herda nada de uma edição anterior deixada pela metade)
+  cancelarEdicao();
+
+  document.getElementById("numeroOp").value = campos.numero_op || "";
+  document.getElementById("tipoOp").value = campos.tipo_op || "";
+  document.getElementById("setorProdutivo").value = campos.setor_produtivo || "";
+  document.getElementById("lote").value = campos.lote || "";
+  document.getElementById("periodoInicio").value = _dataBrParaISO(campos.periodo_inicio);
+  document.getElementById("periodoFim").value = _dataBrParaISO(campos.periodo_fim);
+  document.getElementById("quantidadeAProduzir").value = campos.quantidade_a_produzir || "";
+  document.getElementById("equipamentoDescricao").value = campos.equipamento_descricao || "";
+  document.getElementById("ferramentaCodigo").value = campos.ferramenta_codigo || "";
+  document.getElementById("ferramentaDescricao").value = campos.ferramenta_descricao || "";
+  document.getElementById("formulaCodigo").value = campos.formula_codigo || "";
+  document.getElementById("formulaDescricao").value = campos.formula_descricao || "";
+  document.getElementById("embalagemCodigo").value = campos.embalagem_codigo || "";
+  document.getElementById("embalagemDescricao").value = campos.embalagem_descricao || "";
+  document.getElementById("qtdePorEmbalagem").value = campos.qtde_por_embalagem || "";
+  document.getElementById("qtdeEmbalagensPrevistas").value = campos.qtde_embalagens_previstas || "";
+  document.getElementById("cavidades").value = campos.cavidades || "";
+  document.getElementById("cicloSegundos").value = campos.ciclo_segundos || "";
+  document.getElementById("qtdeProduzidaPorHoraMeta").value = campos.qtde_produzida_por_hora_meta || "";
+  document.getElementById("pesoLiquidoUnitario").value = campos.peso_liquido_unitario || "";
+  document.getElementById("pesoBrutoUnitario").value = campos.peso_bruto_unitario || "";
+  document.getElementById("observacoes").value = campos.observacoes || "";
+  if (campos.composicao_mistura) {
+    document.getElementById("observacoes").value =
+      (campos.observacoes ? campos.observacoes + "\n\n" : "") +
+      "Composição da mistura:\n" + campos.composicao_mistura;
+  }
+
+  // Peça e máquina são <select> - só marca a opção se o código
+  // extraído realmente bateu com um cadastro existente (resolvido
+  // pelo backend); senão, deixa em branco e avisa, em vez de tentar
+  // adivinhar.
+  if (resultado.produto_id) {
+    document.getElementById("produtoId").value = resultado.produto_id;
+  } else if (resultado.produto_nao_encontrado) {
+    avisos.push(`Peça com código "${resultado.produto_nao_encontrado}" não está cadastrada - selecione manualmente.`);
+  }
+
+  if (campos.numero_maquina && !resultado.numero_maquina_nao_encontrada) {
+    document.getElementById("numeroMaquina").value = campos.numero_maquina;
+  } else if (resultado.numero_maquina_nao_encontrada) {
+    avisos.push(`Máquina "${resultado.numero_maquina_nao_encontrada}" não está cadastrada - selecione manualmente.`);
+  }
+
+  document.getElementById("avisoRevisarExtracao").classList.remove("d-none");
+  if (avisos.length > 0) {
+    mostrarMensagem(avisos.join(" "), "warning");
+  }
+
+  document.getElementById("btnToggleForm").innerText = "Ocultar formulário";
+  new bootstrap.Collapse(document.getElementById("formOpColapsavel"), { show: true });
+  document.getElementById("formOpColapsavel").scrollIntoView({ behavior: "smooth" });
 }
