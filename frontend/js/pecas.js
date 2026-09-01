@@ -1,5 +1,6 @@
 let pecasCarregadas = [];
 let modalEditar = null;
+let sessaoAtual = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
   const sessao = await exigirSessao();
@@ -11,6 +12,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
+  sessaoAtual = sessao;
   modalEditar = new bootstrap.Modal(document.getElementById("modalEditarPeca"));
 
   document
@@ -62,6 +64,8 @@ function renderizarPecas() {
     return;
   }
 
+  const ehAdmin = sessaoAtual?.perfil === "ADMIN";
+
   pecas.forEach((p) => {
     const tr = document.createElement("tr");
     const badgeStatus = p.ativo
@@ -70,6 +74,11 @@ function renderizarPecas() {
     const botaoStatus = p.ativo
       ? `<button class="btn btn-sm btn-outline-danger" onclick="alterarStatus(${p.id}, false)">Desativar</button>`
       : `<button class="btn btn-sm btn-outline-success" onclick="alterarStatus(${p.id}, true)">Reativar</button>`;
+    const botaoExcluir = ehAdmin
+      ? `<button class="btn btn-sm btn-outline-danger" onclick="confirmarExclusao(${p.id}, '${escaparHtml(p.codigo)}')" title="Excluir permanentemente">
+          <i class="bi bi-trash"></i>
+        </button>`
+      : "";
 
     tr.innerHTML = `
       <td class="fw-bold">${escaparHtml(p.codigo)}</td>
@@ -84,6 +93,7 @@ function renderizarPecas() {
             <i class="bi bi-pencil-square"></i>
           </button>
           ${botaoStatus}
+          ${botaoExcluir}
         </div>
       </td>
     `;
@@ -201,6 +211,43 @@ async function alterarStatus(pecaId, ativo) {
       return;
     }
 
+    carregarPecas();
+  } catch (erro) {
+    mostrarMensagem(erro.message, "danger");
+  }
+}
+
+async function confirmarExclusao(pecaId, codigo) {
+  const confirmado = confirm(
+    `Excluir permanentemente a peça "${codigo}"?\n\nEsta ação não pode ser desfeita. Se a peça já tiver lançamentos registrados, a exclusão será bloqueada - use "Desativar" nesse caso.`,
+  );
+  if (!confirmado) return;
+
+  try {
+    const res = await chamarApi(`/produtos/${pecaId}`, {
+      method: "DELETE",
+    });
+
+    if (res.status === 409) {
+      const erro = await res.json().catch(() => null);
+      mostrarMensagem(
+        erro?.detail ||
+          "Esta peça possui lançamentos vinculados e não pode ser excluída.",
+        "danger",
+      );
+      return;
+    }
+
+    if (!res.ok) {
+      const erro = await res.json().catch(() => null);
+      mostrarMensagem(
+        erro?.detail || "Não foi possível excluir a peça.",
+        "danger",
+      );
+      return;
+    }
+
+    mostrarMensagem("Peça excluída com sucesso!", "success");
     carregarPecas();
   } catch (erro) {
     mostrarMensagem(erro.message, "danger");
