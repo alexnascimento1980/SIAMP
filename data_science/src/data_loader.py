@@ -38,6 +38,7 @@ def carregar_dados_producao(db_url: str = None) -> pd.DataFrame:
         JOIN maquinas m ON l.maquina_id = m.id
         LEFT JOIN produtos p ON l.produto_id = p.id
         WHERE t.status_assinatura = 'ASSINADO_DIGITALMENTE'
+          AND t.marcado_teste IS NOT TRUE
         ORDER BY m.numero_maquina, t.data_registro, l.horario_inicio
     """
     engine = create_engine(db_url)

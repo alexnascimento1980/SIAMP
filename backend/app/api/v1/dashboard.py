@@ -53,6 +53,7 @@ def _montar_comparativo_ordens_producao(db: Session) -> list[dict]:
         .join(Turno, RegistroHorario.turno_id == Turno.id)
         .filter(RegistroHorario.ordem_producao_id.in_(ids_ordens))
         .filter(Turno.status_assinatura == STATUS_ASSINADO)
+        .filter(Turno.marcado_teste.is_(False))
         .group_by(RegistroHorario.ordem_producao_id)
         .all()
     ):
@@ -67,6 +68,7 @@ def _montar_comparativo_ordens_producao(db: Session) -> list[dict]:
         .filter(Lancamento.ordem_producao_id.in_(ids_ordens))
         .filter(Lancamento.tipo == "PRODUCAO")
         .filter(Turno.status_assinatura == STATUS_ASSINADO)
+        .filter(Turno.marcado_teste.is_(False))
         .group_by(Lancamento.ordem_producao_id)
         .all()
     ):

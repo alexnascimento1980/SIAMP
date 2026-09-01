@@ -134,7 +134,7 @@ def exportar_registros_csv(
         .join(Maquina, RegistroHorario.maquina_id == Maquina.id)
         .outerjoin(Produto, RegistroHorario.produto_id == Produto.id)
         .outerjoin(OrdemProducao, RegistroHorario.ordem_producao_id == OrdemProducao.id)
-        .filter(Turno.status_assinatura == STATUS_ASSINADO)
+        .filter(Turno.status_assinatura == STATUS_ASSINADO, Turno.marcado_teste.is_(False))
     )
     query_lancamento = (
         db.query(Lancamento, Turno, Maquina, Produto, OrdemProducao)
@@ -142,7 +142,7 @@ def exportar_registros_csv(
         .join(Maquina, Lancamento.maquina_id == Maquina.id)
         .outerjoin(Produto, Lancamento.produto_id == Produto.id)
         .outerjoin(OrdemProducao, Lancamento.ordem_producao_id == OrdemProducao.id)
-        .filter(Turno.status_assinatura == STATUS_ASSINADO)
+        .filter(Turno.status_assinatura == STATUS_ASSINADO, Turno.marcado_teste.is_(False))
     )
     if data_inicio:
         inicio_dt = datetime.combine(data_inicio, time.min)
