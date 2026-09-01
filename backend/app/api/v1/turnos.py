@@ -462,6 +462,32 @@ def corrigir_turno(
         ) from exc
 
 
+@router.delete("/{turno_id}", status_code=status.HTTP_204_NO_CONTENT)
+def excluir_turno(
+    turno_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(exigir_perfil("ADMIN")),
+):
+    """Exclui definitivamente um turno (não é reversível, diferente
+    de marcar como teste - ver PATCH /turnos/marcar-teste, que
+    continua disponível separadamente). Todos os lançamentos ou
+    registros por hora daquele turno são apagados junto (ON DELETE
+    CASCADE nas chaves estrangeiras correspondentes - ver migrations
+    0015 para o modelo de lançamento e a criação original do modelo
+    por hora). Ordens de Produção referenciadas pelos lançamentos do
+    turno NÃO são apagadas - continuam existindo normalmente,
+    independentes do turno. Restrito a ADMIN."""
+    turno = db.query(Turno).filter(Turno.id == turno_id).first()
+    if turno is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Turno não encontrado.",
+        )
+
+    db.delete(turno)
+    db.commit()
+
+
 @router.post("/{turno_id}/reenviar-email")
 def reenviar_email(
     turno_id: int,
