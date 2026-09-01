@@ -197,3 +197,142 @@ def test_turno_marcado_teste_nao_aparece_no_csv(client, db_session):
     res = client.get("/api/v1/turnos/exportar/csv")
     conteudo = res.content.decode("utf-8-sig")
     assert "777" not in conteudo
+
+
+# --- Exclusão definitiva de turno (DELETE /turnos/{id}) ------------------
+
+
+def test_admin_exclui_turno_definitivamente(client, db_session):
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+    turno = _criar_turno_fechado_com_producao(db_session)
+
+    res = client.delete(f"/api/v1/turnos/{turno.id}")
+    assert res.status_code == 204
+
+    assert db_session.query(Turno).filter(Turno.id == turno.id).first() is None
+
+
+def test_excluir_turno_apaga_lancamentos_em_cascata(client, db_session):
+    from app.models.lancamento import Lancamento
+
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+    turno = _criar_turno_fechado_com_producao(db_session)
+    lancamento_id = db_session.query(Lancamento).filter(Lancamento.turno_id == turno.id).first().id
+
+    res = client.delete(f"/api/v1/turnos/{turno.id}")
+    assert res.status_code == 204, res.text
+
+    # o lançamento não pode continuar órfão - foi apagado junto
+    assert db_session.query(Lancamento).filter(Lancamento.id == lancamento_id).first() is None
+
+
+def test_excluir_turno_modelo_por_hora_apaga_registros_em_cascata(client, db_session):
+    from datetime import time
+    from app.models.registro_turno import RegistroHorario
+
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+
+    maquina = Maquina(numero_maquina="9", descricao="Injetora Teste 2", ativo=True)
+    db_session.add(maquina)
+    db_session.commit()
+    db_session.refresh(maquina)
+
+    turno = Turno(
+        nome_turno="1º Turno", responsavel_nome="Líder Teste",
+        status_assinatura="ASSINADO_DIGITALMENTE", modelo_apontamento="HORARIO",
+    )
+    db_session.add(turno)
+    db_session.flush()
+    db_session.add(RegistroHorario(
+        turno_id=turno.id, maquina_id=maquina.id,
+        hora_referencia=time(5, 0), prod_executada=50,
+    ))
+    db_session.commit()
+    db_session.refresh(turno)
+    registro_id = db_session.query(RegistroHorario).filter(RegistroHorario.turno_id == turno.id).first().id
+
+    res = client.delete(f"/api/v1/turnos/{turno.id}")
+    assert res.status_code == 204, res.text
+    assert db_session.query(RegistroHorario).filter(RegistroHorario.id == registro_id).first() is None
+
+
+def test_excluir_turno_nao_apaga_ordem_de_producao_referenciada(client, db_session):
+    from datetime import date, time
+    from app.models.lancamento import Lancamento
+    from app.models.ordem_producao import OrdemProducao
+
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+
+    maquina = Maquina(numero_maquina="9", descricao="Injetora Teste 3", ativo=True)
+    peca = Produto(codigo="PC-OP", descricao="Peça com OP", ciclo_padrao=10.0, cavidades=2)
+    db_session.add_all([maquina, peca])
+    db_session.commit()
+    db_session.refresh(maquina)
+    db_session.refresh(peca)
+
+    op = OrdemProducao(
+        numero_op="OP-TESTE-EXCLUIR", produto_id=peca.id,
+        periodo_inicio=date(2026, 9, 1), periodo_fim=date(2026, 9, 30),
+        quantidade_a_produzir=1000,
+    )
+    db_session.add(op)
+    db_session.commit()
+    db_session.refresh(op)
+
+    turno = Turno(
+        nome_turno="1º Turno", responsavel_nome="Líder Teste",
+        status_assinatura="ASSINADO_DIGITALMENTE", modelo_apontamento="LANCAMENTO",
+    )
+    db_session.add(turno)
+    db_session.flush()
+    db_session.add(Lancamento(
+        turno_id=turno.id, maquina_id=maquina.id, tipo="PRODUCAO",
+        horario_inicio=time(5, 0), horario_fim=time(6, 0),
+        produto_id=peca.id, quantidade=100, ordem_producao_id=op.id,
+    ))
+    db_session.commit()
+    db_session.refresh(turno)
+
+    res = client.delete(f"/api/v1/turnos/{turno.id}")
+    assert res.status_code == 204, res.text
+
+    # a OP continua existindo normalmente, independente do turno
+    assert db_session.query(OrdemProducao).filter(OrdemProducao.id == op.id).first() is not None
+
+
+def test_excluir_turno_inexistente_retorna_404(client, db_session):
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+
+    res = client.delete("/api/v1/turnos/99999")
+    assert res.status_code == 404
+
+
+def test_operador_nao_pode_excluir_turno(client, db_session, usuario_teste):
+    turno = _criar_turno_fechado_com_producao(db_session)
+    _login(client, usuario_teste)
+
+    res = client.delete(f"/api/v1/turnos/{turno.id}")
+    assert res.status_code == 403
+
+
+def test_supervisor_nao_pode_excluir_turno_definitivamente(client, db_session):
+    # Diferente de marcar como teste (ADMIN/SUPERVISOR), excluir de
+    # vez é restrito só a ADMIN - mesma política já usada para
+    # excluir usuário e peça.
+    supervisor = Usuario(
+        nome="Supervisor Teste", email="supervisor-exclui@siamp.test",
+        senha_hash=gerar_hash_senha("senha-forte-123"), perfil="SUPERVISOR", ativo=True,
+    )
+    db_session.add(supervisor)
+    db_session.commit()
+    db_session.refresh(supervisor)
+    turno = _criar_turno_fechado_com_producao(db_session)
+    _login(client, supervisor)
+
+    res = client.delete(f"/api/v1/turnos/{turno.id}")
+    assert res.status_code == 403

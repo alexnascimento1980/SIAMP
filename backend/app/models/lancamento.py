@@ -27,7 +27,9 @@ class Lancamento(Base):
     __tablename__ = "lancamentos_turno"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    turno_id: Mapped[int] = mapped_column(ForeignKey("turnos.id"), nullable=False, index=True)
+    turno_id: Mapped[int] = mapped_column(
+        ForeignKey("turnos.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     maquina_id: Mapped[int] = mapped_column(ForeignKey("maquinas.id"), nullable=False, index=True)
 
     tipo: Mapped[str] = mapped_column(String(20), nullable=False)
