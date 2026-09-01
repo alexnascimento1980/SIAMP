@@ -130,6 +130,7 @@ class TurnoListItem(BaseModel):
     eficiencia_oee: float
     indice_qualidade: float
     editado: bool = False
+    marcado_teste: bool = False
 
 
 class RegistroHorarioDetail(BaseModel):
@@ -163,5 +164,11 @@ class TurnoDetail(BaseModel):
     modelo_apontamento: str = "HORARIO"
     editado_por_nome: Optional[str] = None
     editado_em: Optional[datetime] = None
+    marcado_teste: bool = False
     registros: List[RegistroHorarioDetail] = []
     lancamentos: List[LancamentoDetail] = []
+
+
+class TurnosMarcarTeste(BaseModel):
+    turno_ids: List[int] = Field(..., min_length=1)
+    marcado_teste: bool

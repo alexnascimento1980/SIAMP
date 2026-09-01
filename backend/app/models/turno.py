@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -49,6 +49,18 @@ class Turno(Base):
         nullable=True,
     )
     editado_em: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    # Marca reversível para turnos criados só para teste (ex.: durante
+    # a implantação do sistema, treinamento de operadores). Continua
+    # aparecendo no Histórico, mas é excluído do dashboard, dos
+    # indicadores acumulados e da exportação em CSV - não interfere
+    # nos números de produção real. Diferente de excluir de verdade
+    # (não implementado para Turno, ao contrário de Usuario/Produto):
+    # a marcação é reversível a qualquer momento, sem perder o
+    # registro.
+    marcado_teste: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, index=True
+    )
 
     registros = relationship(
         "RegistroHorario",
