@@ -29,18 +29,28 @@ def _taxa_falha_historica(db: Session, coluna, valor) -> float:
     (feature_engineering.py), só que ali calculada de forma expansiva
     (só o passado de cada linha) e aqui sobre todo o histórico
     disponível até agora, já que é isso que está disponível no
-    momento da predição em produção."""
+    momento da predição em produção. Turnos marcados como teste são
+    excluídos - não representam comportamento real da operação, e
+    contaminariam a taxa histórica de forma artificial."""
     from app.models.lancamento import Lancamento
+    from app.models.turno import Turno
 
     if valor is None:
         return 0.0
 
-    total = db.query(func.count(Lancamento.id)).filter(coluna == valor).scalar() or 0
+    total = (
+        db.query(func.count(Lancamento.id))
+        .join(Turno, Lancamento.turno_id == Turno.id)
+        .filter(coluna == valor, Turno.marcado_teste.is_(False))
+        .scalar()
+        or 0
+    )
     if total == 0:
         return 0.0
     falhas = (
         db.query(func.count(Lancamento.id))
-        .filter(coluna == valor, Lancamento.tipo == "PARADA_FALHA")
+        .join(Turno, Lancamento.turno_id == Turno.id)
+        .filter(coluna == valor, Lancamento.tipo == "PARADA_FALHA", Turno.marcado_teste.is_(False))
         .scalar()
         or 0
     )

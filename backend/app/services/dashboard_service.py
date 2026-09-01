@@ -42,12 +42,17 @@ def calcular_metricas_acumuladas(db: Session, periodo: str = "total") -> dict:
     """Métricas acumuladas (total produzido, OEE médio, produção por
     injetora), com filtro de período opcional. Só turnos fechados
     (ASSINADO_DIGITALMENTE) entram - um rascunho em andamento não deve
-    inflar/distorcer os agregados até ser efetivamente encerrado. Soma
-    os dois modelos de apontamento (HORARIO e LANCAMENTO).
+    inflar/distorcer os agregados até ser efetivamente encerrado.
+    Turnos marcados como teste (marcado_teste) também são excluídos -
+    ver endpoint PATCH /turnos/marcar-teste. Soma os dois modelos de
+    apontamento (HORARIO e LANCAMENTO).
     """
     data_inicio, data_fim = calcular_intervalo_periodo(periodo)
 
-    query_turnos = db.query(Turno).filter(Turno.status_assinatura == STATUS_ASSINADO)
+    query_turnos = db.query(Turno).filter(
+        Turno.status_assinatura == STATUS_ASSINADO,
+        Turno.marcado_teste.is_(False),
+    )
     if data_inicio:
         query_turnos = query_turnos.filter(Turno.data_registro >= data_inicio)
     if data_fim:
@@ -144,11 +149,12 @@ def montar_producao_por_turno(db: Session) -> dict:
     (mais antigo primeiro) - para o gráfico de tendência (dashboard e
     PDF de fechamento de turno). Só turnos fechados
     (ASSINADO_DIGITALMENTE) entram aqui - rascunhos em andamento não
-    devem aparecer como se já fossem dado consolidado. Cobre os dois
-    modelos de apontamento (HORARIO e LANCAMENTO)."""
+    devem aparecer como se já fossem dado consolidado. Turnos marcados
+    como teste também são excluídos. Cobre os dois modelos de
+    apontamento (HORARIO e LANCAMENTO)."""
     ultimos_turnos = (
         db.query(Turno)
-        .filter(Turno.status_assinatura == STATUS_ASSINADO)
+        .filter(Turno.status_assinatura == STATUS_ASSINADO, Turno.marcado_teste.is_(False))
         .order_by(Turno.data_registro.desc())
         .limit(LIMITE_TURNOS_GRAFICO)
         .all()
