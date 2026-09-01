@@ -11,7 +11,15 @@ from app.schemas.ordem_producao_schema import (
     OrdemProducaoResponse,
     OrdemProducaoUpdate,
 )
-from app.services.importacao_ordem_producao_service import importar_ordens_producao
+from app.services.extracao_documento_op_service import (
+    ExtracaoDocumentoError,
+    extrair_dados_ordem_producao,
+)
+from app.services.importacao_ordem_producao_service import (
+    _resolver_maquina_por_numero,
+    _resolver_produto_por_codigo,
+    importar_ordens_producao,
+)
 from app.services.ordem_producao_service import (
     montar_response_ordem,
     atualizar_ordem_producao,
@@ -163,3 +171,66 @@ async def importar_ordens_producao_endpoint(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Não foi possível ler o arquivo: {exc}",
         ) from exc
+
+
+@router.post("/extrair-documento")
+async def extrair_documento_op_endpoint(
+    arquivo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(exigir_perfil("ADMIN", "SUPERVISOR")),
+):
+    """Extrai os dados de uma Ordem de Produção a partir de um PDF ou
+    foto do documento (mesmo layout da importação em lote - sistema
+    MaxManager), via OCR, para pré-preencher o formulário manual de
+    cadastro. NUNCA cria a OP diretamente - extração automática de
+    documento (ainda mais escaneado/fotografado) nunca é 100%
+    confiável, então o resultado sempre precisa ser revisado e
+    confirmado manualmente antes de salvar. Campos não reconhecidos
+    voltam como null, para o formulário pedir preenchimento manual em
+    vez de mostrar um valor inventado."""
+    if not arquivo.filename or not arquivo.filename.lower().endswith((".pdf", ".jpg", ".jpeg", ".png")):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Envie um arquivo .pdf, .jpg ou .png.",
+        )
+
+    conteudo = await arquivo.read()
+    if not conteudo:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Arquivo vazio.")
+
+    try:
+        campos = extrair_dados_ordem_producao(conteudo, arquivo.filename)
+    except ExtracaoDocumentoError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Não foi possível processar o documento: {exc}",
+        ) from exc
+
+    # Confere se a peça/máquina extraídas já estão cadastradas, mesma
+    # lógica já usada na importação em lote - avisa o formulário sem
+    # bloquear nada (a peça/máquina podem ser trocadas manualmente na
+    # revisão antes de salvar).
+    produto_id = None
+    produto_codigo = campos.get("produto_codigo")
+    if produto_codigo:
+        produto = _resolver_produto_por_codigo(db, produto_codigo)
+        if produto is not None:
+            produto_id = produto.id
+
+    numero_maquina_encontrada = None
+    numero_maquina = campos.get("numero_maquina")
+    if numero_maquina:
+        maquina = _resolver_maquina_por_numero(db, numero_maquina)
+        if maquina is not None:
+            numero_maquina_encontrada = maquina.numero_maquina
+
+    return {
+        "campos": campos,
+        "produto_id": produto_id,
+        "produto_nao_encontrado": produto_codigo if produto_id is None and produto_codigo else None,
+        "numero_maquina_nao_encontrada": (
+            numero_maquina if numero_maquina_encontrada is None and numero_maquina else None
+        ),
+    }
