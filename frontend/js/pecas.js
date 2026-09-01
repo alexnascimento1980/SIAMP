@@ -75,7 +75,7 @@ function renderizarPecas() {
       ? `<button class="btn btn-sm btn-outline-danger" onclick="alterarStatus(${p.id}, false)">Desativar</button>`
       : `<button class="btn btn-sm btn-outline-success" onclick="alterarStatus(${p.id}, true)">Reativar</button>`;
     const botaoExcluir = ehAdmin
-      ? `<button class="btn btn-sm btn-outline-danger" onclick="confirmarExclusao(${p.id}, '${escaparHtml(p.codigo)}')" title="Excluir permanentemente">
+      ? `<button class="btn btn-sm btn-outline-danger" onclick="abrirExclusaoPeca(${p.id}, '${escaparHtml(p.codigo).replace(/'/g, "\\'")}')" title="Excluir permanentemente">
           <i class="bi bi-trash"></i>
         </button>`
       : "";
@@ -217,40 +217,56 @@ async function alterarStatus(pecaId, ativo) {
   }
 }
 
-async function confirmarExclusao(pecaId, codigo) {
-  const confirmado = confirm(
-    `Excluir permanentemente a peça "${codigo}"?\n\nEsta ação não pode ser desfeita. Se a peça já tiver lançamentos registrados, a exclusão será bloqueada - use "Desativar" nesse caso.`,
-  );
-  if (!confirmado) return;
+let pecaIdParaExcluir = null;
+let modalExcluirPeca = null;
+
+function abrirExclusaoPeca(pecaId, codigo) {
+  pecaIdParaExcluir = pecaId;
+  document.getElementById("excluirCodigoPeca").innerText = codigo;
+  document.getElementById("excluirErroPeca").classList.add("d-none");
+
+  if (!modalExcluirPeca) {
+    modalExcluirPeca = new bootstrap.Modal(document.getElementById("modalExcluirPeca"));
+  }
+  modalExcluirPeca.show();
+}
+
+async function confirmarExclusaoPeca() {
+  const erroEl = document.getElementById("excluirErroPeca");
+  erroEl.classList.add("d-none");
+
+  const btn = document.getElementById("btnConfirmarExclusaoPeca");
+  btn.disabled = true;
 
   try {
-    const res = await chamarApi(`/produtos/${pecaId}`, {
+    const res = await chamarApi(`/produtos/${pecaIdParaExcluir}`, {
       method: "DELETE",
     });
 
     if (res.status === 409) {
       const erro = await res.json().catch(() => null);
-      mostrarMensagem(
+      erroEl.innerText =
         erro?.detail ||
-          "Esta peça possui lançamentos vinculados e não pode ser excluída.",
-        "danger",
-      );
+        "Esta peça possui lançamentos vinculados e não pode ser excluída.";
+      erroEl.classList.remove("d-none");
       return;
     }
 
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
-      mostrarMensagem(
-        erro?.detail || "Não foi possível excluir a peça.",
-        "danger",
-      );
+      erroEl.innerText = erro?.detail || "Não foi possível excluir a peça.";
+      erroEl.classList.remove("d-none");
       return;
     }
 
+    modalExcluirPeca.hide();
     mostrarMensagem("Peça excluída com sucesso!", "success");
     carregarPecas();
   } catch (erro) {
-    mostrarMensagem(erro.message, "danger");
+    erroEl.innerText = erro.message;
+    erroEl.classList.remove("d-none");
+  } finally {
+    btn.disabled = false;
   }
 }
 
