@@ -75,6 +75,14 @@ Plataforma para digitalização e automação do processo de fechamento de turno
 <tr>
 <td colspan="2" align="center"><sub>Resetar a senha de um usuário sem precisar da senha atual</sub></td>
 </tr>
+<tr>
+<td><img src="docs/screenshots/18-ordens-producao-importar-pdf.png" alt="Importar OP de PDF ou foto" width="400"></td>
+<td><img src="docs/screenshots/19-ordens-producao-extraido.png" alt="Formulário preenchido automaticamente" width="400"></td>
+</tr>
+<tr>
+<td align="center"><sub>Importar Ordem de Produção de um PDF ou foto</sub></td>
+<td align="center"><sub>Formulário pré-preenchido automaticamente, pronto para revisão</sub></td>
+</tr>
 </table>
 
 ## 🚀 Funcionalidades Principais
@@ -87,8 +95,9 @@ Plataforma para digitalização e automação do processo de fechamento de turno
 - **Ciclo e cavidades reais informados x cadastro da peça:** opcionalmente, o operador digita o ciclo real observado e/ou o número de cavidades realmente usadas na injetora durante o lançamento (ex.: uma cavidade do molde temporariamente tamponada) — a tela mostra os valores informados lado a lado com o cadastro da peça, destacando em vermelho quando divergem. Os dois têm prioridade no cálculo de produção esperada quando informados, e o relatório de fechamento mostra explicitamente qual foi usado em cada linha (`ciclo informado: 18.5s; cavidades informadas: 3`, por exemplo) — ajuda a diagnosticar se uma divergência entre produção real e esperada vem do valor informado ou do cadastro desatualizado.
 - **Cálculo de OEE limitado a 100%:** o índice de produção nunca passa de 100%, seguindo a convenção usual do indicador — quando o ciclo real da injetora é mais rápido que o cadastrado, isso geralmente indica que o cadastro da peça está desatualizado, não desempenho acima do teórico. Quando uma peça não tem ciclo/cavidades cadastrados, o relatório mostra **N/D** em vez de um "0" enganoso, apontando direto para o cadastro incompleto.
 - **Salvar o progresso do turno (rascunho):** o responsável não precisa mais esperar o fim do turno para conferir os números — dá para salvar o que já foi apontado a qualquer momento (sem disparar PDF/e-mail), continuar depois de fechar o navegador, e só finalizar de verdade quando o turno realmente encerrar.
+- **Marcar turno como teste:** turnos criados só para teste (ex.: durante implantação, treinamento) podem ser marcados em lote no Histórico — saem do dashboard, dos indicadores acumulados e da exportação CSV, mas continuam visíveis no Histórico e podem ser desmarcados a qualquer momento (reversível). Exclusão definitiva também é possível, restrita a ADMIN — apaga os lançamentos do turno junto, sem afetar Ordens de Produção que o turno tenha referenciado.
 - **Injetoras e Peças configuráveis:** administradores e supervisores cadastram/editam máquinas e o catálogo de peças (código, ciclo médio, cavidades — obrigatórios e editáveis) pela própria interface — nada fixo no código. Peças têm um campo de busca por código/descrição, pensado para catálogos grandes.
-- **Ordens de Produção:** cadastro manual ou **importação em lote via CSV/XML** — peça e máquina são resolvidas pelo código já cadastrado, linhas com código desconhecido são rejeitadas e listadas (sem travar a importação das demais). Comparativo automático de meta x produção real, correto mesmo quando a mesma OP é produzida em mais de uma injetora ao mesmo tempo.
+- **Ordens de Produção:** cadastro manual, **importação em lote via CSV/XML**, ou **extração automática a partir de um PDF ou foto** do documento — reconhecimento de padrão (sem IA, sem custo por documento) calibrado contra o layout real usado pela empresa, funcionando tanto com PDF digitalizado (via OCR local, Tesseract) quanto com PDF gerado digitalmente (extração direta do texto, ainda mais confiável). Sempre pré-preenche o formulário manual para revisão humana antes de salvar — nunca cadastra a OP sozinho. Nos três caminhos, peça e máquina são resolvidas pelo código já cadastrado, com aviso claro quando o código não é encontrado. Comparativo automático de meta x produção real, correto mesmo quando a mesma OP é produzida em mais de uma injetora ao mesmo tempo.
 - **Gestão de usuários:** administradores cadastram novos usuários (operador, supervisor ou admin), ativam/desativam contas, **alteram o perfil de acesso** de qualquer usuário existente, **resetam a senha** de um usuário sem precisar da senha atual (a senha em si nunca é recuperável — é guardada só como hash), e **excluem definitivamente** contas de teste ou de colaboradores desligados. A exclusão não apaga turnos, Ordens de Produção ou paradas que o usuário tenha registrado — eles continuam no histórico, só perdem a referência de quem foi.
 - **Destinatários de relatório configuráveis:** quem recebe o e-mail de fechamento de turno é cadastrado pela tela **Destinatários** (ADMIN) — não depende mais de editar variável de ambiente e reiniciar o servidor.
 - **Fechamento de turno com cálculo automático de OEE:** índice de produção e qualidade combinados automaticamente; parada programada (troca de molde, manutenção preventiva etc.) não penaliza o cálculo — só o que efetivamente parou a linha sem planejamento conta contra a eficiência.
@@ -341,4 +350,4 @@ pip install -r requirements-dev.txt
 pytest -v
 ```
 
-Deve dar **170 testes passando**.
+Deve dar **221 testes passando**.
