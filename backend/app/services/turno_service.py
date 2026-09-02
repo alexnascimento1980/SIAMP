@@ -340,6 +340,7 @@ def agendar_email_relatorio(
     dados_turno = {
         "nome_turno": turno.nome_turno,
         "responsavel_nome": turno.responsavel_nome,
+        "observacoes": turno.observacoes,
     }
     if registros_pdf is None:
         registros_pdf = buscar_registros_para_relatorio(db, turno.id)

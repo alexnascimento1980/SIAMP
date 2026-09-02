@@ -302,6 +302,85 @@ def test_pdf_de_turno_lancamento_gera_corretamente(client, db_session, usuario_t
     assert res.content[:4] == b"%PDF"
 
 
+def test_pdf_inclui_observacoes_gerais_do_turno(client, db_session, usuario_teste):
+    # Bug real reportado pelo usuário: o campo Observações Gerais era
+    # digitado, salvo corretamente no banco, mas nunca aparecia no
+    # PDF - o dicionário passado para o gerador de PDF simplesmente
+    # não incluía esse campo. Não dá para checar o TEXTO dentro do
+    # PDF facilmente (conteúdo comprimido/codificado no formato
+    # binário), mas o tamanho do arquivo é um proxy razoável: com a
+    # observação incluída, o PDF fica maior do que sem ela.
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)
+
+    payload_base = {
+        "nome_turno": "1º Turno",
+        "responsavel_nome": "Líder Teste",
+        "lancamentos": [
+            {
+                "numero_maquina": maquina.numero_maquina,
+                "tipo": "PRODUCAO",
+                "horario_inicio": "05:00",
+                "horario_fim": "06:00",
+                "produto_id": peca.id,
+                "quantidade": 100,
+            }
+        ],
+    }
+
+    turno_sem_obs_id = client.post(
+        "/api/v1/turnos/lancamento", json=payload_base
+    ).json()["turno_id"]
+    tamanho_sem_obs = len(
+        client.get(f"/api/v1/turnos/{turno_sem_obs_id}/relatorio.pdf").content
+    )
+
+    payload_com_obs = {
+        **payload_base,
+        "observacoes": "Troca de molde às 06:30 - parada de 15 minutos não registrada como falha.",
+    }
+    turno_com_obs_id = client.post(
+        "/api/v1/turnos/lancamento", json=payload_com_obs
+    ).json()["turno_id"]
+    tamanho_com_obs = len(
+        client.get(f"/api/v1/turnos/{turno_com_obs_id}/relatorio.pdf").content
+    )
+
+    assert tamanho_com_obs > tamanho_sem_obs
+
+
+def test_pdf_com_observacoes_contendo_caracteres_especiais_nao_quebra(client, db_session, usuario_teste):
+    # As Observações Gerais são texto livre digitado pelo operador -
+    # sem escapar antes de inserir no componente de PDF (que
+    # interpreta um mini-HTML), um caractere comum como "<" ou "&"
+    # quebraria a geração do relatório inteiro, não só essa seção.
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)
+
+    turno_id = client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "observacoes": "Ciclo < 15s em alguns lotes & queda de energia às 08h.",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": peca.id,
+                    "quantidade": 100,
+                }
+            ],
+        },
+    ).json()["turno_id"]
+
+    res = client.get(f"/api/v1/turnos/{turno_id}/relatorio.pdf")
+    assert res.status_code == 200
+    assert res.content[:4] == b"%PDF"
+
+
 def _criar_admin(db_session, email="admin-lanc@siamp.test"):
     admin = Usuario(
         nome="Admin Teste",
