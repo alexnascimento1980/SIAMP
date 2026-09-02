@@ -299,6 +299,7 @@ def test_pdf_de_turno_lancamento_gera_corretamente(client, db_session, usuario_t
 
     res = client.get(f"/api/v1/turnos/{turno_id}/relatorio.pdf")
     assert res.status_code == 200
+    assert res.headers["cache-control"] == "no-store"
     assert res.content[:4] == b"%PDF"
 
 
@@ -379,6 +380,73 @@ def test_pdf_com_observacoes_contendo_caracteres_especiais_nao_quebra(client, db
     res = client.get(f"/api/v1/turnos/{turno_id}/relatorio.pdf")
     assert res.status_code == 200
     assert res.content[:4] == b"%PDF"
+
+
+def test_pdf_inclui_observacoes_apos_fluxo_rascunho_editar_fechar(client, db_session, usuario_teste):
+    # Reproduz o fluxo relatado pelo usuário, diferente do
+    # fechamento direto testado acima: salva um rascunho SEM
+    # observações, reabre e atualiza o rascunho ADICIONANDO
+    # observações, e só então fecha via /fechar (não via POST direto
+    # em /turnos/lancamento) - caminho de código genuinamente
+    # diferente (fechar_turno_lancamento com turno_id existente, não
+    # None), que merece teste próprio em vez de assumir que o
+    # comportamento é idêntico ao fechamento direto.
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)
+
+    payload_lancamentos = {
+        "lancamentos": [
+            {
+                "numero_maquina": maquina.numero_maquina,
+                "tipo": "PRODUCAO",
+                "horario_inicio": "05:00",
+                "horario_fim": "06:00",
+                "produto_id": peca.id,
+                "quantidade": 100,
+            }
+        ],
+    }
+
+    turno_id = client.post(
+        "/api/v1/turnos/lancamento/rascunho",
+        json={"nome_turno": "1º Turno", "responsavel_nome": "Líder Teste", **payload_lancamentos},
+    ).json()["turno_id"]
+
+    client.patch(
+        f"/api/v1/turnos/lancamento/rascunho/{turno_id}",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "observacoes": "teste de impressão",
+            **payload_lancamentos,
+        },
+    )
+
+    res_fechar = client.post(
+        f"/api/v1/turnos/lancamento/{turno_id}/fechar",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "observacoes": "teste de impressão",
+            **payload_lancamentos,
+        },
+    )
+    assert res_fechar.status_code == 200
+
+    res_sem_obs = client.get(f"/api/v1/turnos/{turno_id}/relatorio.pdf")
+    tamanho_com_obs = len(res_sem_obs.content)
+
+    # compara contra um turno equivalente fechado direto, sem
+    # observações, como controle
+    turno_controle_id = client.post(
+        "/api/v1/turnos/lancamento",
+        json={"nome_turno": "1º Turno", "responsavel_nome": "Líder Teste", **payload_lancamentos},
+    ).json()["turno_id"]
+    tamanho_sem_obs = len(
+        client.get(f"/api/v1/turnos/{turno_controle_id}/relatorio.pdf").content
+    )
+
+    assert tamanho_com_obs > tamanho_sem_obs
 
 
 def _criar_admin(db_session, email="admin-lanc@siamp.test"):
