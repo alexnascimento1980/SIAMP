@@ -1,4 +1,5 @@
 import io
+from xml.sax.saxutils import escape as _escapar_xml
 
 import matplotlib
 matplotlib.use("Agg")  # sem display disponível no servidor - precisa vir antes de importar pyplot
@@ -181,6 +182,23 @@ def gerar_relatorio_turno_pdf(dados_turno: dict, kpis: dict, registros: list[dic
             ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
         ]))
         elementos.append(tabela_detalhe)
+        elementos.append(Spacer(1, 15))
+
+    # Observações Gerais do turno, digitadas pelo responsável no
+    # apontamento - texto livre, omitido do relatório se vazio (não
+    # exibe uma seção vazia só por existir o campo). Escapa marcação
+    # (<, >, &) antes de inserir no Paragraph - texto digitado pelo
+    # usuário não é HTML seguro, e o ReportLab interpreta um
+    # mini-HTML nesse componente; sem o escape, um caractere comum
+    # como "<" (ex.: "Ciclo < 15s") quebraria a geração do PDF
+    # inteiro, não só essa seção. Quebras de linha digitadas na
+    # textarea viram <br/> depois do escape, para serem preservadas
+    # (Paragraph não trata "\n" como quebra de linha por padrão).
+    observacoes_turno = (dados_turno.get("observacoes") or "").strip()
+    if observacoes_turno:
+        texto_seguro = _escapar_xml(observacoes_turno).replace("\n", "<br/>")
+        elementos.append(Paragraph("<b>Observações Gerais do Turno:</b>", styles['Normal']))
+        elementos.append(Paragraph(texto_seguro, styles['Normal']))
         elementos.append(Spacer(1, 15))
 
     # Súmula da IA
