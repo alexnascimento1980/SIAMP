@@ -1,7 +1,15 @@
 """
-Cria o primeiro usuário administrador, se ele ainda não existir.
-Idempotente: pode ser rodado várias vezes sem risco de duplicar ou
-quebrar por causa da constraint de e-mail único.
+Cria o primeiro usuário administrador, se ele ainda não existir, e
+garante que ele fique protegido, ativo, e com perfil ADMIN - mesmo se
+a conta já existir mas tiver sido excluída/recriada, desativada, ou
+rebaixada de perfil por engano. Idempotente: pode ser rodado várias
+vezes sem risco de duplicar (constraint de e-mail único) - inclusive
+é executado automaticamente a cada início do container (ver
+entrypoint.sh) quando ADMIN_SENHA está definida, sem precisar rodar
+manualmente no terminal. A senha e o nome de uma conta já existente
+NUNCA são sobrescritos por este script, mesmo que a conta precise de
+outro ajuste - evita desfazer uma troca de senha feita
+deliberadamente depois pela tela de Usuários.
 
 Uso (dentro do container, valores padrão entre parênteses):
     docker compose exec backend_api python -m app.scripts.create_admin \\
@@ -9,7 +17,8 @@ Uso (dentro do container, valores padrão entre parênteses):
         --email admin@empresa.com \\
         --senha "troque-esta-senha"
 
-Ou via variáveis de ambiente (útil para automatizar/CI):
+Ou via variáveis de ambiente (usado automaticamente pelo entrypoint.sh
+a cada `docker compose up`, sem precisar do comando acima):
     ADMIN_NOME="Admin" ADMIN_EMAIL="admin@empresa.com" ADMIN_SENHA="troque-esta-senha" \\
         docker compose exec -T backend_api python -m app.scripts.create_admin
 """
@@ -41,7 +50,22 @@ def main() -> None:
     try:
         existente = db.query(Usuario).filter(Usuario.email == args.email).first()
         if existente:
-            print(f"[create_admin] Usuário '{args.email}' já existe (id={existente.id}); nada a fazer.")
+            alteracoes = []
+            if not existente.protegido:
+                existente.protegido = True
+                alteracoes.append("marcado como protegido")
+            if not existente.ativo:
+                existente.ativo = True
+                alteracoes.append("reativado")
+            if existente.perfil != "ADMIN":
+                existente.perfil = "ADMIN"
+                alteracoes.append("perfil restaurado para ADMIN")
+
+            if alteracoes:
+                db.commit()
+                print(f"[create_admin] Usuário '{args.email}' já existia (id={existente.id}) - {', '.join(alteracoes)}.")
+            else:
+                print(f"[create_admin] Usuário '{args.email}' já existe (id={existente.id}) e já está correto; nada a fazer.")
             return
 
         usuario = Usuario(
@@ -50,10 +74,11 @@ def main() -> None:
             senha_hash=gerar_hash_senha(args.senha),
             perfil="ADMIN",
             ativo=True,
+            protegido=True,
         )
         db.add(usuario)
         db.commit()
-        print(f"[create_admin] Usuário admin '{args.email}' criado com sucesso.")
+        print(f"[create_admin] Usuário admin '{args.email}' criado com sucesso, já protegido contra exclusão/desativação.")
     finally:
         db.close()
 

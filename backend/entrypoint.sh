@@ -20,6 +20,15 @@ sys.exit(1)
 echo "[entrypoint] Aplicando migrations (alembic upgrade head)..."
 alembic upgrade head
 
+# Garante a conta admin de bootstrap (protegida contra exclusão/
+# desativação) a cada início do container, sem precisar rodar nada
+# manualmente no terminal - só ativa se as variáveis estiverem
+# definidas, para não mudar o comportamento de quem não usa isso.
+if [ -n "${ADMIN_SENHA:-}" ]; then
+    echo "[entrypoint] Garantindo conta admin de bootstrap (protegida)..."
+    python -m app.scripts.create_admin
+fi
+
 if [ "${SEED_ON_START:-false}" = "true" ]; then
     echo "[entrypoint] Carregando dados de seed..."
     python -m app.scripts.seed_db
