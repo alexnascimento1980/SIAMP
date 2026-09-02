@@ -10,6 +10,7 @@ from app.schemas.usuario_schema import (
     UsuarioResetSenha,
     UsuarioResponse,
     UsuarioUpdatePerfil,
+    UsuarioUpdateProtegido,
     UsuarioUpdateStatus,
 )
 
@@ -68,6 +69,15 @@ def alterar_status_usuario(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Você não pode desativar a própria conta.",
+        )
+
+    if alvo.protegido and not dados.ativo:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"'{alvo.nome}' está marcada como conta protegida - "
+                "remova a proteção antes de desativar."
+            ),
         )
 
     alvo.ativo = dados.ativo
@@ -143,8 +153,45 @@ def excluir_usuario(
             detail="Você não pode excluir a própria conta.",
         )
 
+    if alvo.protegido:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"'{alvo.nome}' está marcada como conta protegida - "
+                "remova a proteção antes de excluir."
+            ),
+        )
+
     db.delete(alvo)
     db.commit()
+
+
+@router.patch("/{usuario_id}/protegido", response_model=UsuarioResponse)
+def alterar_protecao_usuario(
+    usuario_id: int,
+    dados: UsuarioUpdateProtegido,
+    db: Session = Depends(get_db),
+    usuario_atual: Usuario = Depends(exigir_perfil("ADMIN")),
+):
+    """Marca ou desmarca uma conta como protegida contra exclusão e
+    desativação acidental por outro ADMIN. Reversível - marcar uma
+    conta como protegida não impede que ela seja excluída/desativada
+    de verdade um dia, só exige desproteger antes, deliberadamente,
+    em vez de acontecer com um único clique. Sem restrição sobre
+    proteger/desproteger a própria conta (diferente de excluir/
+    desativar/alterar perfil) - não há risco de perda de acesso
+    envolvido nessa ação em si."""
+    alvo = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if alvo is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado.",
+        )
+
+    alvo.protegido = dados.protegido
+    db.commit()
+    db.refresh(alvo)
+    return alvo
 
 
 @router.patch("/{usuario_id}/senha", response_model=UsuarioResponse)
