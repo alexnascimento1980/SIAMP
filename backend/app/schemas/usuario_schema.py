@@ -40,7 +40,12 @@ class UsuarioResponse(BaseModel):
     email: str
     perfil: str
     ativo: bool
+    protegido: bool = False
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class UsuarioUpdateProtegido(BaseModel):
+    protegido: bool

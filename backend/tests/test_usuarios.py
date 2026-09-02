@@ -373,3 +373,103 @@ def test_excluir_usuario_com_ordem_producao_criada_desvincula(client, db_session
     db_session.refresh(ordem)
     assert ordem.criado_por_id is None
     assert db_session.query(OrdemProducao).filter(OrdemProducao.id == ordem.id).first() is not None
+
+
+# --- Proteção de conta contra exclusão/desativação acidental --------------
+
+
+def test_admin_marca_e_desmarca_protecao_de_outra_conta(client, db_session):
+    admin_a = _criar_admin(db_session, email="admin-a@siamp.test")
+    admin_b = _criar_admin(db_session, email="admin-b@siamp.test")
+    _login(client, admin_a)
+
+    res = client.patch(f"/api/v1/usuarios/{admin_b.id}/protegido", json={"protegido": True})
+    assert res.status_code == 200, res.text
+    assert res.json()["protegido"] is True
+
+    res = client.patch(f"/api/v1/usuarios/{admin_b.id}/protegido", json={"protegido": False})
+    assert res.status_code == 200
+    assert res.json()["protegido"] is False
+
+
+def test_admin_nao_pode_excluir_conta_protegida_de_outro_admin(client, db_session):
+    # Cenário real reportado: um ADMIN excluiu por acidente a conta
+    # de OUTRO ADMIN - a auto-proteção existente (não pode excluir a
+    # PRÓPRIA conta) não cobre esse caso.
+    admin_a = _criar_admin(db_session, email="admin-a@siamp.test")
+    admin_b = _criar_admin(db_session, email="admin-b@siamp.test")
+    db_session.query(Usuario).filter(Usuario.id == admin_b.id).update({"protegido": True})
+    db_session.commit()
+
+    _login(client, admin_a)
+    res = client.delete(f"/api/v1/usuarios/{admin_b.id}")
+    assert res.status_code == 409
+    assert "protegida" in res.json()["detail"].lower()
+
+    # a conta continua existindo
+    assert db_session.query(Usuario).filter(Usuario.id == admin_b.id).first() is not None
+
+
+def test_admin_nao_pode_desativar_conta_protegida_de_outro_admin(client, db_session):
+    admin_a = _criar_admin(db_session, email="admin-a@siamp.test")
+    admin_b = _criar_admin(db_session, email="admin-b@siamp.test")
+    db_session.query(Usuario).filter(Usuario.id == admin_b.id).update({"protegido": True})
+    db_session.commit()
+
+    _login(client, admin_a)
+    res = client.patch(f"/api/v1/usuarios/{admin_b.id}/status", json={"ativo": False})
+    assert res.status_code == 409
+    assert "protegida" in res.json()["detail"].lower()
+
+    db_session.refresh(admin_b)
+    assert admin_b.ativo is True
+
+
+def test_excluir_conta_protegida_funciona_apos_desproteger(client, db_session):
+    # A proteção é reversível de propósito - não impede a ação para
+    # sempre, só exige um passo deliberado extra antes.
+    admin_a = _criar_admin(db_session, email="admin-a@siamp.test")
+    admin_b = _criar_admin(db_session, email="admin-b@siamp.test")
+    db_session.query(Usuario).filter(Usuario.id == admin_b.id).update({"protegido": True})
+    db_session.commit()
+
+    _login(client, admin_a)
+    assert client.delete(f"/api/v1/usuarios/{admin_b.id}").status_code == 409
+
+    client.patch(f"/api/v1/usuarios/{admin_b.id}/protegido", json={"protegido": False})
+    res = client.delete(f"/api/v1/usuarios/{admin_b.id}")
+    assert res.status_code == 204
+
+
+def test_protecao_nao_bloqueia_ativar_conta_protegida(client, db_session):
+    # A proteção bloqueia DESATIVAR, não ATIVAR - reativar uma conta
+    # protegida (ex.: já estava inativa antes de virar protegida) não
+    # tem o mesmo risco de "perder acesso sem querer" que motivou a
+    # proteção.
+    admin_a = _criar_admin(db_session, email="admin-a@siamp.test")
+    admin_b = _criar_admin(db_session, email="admin-b@siamp.test")
+    db_session.query(Usuario).filter(Usuario.id == admin_b.id).update(
+        {"protegido": True, "ativo": False}
+    )
+    db_session.commit()
+
+    _login(client, admin_a)
+    res = client.patch(f"/api/v1/usuarios/{admin_b.id}/status", json={"ativo": True})
+    assert res.status_code == 200
+    assert res.json()["ativo"] is True
+
+
+def test_operador_nao_pode_alterar_protecao(client, db_session, usuario_teste):
+    admin = _criar_admin(db_session)
+    _login(client, usuario_teste)
+
+    res = client.patch(f"/api/v1/usuarios/{admin.id}/protegido", json={"protegido": True})
+    assert res.status_code == 403
+
+
+def test_alterar_protecao_de_usuario_inexistente_retorna_404(client, db_session):
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+
+    res = client.patch("/api/v1/usuarios/99999/protegido", json={"protegido": True})
+    assert res.status_code == 404
