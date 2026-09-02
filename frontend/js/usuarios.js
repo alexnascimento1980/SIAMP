@@ -41,26 +41,43 @@ function renderizarUsuarios(usuarios) {
     const badgeStatus = u.ativo
       ? '<span class="badge bg-success">Ativo</span>'
       : '<span class="badge bg-secondary">Inativo</span>';
-    const botaoAcao = u.ativo
+    const nomeEscapado = escaparHtml(u.nome).replace(/'/g, "\\'");
+
+    // Conta protegida: Desativar/Excluir ficam desabilitados, com
+    // dica explicando o motivo - evita repetir o mesmo acidente que
+    // motivou essa proteção (um ADMIN excluindo a conta de outro),
+    // em vez de só bloquear no backend depois do clique.
+    const botaoAcao = u.protegido
+      ? `<button class="btn btn-sm btn-outline-secondary" disabled title="Conta protegida - remova a proteção para desativar">Desativar</button>`
+      : u.ativo
       ? `<button class="btn btn-sm btn-outline-danger" onclick="alterarStatus(${u.id}, false)">Desativar</button>`
       : `<button class="btn btn-sm btn-outline-success" onclick="alterarStatus(${u.id}, true)">Reativar</button>`;
-    const nomeEscapado = escaparHtml(u.nome).replace(/'/g, "\\'");
     const botaoReset = `<button class="btn btn-sm btn-outline-secondary" onclick="abrirResetSenha(${u.id}, '${nomeEscapado}')" title="Resetar senha">
       <i class="bi bi-key"></i>
     </button>`;
-    const botaoExcluir = `<button class="btn btn-sm btn-outline-danger" onclick="abrirExcluirUsuario(${u.id}, '${nomeEscapado}')" title="Excluir definitivamente">
-      <i class="bi bi-trash"></i>
+    const botaoExcluir = u.protegido
+      ? `<button class="btn btn-sm btn-outline-secondary" disabled title="Conta protegida - remova a proteção para excluir">
+          <i class="bi bi-trash"></i>
+        </button>`
+      : `<button class="btn btn-sm btn-outline-danger" onclick="abrirExcluirUsuario(${u.id}, '${nomeEscapado}')" title="Excluir definitivamente">
+          <i class="bi bi-trash"></i>
+        </button>`;
+    const botaoProtegido = `<button class="btn btn-sm ${u.protegido ? "btn-warning" : "btn-outline-secondary"}" onclick="alternarProtecao(${u.id}, ${!u.protegido}, '${nomeEscapado}')" title="${u.protegido ? "Remover proteção contra exclusão/desativação" : "Proteger contra exclusão/desativação acidental"}">
+      <i class="bi bi-shield-lock${u.protegido ? "-fill" : ""}"></i>
     </button>`;
     const perfilClicavel = `<span class="badge bg-primary" role="button" onclick="abrirAlterarPerfil(${u.id}, '${nomeEscapado}', '${u.perfil}')" title="Clique para alterar">
       ${escaparHtml(u.perfil)} <i class="bi bi-pencil-square ms-1" style="font-size: 0.7em;"></i>
     </span>`;
+    const marcaProtegido = u.protegido
+      ? ' <i class="bi bi-shield-lock-fill text-warning" title="Conta protegida contra exclusão/desativação"></i>'
+      : "";
 
     tr.innerHTML = `
-      <td>${escaparHtml(u.nome)}</td>
+      <td>${escaparHtml(u.nome)}${marcaProtegido}</td>
       <td>${escaparHtml(u.email)}</td>
       <td>${perfilClicavel}</td>
       <td class="text-center">${badgeStatus}</td>
-      <td class="text-center"><div class="d-flex gap-1 justify-content-center">${botaoReset}${botaoAcao}${botaoExcluir}</div></td>
+      <td class="text-center"><div class="d-flex gap-1 justify-content-center">${botaoProtegido}${botaoReset}${botaoAcao}${botaoExcluir}</div></td>
     `;
     tbody.appendChild(tr);
   });
@@ -129,6 +146,42 @@ async function alterarStatus(usuarioId, ativo) {
       return;
     }
 
+    carregarUsuarios();
+  } catch (erro) {
+    mostrarMensagem(erro.message, "danger");
+  }
+}
+
+async function alternarProtecao(usuarioId, protegido, nomeUsuario) {
+  // Sem modal de confirmação de propósito - ação reversível e de
+  // baixo risco (diferente de excluir/desativar), não precisa da
+  // mesma fricção. Confirma só ao DESPROTEGER, já que essa ação
+  // remove justamente a rede de segurança contra o próximo acidente.
+  if (!protegido && !confirm(`Remover a proteção de "${nomeUsuario}"? A conta ficará vulnerável a exclusão/desativação novamente.`)) {
+    return;
+  }
+
+  try {
+    const res = await chamarApi(`/usuarios/${usuarioId}/protegido`, {
+      method: "PATCH",
+      body: JSON.stringify({ protegido }),
+    });
+
+    if (!res.ok) {
+      const erro = await res.json().catch(() => null);
+      mostrarMensagem(
+        erro?.detail || "Não foi possível alterar a proteção.",
+        "danger",
+      );
+      return;
+    }
+
+    mostrarMensagem(
+      protegido
+        ? `"${nomeUsuario}" agora está protegida contra exclusão/desativação acidental.`
+        : `Proteção removida de "${nomeUsuario}".`,
+      "success",
+    );
     carregarUsuarios();
   } catch (erro) {
     mostrarMensagem(erro.message, "danger");
