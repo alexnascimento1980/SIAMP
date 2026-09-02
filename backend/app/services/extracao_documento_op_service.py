@@ -225,6 +225,14 @@ def _parsear_texto_extraido(texto: str, numero_op_recorte: str | None = None) ->
     setor_match = re.search(r"[Ss]etor\s+[Pp]rodut[ivíoO]+\.?[:.\s]+(\S+)", texto)
     dados["setor_produtivo"] = setor_match.group(1) if setor_match else None
 
+    # O valor do lote (ex.: "20260901/3000") fica sozinho numa linha
+    # própria, separado do rótulo "LOTE" - o rótulo em si aparece
+    # colado na linha de 'Tipo da OP' (vazamento de coluna vizinha,
+    # mesmo padrão de layout visto em outros campos), então busca o
+    # PADRÃO do valor (dígitos/dígitos) em vez do rótulo.
+    lote_match = re.search(r"\b(\d{6,10}/\d{3,6})\b", texto)
+    dados["lote"] = lote_match.group(1) if lote_match else None
+
     periodo = re.search(
         r"Principal[:.\s]+(\d{2}/\d{2}/\d{4})\s*at[eé]\s*(\d{2}/\d{2}/\d{4})", texto
     )

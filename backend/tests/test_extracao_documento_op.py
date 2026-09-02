@@ -163,6 +163,7 @@ def test_parseia_documento_com_texto_nativo_sem_nenhum_erro():
     assert dados["numero_op"] == "3000-2026"
     assert dados["tipo_op"] == "PRODUÇÃO"
     assert dados["setor_produtivo"] == "INJECAO"
+    assert dados["lote"] == "20260901/3000"
     assert dados["periodo_inicio"] == "02/09/2026"
     assert dados["periodo_fim"] == "14/09/2026"
     assert dados["produto_codigo"] == "34-5721-00BR"
@@ -181,6 +182,23 @@ def test_parseia_documento_com_texto_nativo_sem_nenhum_erro():
     assert dados["qtde_produzida_por_hora_meta"] == 2304
     assert dados["peso_liquido_unitario"] == 0.0036
     assert dados["peso_bruto_unitario"] == 0.0044
+
+
+def test_lote_extraido_do_padrao_numerico_nao_do_rotulo():
+    # O rótulo "LOTE" fica colado na linha de "Tipo da OP" (vazamento
+    # de coluna vizinha), mas o VALOR do lote fica numa linha própria,
+    # separada - a extração busca o padrão do valor
+    # (dígitos/dígitos), não o rótulo em si.
+    dados = _parsear_texto_extraido(_texto_nativo_real())
+    assert dados["lote"] == "20260901/3000"
+
+
+def test_lote_nao_colide_com_codigo_de_ferramenta():
+    # Ferramenta também usa "/" no código (ex.: "7506/1") - o padrão
+    # do lote exige grupos de dígitos bem maiores (6-10 e 3-6 dígitos)
+    # para não confundir os dois.
+    dados = _parsear_texto_extraido(_texto_ocr_real(), numero_op_recorte="2817-2026")
+    assert dados["ferramenta_codigo"] == "7506/1"
 
 
 def test_tipo_op_nao_inclui_rotulo_lote_vizinho():
