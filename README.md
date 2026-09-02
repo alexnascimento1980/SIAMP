@@ -156,9 +156,21 @@ de exemplo em `database/seeds.sql`.
 ### Criando o primeiro usuário (administrador)
 
 Não há endpoint público de cadastro (por design — criar contas é uma
-operação sensível). Crie o primeiro usuário (admin) com o script
-idempotente `create_admin` (pode rodar mais de uma vez sem risco —
-se o e-mail já existir, ele só avisa e não faz nada):
+operação sensível). Duas formas de criar o primeiro admin:
+
+**Opção 1 — automática (recomendada):** defina `ADMIN_EMAIL` e
+`ADMIN_SENHA` (e opcionalmente `ADMIN_NOME`) no `.env` do backend. A
+cada `docker compose up`, o `entrypoint.sh` garante essa conta
+automaticamente — cria se não existir, e restaura se ela tiver sido
+excluída, desativada, ou rebaixada de perfil por engano (sem nunca
+sobrescrever uma senha trocada depois pela tela de Usuários). A
+conta já nasce **protegida** contra exclusão/desativação acidental
+(ver seção Usuários abaixo) — se alguém excluir essa conta sem
+querer, ela volta sozinha no próximo `docker compose up`, sem
+precisar rodar nada manualmente.
+
+**Opção 2 — manual, sob demanda:** rode o mesmo script direto no
+terminal (idempotente — pode rodar mais de uma vez sem risco):
 
 ```bash
 docker compose exec backend_api python -m app.scripts.create_admin \
@@ -169,7 +181,7 @@ docker compose exec backend_api python -m app.scripts.create_admin \
 
 A partir daí, faça login em `http://localhost:8090/login.html` e use a
 tela **Usuários** (visível só para ADMIN) para cadastrar os demais
-usuários da equipe — não é mais necessário repetir o comando acima.
+usuários da equipe.
 
 > **Perdeu o usuário depois de reiniciar o projeto?** Os dados do
 > Postgres ficam num volume Docker (`pgdata`) que sobrevive a
