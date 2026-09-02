@@ -598,6 +598,7 @@ def test_exportar_csv_contem_registros_de_turnos_fechados(client, db_session, us
 
     res = client.get("/api/v1/turnos/exportar/csv")
     assert res.status_code == 200
+    assert res.headers["cache-control"] == "no-store"
     assert res.headers["content-type"].startswith("text/csv")
 
     conteudo = res.content.decode("utf-8-sig")

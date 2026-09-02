@@ -556,7 +556,19 @@ def baixar_relatorio_turno(
     return StreamingResponse(
         iter([pdf_bytes]),
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{nome_arquivo}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{nome_arquivo}"',
+            # Sem isso, o navegador pode servir uma cópia antiga desta
+            # mesma URL (ex.: baixada antes de uma correção no
+            # conteúdo do relatório, como observações gerais não
+            # aparecendo) sem sequer consultar o servidor de novo -
+            # mesma classe de problema já visto com arquivos JS/CSS
+            # (ver nginx.conf.template). O PDF é gerado sob demanda a
+            # cada chamada e deve sempre refletir o estado atual do
+            # turno, nunca uma cópia guardada - "no-store" (mais
+            # forte que "no-cache") garante isso.
+            "Cache-Control": "no-store",
+        },
     )
 
 
@@ -578,5 +590,14 @@ def exportar_csv(
     return StreamingResponse(
         iter([conteudo.encode("utf-8")]),
         media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{nome_arquivo}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{nome_arquivo}"',
+            # Risco ainda maior aqui que no PDF: quando chamado sem
+            # data_inicio/data_fim (exportar tudo), a URL fica idêntica
+            # a cada chamada - sem isso, uma cópia em cache serviria
+            # dados cada vez mais desatualizados conforme novos turnos
+            # são fechados, sem nenhum sinal visível de que o CSV não
+            # é o mais recente.
+            "Cache-Control": "no-store",
+        },
     )
