@@ -1,17 +1,25 @@
 """Fixtures compartilhadas entre os testes E2E.
 
-Credenciais e dados de seed usados aqui (EMAIL_ADMIN_E2E, máquina "1",
-peça "1") precisam bater com o que a stack de CI efetivamente
-provisiona - ver .github/workflows/e2e.yml (variáveis ADMIN_EMAIL/
-ADMIN_SENHA do bootstrap automático, ver backend/app/scripts/
-create_admin.py) e database/seeds.sql (que já cadastra a Injetora 01
-e a peça de código "1" usadas aqui). Só credenciais de CI/teste local
-- nunca usar essas mesmas credenciais numa instância real.
+As credenciais de login (E2E_ADMIN_EMAIL/E2E_ADMIN_SENHA) são lidas de
+variáveis de ambiente, com um valor padrão que bate com o que o CI
+provisiona automaticamente (ver .github/workflows/e2e.yml e
+backend/app/scripts/create_admin.py) - o valor padrão não serve pra
+rodar localmente contra o SEU banco de dados de verdade, a menos que
+você tenha uma conta com esse e-mail/senha específicos cadastrada.
+Pra testar localmente usando a conta admin que você já tem (sem
+precisar editar o .env nem reiniciar a stack), defina as duas
+variáveis antes de rodar o pytest - ver e2e/README.md.
+
+Máquina "1" e peça "1" usadas no teste vêm de database/seeds.sql
+(cadastradas via SEED_ON_START=true) - se algum dia esses dados de
+seed mudarem, o teste precisa acompanhar.
 """
+import os
+
 import pytest
 
-EMAIL_ADMIN_E2E = "admin-e2e@siamp.test"
-SENHA_ADMIN_E2E = "SenhaE2E-Testes-123"
+EMAIL_ADMIN_E2E = os.getenv("E2E_ADMIN_EMAIL", "admin-e2e@siamp.test")
+SENHA_ADMIN_E2E = os.getenv("E2E_ADMIN_SENHA", "SenhaE2E-Testes-123")
 
 
 @pytest.fixture

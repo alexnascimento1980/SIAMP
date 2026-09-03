@@ -64,6 +64,13 @@ jobs:
 
       - name: Rodar testes E2E
         working-directory: e2e
+        env:
+          # Explícito de propósito, em vez de depender do valor
+          # padrão do conftest.py bater silenciosamente com o que foi
+          # escrito no .env acima - evita os dois arquivos
+          # dessincronizarem sem ninguém perceber no futuro.
+          E2E_ADMIN_EMAIL: admin-e2e@siamp.test
+          E2E_ADMIN_SENHA: SenhaE2E-Testes-123
         run: pytest -v --browser chromium --screenshot only-on-failure --output=test-results
 
       - name: Salvar screenshots de falha (se houver)
