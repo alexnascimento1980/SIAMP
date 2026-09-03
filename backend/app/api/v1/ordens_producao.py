@@ -21,10 +21,10 @@ from app.services.importacao_ordem_producao_service import (
     importar_ordens_producao,
 )
 from app.services.ordem_producao_service import (
-    montar_response_ordem,
     atualizar_ordem_producao,
     calcular_comparativo,
     criar_ordem_producao,
+    montar_response_ordem,
 )
 
 router = APIRouter(prefix="/ordens-producao", tags=["Ordens de Produção"])

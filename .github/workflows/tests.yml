@@ -35,6 +35,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
 
+      - name: Lint (ruff)
+        run: ruff check .
+
       - name: Rodar testes
         env:
           JWT_SECRET_KEY: chave-de-teste-ci-nao-usar-em-producao

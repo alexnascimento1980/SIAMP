@@ -63,9 +63,15 @@ def main() -> None:
 
             if alteracoes:
                 db.commit()
-                print(f"[create_admin] Usuário '{args.email}' já existia (id={existente.id}) - {', '.join(alteracoes)}.")
+                print(
+                    f"[create_admin] Usuário '{args.email}' já existia (id={existente.id}) - "
+                    f"{', '.join(alteracoes)}."
+                )
             else:
-                print(f"[create_admin] Usuário '{args.email}' já existe (id={existente.id}) e já está correto; nada a fazer.")
+                print(
+                    f"[create_admin] Usuário '{args.email}' já existe (id={existente.id}) "
+                    "e já está correto; nada a fazer."
+                )
             return
 
         usuario = Usuario(
@@ -78,7 +84,10 @@ def main() -> None:
         )
         db.add(usuario)
         db.commit()
-        print(f"[create_admin] Usuário admin '{args.email}' criado com sucesso, já protegido contra exclusão/desativação.")
+        print(
+            f"[create_admin] Usuário admin '{args.email}' criado com sucesso, "
+            "já protegido contra exclusão/desativação."
+        )
     finally:
         db.close()
 

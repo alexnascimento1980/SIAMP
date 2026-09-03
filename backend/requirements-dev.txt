@@ -6,3 +6,7 @@
 # não é uma dependência de runtime da aplicação, só dos testes.
 pytest==9.1.1
 httpx==0.28.1
+
+# ruff: linter + formatter (substitui flake8/isort/pyupgrade por uma
+# ferramenta única, muito mais rápida). Configuração em pyproject.toml.
+ruff==0.16.5

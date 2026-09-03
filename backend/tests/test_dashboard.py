@@ -1,12 +1,10 @@
 from datetime import date, time
 
-from app.core.security import gerar_hash_senha
 from app.models.maquina import Maquina
 from app.models.ordem_producao import OrdemProducao
 from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
 from app.models.turno import Turno
-from app.models.usuario import Usuario
 
 
 def _login(client, usuario):
@@ -155,6 +153,7 @@ def _criar_turno_com_data(db_session, maquina, quando, quantidade=100):
 
 def test_dashboard_periodo_diario_exclui_turnos_de_outros_dias(client, db_session, usuario_teste):
     from datetime import timedelta
+
     from app.core.timezone import agora_brasilia
 
     _login(client, usuario_teste)
@@ -177,6 +176,7 @@ def test_dashboard_periodo_diario_exclui_turnos_de_outros_dias(client, db_sessio
 
 def test_dashboard_periodo_semanal_inclui_ultimos_7_dias(client, db_session, usuario_teste):
     from datetime import timedelta
+
     from app.core.timezone import agora_brasilia
 
     _login(client, usuario_teste)
@@ -196,6 +196,7 @@ def test_dashboard_periodo_semanal_inclui_ultimos_7_dias(client, db_session, usu
 
 def test_dashboard_periodo_mensal_inclui_ultimos_30_dias(client, db_session, usuario_teste):
     from datetime import timedelta
+
     from app.core.timezone import agora_brasilia
 
     _login(client, usuario_teste)
@@ -215,6 +216,7 @@ def test_dashboard_periodo_mensal_inclui_ultimos_30_dias(client, db_session, usu
 
 def test_dashboard_periodo_total_inclui_tudo(client, db_session, usuario_teste):
     from datetime import timedelta
+
     from app.core.timezone import agora_brasilia
 
     _login(client, usuario_teste)

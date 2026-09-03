@@ -2,13 +2,13 @@ import io
 from xml.sax.saxutils import escape as _escapar_xml
 
 import matplotlib
+
 matplotlib.use("Agg")  # sem display disponível no servidor - precisa vir antes de importar pyplot
 import matplotlib.pyplot as plt
-
-from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 # Cores da marca SIAMP (mesmas do frontend - ver frontend/css/styles.css)
 _AZUL_MARINHO = "#004380"
@@ -83,7 +83,7 @@ def gerar_relatorio_turno_pdf(dados_turno: dict, kpis: dict, registros: list[dic
 
     # Cabeçalho
     titulo_style = ParagraphStyle('Titulo', parent=styles['Heading1'], fontSize=16, leading=20, textColor=colors.HexColor('#1E3A8A'))
-    elementos.append(Paragraph(f"SIAMP - Relatório de Fechamento de Turno", titulo_style))
+    elementos.append(Paragraph("SIAMP - Relatório de Fechamento de Turno", titulo_style))
     elementos.append(Paragraph(f"<b>Turno:</b> {dados_turno['nome_turno']} | <b>Responsável:</b> {dados_turno['responsavel_nome']}", styles['Normal']))
     elementos.append(Spacer(1, 15))
 

@@ -49,7 +49,6 @@ from app.services.turno_service import (
     salvar_rascunho,
 )
 
-
 router = APIRouter(prefix="/turnos", tags=["Turnos"])
 
 

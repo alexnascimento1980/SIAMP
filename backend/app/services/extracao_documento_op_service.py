@@ -317,7 +317,7 @@ def _parsear_texto_extraido(texto: str, numero_op_recorte: str | None = None) ->
         texto, re.IGNORECASE | re.DOTALL,
     )
     if composicao:
-        linhas_composicao = [l.strip() for l in composicao.group(1).splitlines() if l.strip()]
+        linhas_composicao = [linha.strip() for linha in composicao.group(1).splitlines() if linha.strip()]
         if linhas_composicao:
             dados["composicao_mistura"] = "\n".join(linhas_composicao)
 

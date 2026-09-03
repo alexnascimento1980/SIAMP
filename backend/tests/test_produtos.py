@@ -1,5 +1,5 @@
-from app.models.usuario import Usuario
 from app.core.security import gerar_hash_senha
+from app.models.usuario import Usuario
 
 
 def _login(client, usuario):
@@ -163,7 +163,6 @@ def test_admin_exclui_peca_sem_historico(client, db_session):
 
 
 def test_excluir_peca_com_lancamento_e_bloqueado(client, db_session):
-    from datetime import time
     from app.models.maquina import Maquina
 
     admin = _criar_admin(db_session)
@@ -207,6 +206,7 @@ def test_excluir_peca_com_lancamento_e_bloqueado(client, db_session):
 
 def test_excluir_peca_com_registro_horario_e_bloqueado(client, db_session):
     from datetime import time
+
     from app.models.maquina import Maquina
     from app.models.registro_turno import RegistroHorario
     from app.models.turno import Turno

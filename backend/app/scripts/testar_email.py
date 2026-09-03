@@ -10,10 +10,10 @@ Se SMTP_USER/SMTP_PASS não estiverem configurados no .env, o script
 avisa e não tenta enviar nada (mesmo comportamento do envio real).
 """
 import argparse
-from app.core.timezone import agora_brasilia
 import sys
 
 from app.core.config import settings
+from app.core.timezone import agora_brasilia
 from app.services.mailer import EnvioEmailError, enviar_relatorio_email
 from app.services.pdf_generator import gerar_relatorio_turno_pdf
 from app.services.turno_service import montar_nome_arquivo_relatorio

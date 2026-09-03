@@ -75,17 +75,17 @@ def _converter_linha(linha: dict) -> dict:
         elif chave in COLUNAS_INTEIRAS:
             try:
                 convertido[chave] = int(float(valor.replace(",", ".")))
-            except ValueError:
+            except ValueError as erro:
                 raise LinhaInvalidaError(
                     f"Valor inválido em '{chave}': '{valor}' (esperado número inteiro)."
-                )
+                ) from erro
         elif chave in COLUNAS_FLOAT:
             try:
                 convertido[chave] = float(valor.replace(",", "."))
-            except ValueError:
+            except ValueError as erro:
                 raise LinhaInvalidaError(
                     f"Valor inválido em '{chave}': '{valor}' (esperado número)."
-                )
+                ) from erro
         else:
             convertido[chave] = valor
     return convertido

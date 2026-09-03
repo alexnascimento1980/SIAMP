@@ -1,0 +1,45 @@
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+# Migrations são geradas/históricas, não código de aplicação mantido
+# ativamente - não faz sentido aplicar as mesmas regras de estilo
+# nelas (ex.: "except Exception: pass" ao tentar apagar uma
+# constraint que pode ou não existir, dependendo do backend, é
+# aceitável ali e não em código novo).
+exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle
+    "F",   # pyflakes (imports não usados, variáveis não definidas etc.)
+    "I",   # isort (ordenação de imports)
+    "UP",  # pyupgrade (sintaxe moderna do Python)
+    "B",   # flake8-bugbear (padrões que costumam esconder bugs reais)
+    "SIM", # flake8-simplify
+    "DTZ", # flake8-datetimez (datetime sem timezone) - relevante
+           # especificamente neste projeto, que já teve bug real de
+           # fuso horário (ver CLAUDE.local.md)
+]
+ignore = [
+    # Depends(...) do FastAPI é o padrão correto de injeção de
+    # dependência da própria framework, não uma chamada de função
+    # perigosa em valor padrão de argumento - regra pensada pra
+    # mutable default arguments, não se aplica aqui.
+    "B008",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Comparação de datas (sem hora) não precisa de timezone - DTZ007
+# dispara em qualquer uso de strptime, mesmo quando o resultado vira
+# .date() na sequência e hora/fuso nunca entram em jogo.
+"app/services/importacao_ordem_producao_service.py" = ["DTZ007"]
+# Chamadas de estilo do ReportLab (ParagraphStyle, Paragraph com
+# f-string de markup embutido) ficam mais confusas quebradas em
+# várias linhas do que preservadas assim - concentração pontual
+# nesse arquivo específico, não vale afrouxar o limite pro projeto
+# inteiro por causa disso.
+"app/services/pdf_generator.py" = ["E501"]
+# datetime(ano, mes, dia) sem timezone em fixture de teste é
+# aceitável - representa uma data fixa pra testar formatação de nome
+# de arquivo, não "agora".
+"tests/*" = ["DTZ001", "DTZ011"]

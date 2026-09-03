@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+
 from app.api.deps import exigir_perfil, get_current_user
 from app.core.database import get_db
 from app.models.maquina import Maquina
@@ -80,7 +81,7 @@ def remover_maquina(
     db.delete(maquina)
     try:
         db.commit()
-    except IntegrityError:
+    except IntegrityError as erro:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -89,4 +90,4 @@ def remover_maquina(
                 "produção ou Ordens de Produção vinculados. Desative-a em "
                 "vez de excluir, para preservar o histórico."
             ),
-        )
+        ) from erro
