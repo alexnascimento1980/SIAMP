@@ -627,7 +627,7 @@ async function confirmarFechamento() {
       window.location.href = "historico.html";
     } else {
       const erro = await res.json().catch(() => null);
-      alert("⚠️ " + (erro?.detail || "Erro ao registrar dados. Verifique a conexão com o servidor."));
+      alert("⚠️ " + extrairMensagemDeErro(erro, "Erro ao registrar dados. Verifique a conexão com o servidor."));
     }
   } catch (error) {
     if (error.message === "Sessão expirada.") return;
@@ -658,7 +658,7 @@ async function salvarRascunho() {
 
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
-      alert("⚠️ " + (erro?.detail || "Não foi possível salvar o rascunho."));
+      alert("⚠️ " + extrairMensagemDeErro(erro, "Não foi possível salvar o rascunho."));
       return;
     }
 

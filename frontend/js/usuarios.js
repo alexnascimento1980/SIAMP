@@ -114,7 +114,7 @@ async function onCriarUsuario(evento) {
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
       mostrarMensagem(
-        erro?.detail || "Não foi possível cadastrar o usuário.",
+        extrairMensagemDeErro(erro, "Não foi possível cadastrar o usuário."),
         "danger",
       );
       return;
@@ -140,7 +140,7 @@ async function alterarStatus(usuarioId, ativo) {
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
       mostrarMensagem(
-        erro?.detail || "Não foi possível alterar o status.",
+        extrairMensagemDeErro(erro, "Não foi possível alterar o status."),
         "danger",
       );
       return;
@@ -170,7 +170,7 @@ async function alternarProtecao(usuarioId, protegido, nomeUsuario) {
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
       mostrarMensagem(
-        erro?.detail || "Não foi possível alterar a proteção.",
+        extrairMensagemDeErro(erro, "Não foi possível alterar a proteção."),
         "danger",
       );
       return;
@@ -249,7 +249,7 @@ async function confirmarResetSenha() {
 
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
-      erroEl.innerText = erro?.detail || "Não foi possível resetar a senha.";
+      erroEl.innerText = extrairMensagemDeErro(erro, "Não foi possível resetar a senha.");
       erroEl.classList.remove("d-none");
       return;
     }
@@ -295,7 +295,7 @@ async function confirmarAlterarPerfil() {
 
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
-      erroEl.innerText = erro?.detail || "Não foi possível alterar o perfil.";
+      erroEl.innerText = extrairMensagemDeErro(erro, "Não foi possível alterar o perfil.");
       erroEl.classList.remove("d-none");
       return;
     }
@@ -339,7 +339,7 @@ async function confirmarExcluirUsuario() {
 
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
-      erroEl.innerText = erro?.detail || "Não foi possível excluir o usuário.";
+      erroEl.innerText = extrairMensagemDeErro(erro, "Não foi possível excluir o usuário.");
       erroEl.classList.remove("d-none");
       return;
     }

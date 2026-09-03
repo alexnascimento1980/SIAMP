@@ -130,7 +130,7 @@ async function onCriarPeca(evento) {
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
       mostrarMensagem(
-        erro?.detail || "Não foi possível cadastrar a peça.",
+        extrairMensagemDeErro(erro, "Não foi possível cadastrar a peça."),
         "danger",
       );
       return;
@@ -181,7 +181,7 @@ async function onSalvarEdicao(evento) {
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
       mostrarMensagem(
-        erro?.detail || "Não foi possível salvar as alterações.",
+        extrairMensagemDeErro(erro, "Não foi possível salvar as alterações."),
         "danger",
       );
       return;
@@ -205,7 +205,7 @@ async function alterarStatus(pecaId, ativo) {
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
       mostrarMensagem(
-        erro?.detail || "Não foi possível alterar o status.",
+        extrairMensagemDeErro(erro, "Não foi possível alterar o status."),
         "danger",
       );
       return;
@@ -245,16 +245,17 @@ async function confirmarExclusaoPeca() {
 
     if (res.status === 409) {
       const erro = await res.json().catch(() => null);
-      erroEl.innerText =
-        erro?.detail ||
-        "Esta peça possui lançamentos vinculados e não pode ser excluída.";
+      erroEl.innerText = extrairMensagemDeErro(
+        erro,
+        "Esta peça possui lançamentos vinculados e não pode ser excluída.",
+      );
       erroEl.classList.remove("d-none");
       return;
     }
 
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
-      erroEl.innerText = erro?.detail || "Não foi possível excluir a peça.";
+      erroEl.innerText = extrairMensagemDeErro(erro, "Não foi possível excluir a peça.");
       erroEl.classList.remove("d-none");
       return;
     }

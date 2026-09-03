@@ -95,7 +95,7 @@ async function onCriarDestinatario(evento) {
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
       mostrarMensagem(
-        erro?.detail || "Não foi possível cadastrar o destinatário.",
+        extrairMensagemDeErro(erro, "Não foi possível cadastrar o destinatário."),
         "danger",
       );
       return;
@@ -120,7 +120,7 @@ async function alterarStatus(destinatarioId, ativo) {
 
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
-      mostrarMensagem(erro?.detail || "Não foi possível alterar o status.", "danger");
+      mostrarMensagem(extrairMensagemDeErro(erro, "Não foi possível alterar o status."), "danger");
       return;
     }
 
@@ -140,7 +140,7 @@ async function removerDestinatario(destinatarioId) {
 
     if (!res.ok && res.status !== 204) {
       const erro = await res.json().catch(() => null);
-      mostrarMensagem(erro?.detail || "Não foi possível remover o destinatário.", "danger");
+      mostrarMensagem(extrairMensagemDeErro(erro, "Não foi possível remover o destinatário."), "danger");
       return;
     }
 
