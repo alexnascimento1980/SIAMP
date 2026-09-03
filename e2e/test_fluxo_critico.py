@@ -1,35 +1,21 @@
-"""Cobre o caminho mais usado no dia a dia do sistema: um operador
-loga, aponta a produção de um turno, fecha o turno, e confere que o
-relatório em PDF é gerado corretamente. Roda contra a stack real
-(docker compose), não contra um TestClient - complementa (não
-substitui) a suíte de unidade/integração do backend, que já cobre a
-lógica de negócio isoladamente com muito mais profundidade e
-velocidade. O valor aqui é garantir que frontend e backend continuam
-conversando direito através da interface real, do jeito que uma
-pessoa realmente usa o sistema.
+"""Cobre o caminho mais usado no dia a dia do sistema: apontar a
+produção de um turno, fechar o turno, e confere que o relatório em
+PDF é gerado corretamente. Roda contra a stack real (docker compose),
+não contra um TestClient - complementa (não substitui) a suíte de
+unidade/integração do backend, que já cobre a lógica de negócio
+isoladamente com muito mais profundidade e velocidade. O valor aqui é
+garantir que frontend e backend continuam conversando direito através
+da interface real, do jeito que uma pessoa realmente usa o sistema.
 
-Um único teste, de propósito - não um teste avulso de "login funciona"
-mais um teste separado do fluxo completo. O endpoint de login tem um
-limite de 5 tentativas por minuto por IP (rate limit deliberado contra
-força bruta - ver backend/app/core/rate_limit.py), e cada teste que
-loga consome uma tentativa: com dois testes fazendo login cada um,
-rodar a suíte localmente mais de duas vezes seguidas em menos de um
-minuto (cenário bem comum ao depurar algo) já esgotava o limite,
-fazendo os testes seguintes falharem por timeout - não por causa de
-bug nenhum, só por já ter usado as tentativas disponíveis. Login já é
-exercitado aqui como primeiro passo do fluxo, cobertura suficiente sem
-precisar de um teste dedicado só para ele.
+Login não é feito aqui diretamente - reaproveita a fixture
+`pagina_logada` (login único por sessão inteira de testes, ver
+conftest.py) para não esgotar o limite de tentativas por minuto do
+endpoint de login conforme a suíte cresce para cobrir mais fluxos.
 """
-from conftest import EMAIL_ADMIN_E2E, SENHA_ADMIN_E2E
 
 
-def test_fechar_turno_e_baixar_pdf_do_historico(page):
-    page.goto("/login.html")
-    page.fill("#email", EMAIL_ADMIN_E2E)
-    page.fill("#senha", SENHA_ADMIN_E2E)
-    page.click("#btnEntrar")
-    page.wait_for_url("**/home.html", timeout=10_000)
-
+def test_fechar_turno_e_baixar_pdf_do_historico(pagina_logada):
+    page = pagina_logada
     dialogs = []
     page.on("dialog", lambda dialog: (dialogs.append(dialog.message), dialog.accept()))
 
