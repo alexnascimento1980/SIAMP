@@ -2,6 +2,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.timezone import agora_brasilia
+from app.models.lancamento import Lancamento
 from app.models.maquina import Maquina
 from app.models.ordem_producao import OrdemProducao
 from app.models.produto import Produto
@@ -157,24 +158,40 @@ def atualizar_ordem_producao(
 def calcular_comparativo(db: Session, ordem_id: int) -> OrdemProducaoComparativo:
     """Compara a meta da OP com a produção real apontada nos turnos.
 
-    Soma RegistroHorario.prod_executada de todos os registros marcados
-    explicitamente com esta ordem_producao_id, em qualquer máquina -
-    diferente de somar por máquina+período, isto funciona corretamente
-    mesmo quando a mesma OP é produzida em mais de uma injetora ao
-    mesmo tempo.
+    Soma a produção dos DOIS modelos de apontamento (RegistroHorario e
+    Lancamento - ver CLAUDE.local.md sobre os dois coexistirem), com
+    ordem_producao_id igual a esta OP, em qualquer máquina - diferente
+    de somar por máquina+período, isto funciona corretamente mesmo
+    quando a mesma OP é produzida em mais de uma injetora ao mesmo
+    tempo (ou em máquinas diferentes ao longo do período). Turnos
+    marcados como teste são excluídos, mesmo padrão já aplicado no
+    comparativo do dashboard (_montar_comparativo_ordens_producao) -
+    esta função ficou defasada em relação àquela por um tempo,
+    somando só RegistroHorario e sem excluir turnos de teste; corrigido
+    para ficar consistente.
     """
     ordem = db.query(OrdemProducao).filter(OrdemProducao.id == ordem_id).first()
     if ordem is None:
         raise ValueError("Ordem de Produção não encontrada.")
 
-    total = (
+    total_horario = (
         db.query(func.coalesce(func.sum(RegistroHorario.prod_executada), 0))
         .join(Turno, RegistroHorario.turno_id == Turno.id)
         .filter(RegistroHorario.ordem_producao_id == ordem.id)
         .filter(Turno.status_assinatura == STATUS_ASSINADO)
+        .filter(Turno.marcado_teste.is_(False))
         .scalar()
     )
-    quantidade_produzida = int(total or 0)
+    total_lancamento = (
+        db.query(func.coalesce(func.sum(Lancamento.quantidade), 0))
+        .join(Turno, Lancamento.turno_id == Turno.id)
+        .filter(Lancamento.ordem_producao_id == ordem.id)
+        .filter(Lancamento.tipo == "PRODUCAO")
+        .filter(Turno.status_assinatura == STATUS_ASSINADO)
+        .filter(Turno.marcado_teste.is_(False))
+        .scalar()
+    )
+    quantidade_produzida = int(total_horario or 0) + int(total_lancamento or 0)
 
     percentual = (
         round((quantidade_produzida / ordem.quantidade_a_produzir) * 100, 1)

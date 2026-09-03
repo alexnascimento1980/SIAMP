@@ -293,3 +293,90 @@ def test_comparativo_soma_producao_de_multiplas_maquinas(client, db_session):
     comparativo = res.json()
     assert comparativo["quantidade_produzida"] == 15000
     assert comparativo["percentual_atingido"] == round(15000 / 48000 * 100, 1)
+
+
+def test_criar_ordem_sem_maquina_definida(client, db_session):
+    # Pedido do usuário: uma OP pode ser atendida por mais de uma
+    # injetora, então a máquina não deve ser obrigatória no cadastro.
+    admin = _criar_admin(db_session)
+    produto = _seed_produto(db_session)
+    _login(client, admin)
+
+    res = client.post(
+        "/api/v1/ordens-producao/",
+        json=_payload_op_exemplo(produto.id, numero_maquina=None),
+    )
+    assert res.status_code == 201, res.text
+    assert res.json()["numero_maquina"] is None
+
+
+def test_comparativo_soma_producao_do_modelo_lancamento(client, db_session):
+    # Bug real encontrado ao mexer nesta área: o comparativo de uma OP
+    # individual só somava RegistroHorario (modelo legado), deixando
+    # de contar produção apontada pelo modelo Lancamento (atual) -
+    # inconsistente com o comparativo do dashboard, que já somava os
+    # dois. Uma OP sem máquina fixa (cenário motivador desta mudança)
+    # frequentemente é atendida via Lancamento, então esse gap
+    # undercuntava a produção real bem na situação que mais importa.
+    from app.models.lancamento import Lancamento
+
+    admin = _criar_admin(db_session)
+    maquina = Maquina(numero_maquina="9", descricao="Injetora Teste", cavidades=4, ciclo_padrao=15.0)
+    db_session.add(maquina)
+    db_session.commit()
+    db_session.refresh(maquina)
+    produto = _seed_produto(db_session)
+
+    _login(client, admin)
+    ordem_id = client.post(
+        "/api/v1/ordens-producao/",
+        json=_payload_op_exemplo(produto.id, numero_maquina=None),
+    ).json()["id"]
+
+    turno = Turno(
+        nome_turno="1º Turno", responsavel_nome="Teste",
+        status_assinatura="ASSINADO_DIGITALMENTE", modelo_apontamento="LANCAMENTO",
+    )
+    db_session.add(turno)
+    db_session.flush()
+    db_session.add(Lancamento(
+        turno_id=turno.id, maquina_id=maquina.id, tipo="PRODUCAO",
+        horario_inicio=time(5, 0), horario_fim=time(6, 0),
+        produto_id=produto.id, quantidade=8000, ordem_producao_id=ordem_id,
+    ))
+    db_session.commit()
+
+    res = client.get(f"/api/v1/ordens-producao/{ordem_id}/comparativo")
+    assert res.status_code == 200
+    assert res.json()["quantidade_produzida"] == 8000
+
+
+def test_comparativo_exclui_turno_marcado_como_teste(client, db_session):
+    admin = _criar_admin(db_session)
+    maquina = Maquina(numero_maquina="9", descricao="Injetora Teste", cavidades=4, ciclo_padrao=15.0)
+    db_session.add(maquina)
+    db_session.commit()
+    db_session.refresh(maquina)
+    produto = _seed_produto(db_session)
+
+    _login(client, admin)
+    ordem_id = client.post(
+        "/api/v1/ordens-producao/",
+        json=_payload_op_exemplo(produto.id, numero_maquina=None),
+    ).json()["id"]
+
+    turno = Turno(
+        nome_turno="1º Turno", responsavel_nome="Teste",
+        status_assinatura="ASSINADO_DIGITALMENTE", marcado_teste=True,
+    )
+    db_session.add(turno)
+    db_session.flush()
+    db_session.add(RegistroHorario(
+        turno_id=turno.id, maquina_id=maquina.id, hora_referencia=time(8, 0),
+        prod_executada=10000, ordem_producao_id=ordem_id,
+    ))
+    db_session.commit()
+
+    res = client.get(f"/api/v1/ordens-producao/{ordem_id}/comparativo")
+    assert res.status_code == 200
+    assert res.json()["quantidade_produzida"] == 0
