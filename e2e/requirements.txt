@@ -1,0 +1,6 @@
+# Testes de ponta a ponta (E2E), separados da suíte de unidade/
+# integração do backend (backend/requirements-dev.txt) - rodam contra
+# a stack real (docker compose up), não contra o TestClient do
+# FastAPI, e usam o navegador de verdade via Playwright.
+playwright==1.56.0
+pytest-playwright==0.9.0

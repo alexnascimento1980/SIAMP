@@ -28,6 +28,10 @@ build/
 # transferência pontual, não fazem parte do código-fonte do projeto.
 database/exportado_*.sql
 
+# Artefatos dos testes E2E (screenshots de falha, cache do Playwright)
+e2e/test-results/
+e2e/.pytest_cache/
+
 # Memória local do Claude Code - contexto pessoal de quem está
 # desenvolvendo, não compartilhado com o repositório (diferente de um
 # CLAUDE.md na raiz, que ficaria versionado normalmente). Ver:
