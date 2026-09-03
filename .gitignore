@@ -27,3 +27,9 @@ build/
 # (ex.: app.scripts.exportar_catalogos) - específicos de uma
 # transferência pontual, não fazem parte do código-fonte do projeto.
 database/exportado_*.sql
+
+# Memória local do Claude Code - contexto pessoal de quem está
+# desenvolvendo, não compartilhado com o repositório (diferente de um
+# CLAUDE.md na raiz, que ficaria versionado normalmente). Ver:
+# https://docs.claude.com/en/docs/claude-code/memory
+CLAUDE.local.md
