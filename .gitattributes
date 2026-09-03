@@ -1,0 +1,26 @@
+# Sem este arquivo, o comportamento de terminação de linha ao fazer
+# checkout fica a critério da configuração local de cada pessoa (no
+# Windows, o Git normalmente converte LF -> CRLF por padrão,
+# core.autocrlf=true). Isso é inofensivo para a maioria dos arquivos,
+# mas quebra por completo um script shell: a linha "#!/usr/bin/env sh"
+# com CRLF vira "#!/usr/bin/env sh\r", e o sistema procura por um
+# programa literalmente chamado "sh\r" - erro real já visto em
+# produção ("env: 'sh\r': No such file or directory", container em
+# loop de reinício). Forçando LF aqui, o problema desaparece
+# independente da configuração de quem aplica o patch/faz checkout.
+*.sh text eol=lf
+Dockerfile text eol=lf
+Dockerfile.* text eol=lf
+*.conf text eol=lf
+*.template text eol=lf
+*.sql text eol=lf
+
+# Binários - nunca deixar o Git tentar "normalizar" terminação de
+# linha neles (corromperia o arquivo). A maioria já seria detectada
+# automaticamente, mas listar explicitamente evita qualquer ambiguidade.
+*.png binary
+*.gif binary
+*.pdf binary
+*.joblib binary
+*.docx binary
+*.bak binary
