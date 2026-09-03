@@ -80,6 +80,26 @@ def test_importar_csv_com_linha_valida(client, db_session):
     assert any(o["numero_op"] == "OP-IMP-1" for o in listagem)
 
 
+def test_importar_csv_sem_numero_maquina_e_aceito(client, db_session):
+    # Pedido do usuário: máquina não deve ser obrigatória, já que uma
+    # OP pode ser atendida por mais de uma injetora - vale tanto pro
+    # cadastro manual quanto pra importação em lote.
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+    _, peca = _criar_maquina_e_peca(db_session)
+
+    csv_conteudo = (
+        "numero_op,produto_codigo,quantidade_a_produzir,periodo_inicio,periodo_fim\n"
+        f"OP-SEM-MAQ,{peca.codigo},1000,2026-09-01,2026-09-05\n"
+    ).encode()
+
+    res = _upload(client, csv_conteudo, "ordens.csv")
+    assert res.status_code == 200, res.text
+    dados = res.json()
+    assert dados["criadas"] == 1
+    assert dados["erros"] == []
+
+
 def test_importar_csv_peca_nao_cadastrada_e_rejeitada_e_listada(client, db_session):
     admin = _criar_admin(db_session)
     _login(client, admin)

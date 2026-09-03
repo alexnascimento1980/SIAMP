@@ -101,9 +101,9 @@
             <h6 class="text-secondary fw-bold mb-2">Equipamento</h6>
             <div class="row g-2 mb-3">
               <div class="col-md-3">
-                <label class="form-label mb-1">Máquina <span class="text-danger">*</span></label>
-                <select id="numeroMaquina" class="form-select" required>
-                  <option value="">— Selecionar —</option>
+                <label class="form-label mb-1">Máquina</label>
+                <select id="numeroMaquina" class="form-select">
+                  <option value="">— Nenhuma (pode ser atendida por mais de uma) —</option>
                 </select>
               </div>
               <div class="col-md-9">
@@ -243,10 +243,11 @@
             </div>
           </div>
           <div class="form-text mt-1">
-            Colunas obrigatórias: <code>numero_op</code>, <code>produto_codigo</code>, <code>numero_maquina</code>,
+            Colunas obrigatórias: <code>numero_op</code>, <code>produto_codigo</code>,
             <code>quantidade_a_produzir</code>, <code>periodo_inicio</code>, <code>periodo_fim</code> (datas em
-            AAAA-MM-DD ou DD/MM/AAAA). Peça e máquina precisam já estar cadastradas - linhas com código
-            desconhecido são rejeitadas e listadas, sem travar a importação das demais.
+            AAAA-MM-DD ou DD/MM/AAAA). <code>numero_maquina</code> é opcional - a OP pode ser atendida por mais
+            de uma injetora. Peça precisa já estar cadastrada; se informada, a máquina também - linhas com
+            código desconhecido são rejeitadas e listadas, sem travar a importação das demais.
           </div>
 
           <div id="resultadoImportacao" class="mt-3 d-none">

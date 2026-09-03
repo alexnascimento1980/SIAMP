@@ -14,12 +14,16 @@ from app.schemas.ordem_producao_schema import OrdemProducaoCreate
 # Colunas esperadas no arquivo (CSV: cabeçalho da primeira linha; XML:
 # nome da tag dentro de cada elemento) - mesmos nomes dos campos do
 # formulário manual de Ordem de Produção, para manter consistência.
-# Só as seis primeiras são obrigatórias; o resto é opcional.
+# Só as cinco primeiras são obrigatórias; o resto é opcional -
+# numero_maquina inclusive, já que uma OP pode ser atendida por mais
+# de uma injetora ao longo do período (comparativo de meta x produção
+# soma por ordem_producao_id, independente da máquina).
 COLUNAS_OBRIGATORIAS = {
-    "numero_op", "produto_codigo", "numero_maquina",
+    "numero_op", "produto_codigo",
     "quantidade_a_produzir", "periodo_inicio", "periodo_fim",
 }
 COLUNAS_OPCIONAIS = {
+    "numero_maquina",
     "data_emissao", "tipo_op", "setor_produtivo", "lote",
     "equipamento_descricao", "ferramenta_codigo", "ferramenta_descricao",
     "formula_codigo", "formula_descricao", "embalagem_codigo",
@@ -209,10 +213,12 @@ def importar_ordens_producao(
                 )
 
             numero_maquina = _obter(linha_bruta, "numero_maquina")
-            maquina = _resolver_maquina_por_numero(db, numero_maquina)
-            if maquina is None:
-                maquinas_faltando.add(numero_maquina)
-                raise LinhaInvalidaError(f"Máquina '{numero_maquina}' não está cadastrada.")
+            maquina = None
+            if numero_maquina:
+                maquina = _resolver_maquina_por_numero(db, numero_maquina)
+                if maquina is None:
+                    maquinas_faltando.add(numero_maquina)
+                    raise LinhaInvalidaError(f"Máquina '{numero_maquina}' não está cadastrada.")
 
             dados_convertidos = _converter_linha(linha_bruta)
             dados_convertidos["produto_id"] = produto.id
@@ -220,7 +226,7 @@ def importar_ordens_producao(
 
             nova = OrdemProducao(
                 **dados_validados.model_dump(exclude={"numero_maquina", "produto_id"}),
-                maquina_id=maquina.id,
+                maquina_id=maquina.id if maquina else None,
                 equipamento_codigo=dados_validados.numero_maquina,
                 produto_id=produto.id,
                 produto_codigo=produto.codigo,
