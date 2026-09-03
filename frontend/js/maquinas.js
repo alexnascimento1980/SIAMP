@@ -107,7 +107,7 @@ async function onCriarMaquina(evento) {
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
       mostrarMensagem(
-        erro?.detail || "Não foi possível cadastrar a injetora.",
+        extrairMensagemDeErro(erro, "Não foi possível cadastrar a injetora."),
         "danger",
       );
       return;
@@ -151,7 +151,7 @@ async function onSalvarEdicao(evento) {
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
       mostrarMensagem(
-        erro?.detail || "Não foi possível salvar as alterações.",
+        extrairMensagemDeErro(erro, "Não foi possível salvar as alterações."),
         "danger",
       );
       return;
@@ -175,7 +175,7 @@ async function alterarStatus(maquinaId, ativo) {
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
       mostrarMensagem(
-        erro?.detail || "Não foi possível alterar o status.",
+        extrairMensagemDeErro(erro, "Não foi possível alterar o status."),
         "danger",
       );
       return;
@@ -198,7 +198,7 @@ async function excluirMaquina(maquinaId) {
     if (res.status === 409) {
       const erro = await res.json().catch(() => null);
       mostrarMensagem(
-        erro?.detail || "Não é possível excluir: esta máquina já tem histórico vinculado.",
+        extrairMensagemDeErro(erro, "Não é possível excluir: esta máquina já tem histórico vinculado."),
         "warning",
       );
       return;
@@ -206,7 +206,7 @@ async function excluirMaquina(maquinaId) {
 
     if (!res.ok && res.status !== 204) {
       const erro = await res.json().catch(() => null);
-      mostrarMensagem(erro?.detail || "Não foi possível excluir.", "danger");
+      mostrarMensagem(extrairMensagemDeErro(erro, "Não foi possível excluir."), "danger");
       return;
     }
 

@@ -238,7 +238,7 @@ async function reenviarEmail(turnoId, botao) {
 
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
-      throw new Error(erro?.detail || "Não foi possível reenviar o relatório.");
+      throw new Error(extrairMensagemDeErro(erro, "Não foi possível reenviar o relatório."));
     }
 
     mostrarMensagem("Relatório reenviado por e-mail com sucesso!", "success");
@@ -317,7 +317,7 @@ async function marcarSelecionadosComoTeste(marcadoTeste) {
 
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
-      throw new Error(erro?.detail || `Não foi possível ${acao} os turnos selecionados.`);
+      throw new Error(extrairMensagemDeErro(erro, `Não foi possível ${acao} os turnos selecionados.`));
     }
 
     mostrarMensagem(
@@ -365,7 +365,7 @@ async function confirmarExclusaoTurno() {
 
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
-      erroEl.innerText = erro?.detail || "Não foi possível excluir o turno.";
+      erroEl.innerText = extrairMensagemDeErro(erro, "Não foi possível excluir o turno.");
       erroEl.classList.remove("d-none");
       return;
     }

@@ -70,3 +70,27 @@ async function sair() {
     window.location.href = "login.html";
   }
 }
+
+/**
+ * Extrai uma mensagem de erro legível do corpo de uma resposta de
+ * erro da API. `erro.detail` normalmente é uma string simples (a
+ * maioria dos erros do backend, ex.: HTTPException com detail="..."),
+ * mas numa resposta 422 de validação do Pydantic é uma LISTA de
+ * objetos (ex.: [{"type": "value_error", "loc": [...], "msg": "...",
+ * ...}]) - sem tratar esse segundo formato, o valor acaba renderizado
+ * na tela como "[object Object]" (toString padrão de um array de
+ * objetos em JavaScript), inútil para quem está usando o sistema.
+ * Use isto em vez de `erro?.detail || "mensagem padrão"` diretamente.
+ */
+function extrairMensagemDeErro(erro, mensagemPadrao) {
+  const detalhe = erro?.detail;
+  if (!detalhe) return mensagemPadrao;
+  if (typeof detalhe === "string") return detalhe;
+  if (Array.isArray(detalhe)) {
+    const mensagens = detalhe
+      .map((item) => (typeof item === "string" ? item : item?.msg))
+      .filter(Boolean);
+    return mensagens.length > 0 ? mensagens.join(" ") : mensagemPadrao;
+  }
+  return mensagemPadrao;
+}

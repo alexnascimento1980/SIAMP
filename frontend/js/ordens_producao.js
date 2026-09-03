@@ -230,7 +230,7 @@ async function onSalvarOp(evento) {
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
       mostrarMensagem(
-        erro?.detail || "Não foi possível salvar a Ordem de Produção.",
+        extrairMensagemDeErro(erro, "Não foi possível salvar a Ordem de Produção."),
         "danger",
       );
       return;
@@ -306,7 +306,7 @@ async function excluirOp(opId) {
     const res = await chamarApi(`/ordens-producao/${opId}`, { method: "DELETE" });
     if (!res.ok && res.status !== 204) {
       const erro = await res.json().catch(() => null);
-      mostrarMensagem(erro?.detail || "Não foi possível remover.", "danger");
+      mostrarMensagem(extrairMensagemDeErro(erro, "Não foi possível remover."), "danger");
       return;
     }
     mostrarMensagem("Ordem de Produção removida.", "success");
@@ -358,7 +358,7 @@ async function importarArquivo() {
 
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
-      mostrarResultadoImportacao(null, erro?.detail || "Não foi possível importar o arquivo.");
+      mostrarResultadoImportacao(null, extrairMensagemDeErro(erro, "Não foi possível importar o arquivo."));
       return;
     }
 
@@ -469,7 +469,7 @@ async function extrairDocumentoOp() {
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
       const erroEl = document.getElementById("erroExtracao");
-      erroEl.innerText = erro?.detail || "Não foi possível ler o documento.";
+      erroEl.innerText = extrairMensagemDeErro(erro, "Não foi possível ler o documento.");
       erroEl.classList.remove("d-none");
       return;
     }

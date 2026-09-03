@@ -569,8 +569,7 @@ async function confirmarFechamento() {
       const erro = await res.json().catch(() => null);
       alert(
         "⚠️ " +
-          (erro?.detail ||
-            "Erro ao registrar dados. Verifique a conexão com o servidor."),
+          extrairMensagemDeErro(erro, "Erro ao registrar dados. Verifique a conexão com o servidor."),
       );
     }
   } catch (error) {
@@ -612,7 +611,7 @@ async function salvarRascunho() {
 
     if (!res.ok) {
       const erro = await res.json().catch(() => null);
-      alert("⚠️ " + (erro?.detail || "Não foi possível salvar o rascunho."));
+      alert("⚠️ " + extrairMensagemDeErro(erro, "Não foi possível salvar o rascunho."));
       return;
     }
 
