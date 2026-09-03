@@ -362,4 +362,10 @@ pip install -r requirements-dev.txt
 pytest -v
 ```
 
-Deve dar **221 testes passando**.
+Deve dar **237 testes passando**.
+
+Além dessa suíte (unidade/integração, via `TestClient`, sem navegador),
+existe uma suíte separada de testes E2E que cobre o fluxo mais usado
+no dia a dia (login → fechar turno → gerar PDF) através da interface
+real, num navegador de verdade - roda automaticamente no CI a cada
+push. Ver [`e2e/README.md`](e2e/README.md) para rodar localmente.
