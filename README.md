@@ -98,7 +98,7 @@ Plataforma para digitalização e automação do processo de fechamento de turno
 - **Marcar turno como teste:** turnos criados só para teste (ex.: durante implantação, treinamento) podem ser marcados em lote no Histórico — saem do dashboard, dos indicadores acumulados e da exportação CSV, mas continuam visíveis no Histórico e podem ser desmarcados a qualquer momento (reversível). Exclusão definitiva também é possível, restrita a ADMIN — apaga os lançamentos do turno junto, sem afetar Ordens de Produção que o turno tenha referenciado.
 - **Injetoras e Peças configuráveis:** administradores e supervisores cadastram/editam máquinas e o catálogo de peças (código, ciclo médio, cavidades — obrigatórios e editáveis) pela própria interface — nada fixo no código. Peças têm um campo de busca por código/descrição, pensado para catálogos grandes.
 - **Ordens de Produção:** cadastro manual, **importação em lote via CSV/XML**, ou **extração automática a partir de um PDF ou foto** do documento — reconhecimento de padrão (sem IA, sem custo por documento) calibrado contra o layout real usado pela empresa, funcionando tanto com PDF digitalizado (via OCR local, Tesseract) quanto com PDF gerado digitalmente (extração direta do texto, ainda mais confiável). Sempre pré-preenche o formulário manual para revisão humana antes de salvar — nunca cadastra a OP sozinho. Nos três caminhos, peça e máquina são resolvidas pelo código já cadastrado, com aviso claro quando o código não é encontrado. Comparativo automático de meta x produção real, correto mesmo quando a mesma OP é produzida em mais de uma injetora ao mesmo tempo.
-- **Gestão de usuários:** administradores cadastram novos usuários (operador, supervisor ou admin), ativam/desativam contas, **alteram o perfil de acesso** de qualquer usuário existente, **resetam a senha** de um usuário sem precisar da senha atual (a senha em si nunca é recuperável — é guardada só como hash), e **excluem definitivamente** contas de teste ou de colaboradores desligados. A exclusão não apaga turnos, Ordens de Produção ou paradas que o usuário tenha registrado — eles continuam no histórico, só perdem a referência de quem foi.
+- **Gestão de usuários:** administradores cadastram novos usuários (operador, supervisor ou admin), ativam/desativam contas, **alteram o perfil de acesso** de qualquer usuário existente, **resetam a senha** de um usuário sem precisar da senha atual (a senha em si nunca é recuperável — é guardada só como hash), e **excluem definitivamente** contas de teste ou de colaboradores desligados. A exclusão não apaga turnos, Ordens de Produção ou paradas que o usuário tenha registrado — eles continuam no histórico, só perdem a referência de quem foi. Qualquer conta pode ser marcada como **protegida** contra exclusão/desativação acidental por outro admin (um clique num ícone de escudo) — os botões de excluir/desativar ficam visivelmente desabilitados na tela enquanto a proteção estiver ativa, exigindo remover a proteção deliberadamente antes de qualquer uma das duas ações.
 - **Destinatários de relatório configuráveis:** quem recebe o e-mail de fechamento de turno é cadastrado pela tela **Destinatários** (ADMIN) — não depende mais de editar variável de ambiente e reiniciar o servidor.
 - **Fechamento de turno com cálculo automático de OEE:** índice de produção e qualidade combinados automaticamente; parada programada (troca de molde, manutenção preventiva etc.) não penaliza o cálculo — só o que efetivamente parou a linha sem planejamento conta contra a eficiência.
 - **Histórico de Turnos:** listagem dos turnos encerrados (e dos rascunhos em andamento, com indicação clara de status) com produção total, eficiência e status; download do relatório em PDF a qualquer momento, reenvio por e-mail sob demanda, e **exportação em CSV** (uma linha por lançamento/hora apontada) para análise em Excel ou Power BI.
@@ -364,8 +364,15 @@ pytest -v
 
 Deve dar **237 testes passando**.
 
+O mesmo ambiente também roda `ruff check .` (linter) — configurado em
+`backend/pyproject.toml`, com regras escolhidas para este projeto
+especificamente (não um preset genérico). Roda automaticamente no CI
+antes da suíte de testes.
+
 Além dessa suíte (unidade/integração, via `TestClient`, sem navegador),
-existe uma suíte separada de testes E2E que cobre o fluxo mais usado
-no dia a dia (login → fechar turno → gerar PDF) através da interface
-real, num navegador de verdade - roda automaticamente no CI a cada
-push. Ver [`e2e/README.md`](e2e/README.md) para rodar localmente.
+existe uma suíte separada de testes E2E que cobre os fluxos mais
+usados no dia a dia (fechar turno e gerar PDF; cadastro manual de
+Ordem de Produção; cadastro e proteção de conta de usuário) através
+da interface real, num navegador de verdade - roda automaticamente no
+CI a cada push. Ver [`e2e/README.md`](e2e/README.md) para rodar
+localmente.
