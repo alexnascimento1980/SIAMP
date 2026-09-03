@@ -1,10 +1,19 @@
 # Testes E2E (ponta a ponta)
 
-Cobrem o caminho mais usado no dia a dia do sistema (login → apontar
-produção → fechar turno → gerar PDF) através da interface real, num
-navegador de verdade (Playwright) - diferente da suíte em
-`backend/tests/`, que testa a lógica de negócio isoladamente via
-`TestClient`, sem navegador nem frontend envolvido.
+Cobrem os fluxos mais usados no dia a dia do sistema através da
+interface real, num navegador de verdade (Playwright) - diferente da
+suíte em `backend/tests/`, que testa a lógica de negócio isoladamente
+via `TestClient`, sem navegador nem frontend envolvido.
+
+Escopo atual:
+- **`test_fluxo_critico.py`**: apontar produção de um turno, fechar o
+  turno, baixar e confirmar o relatório em PDF.
+- **`test_ordens_producao.py`**: cadastro manual de uma Ordem de
+  Produção.
+- **`test_usuarios.py`**: cadastro de usuário e proteção de conta
+  contra exclusão/desativação acidental (confirma que os botões
+  destrutivos ficam desabilitados na própria tela, não só bloqueados
+  no backend).
 
 As duas suítes têm propósitos diferentes e **não se substituem**: a
 do backend é rápida (minutos) e cobre muito mais casos/variações; esta
@@ -58,14 +67,18 @@ teste esteja quebrado, só porque essa conta não existe no seu banco.
 pytest -v --headed --slowmo 300
 ```
 
-## Por que só um teste, com um único login
+## Por que login é feito uma única vez por sessão, não por teste
 
 O endpoint de login tem um limite de 5 tentativas por minuto por IP
-(rate limit deliberado contra força bruta). Rodar a suíte localmente
-várias vezes seguidas em menos de um minuto - bem comum ao depurar
-algo - esgota esse limite rápido se cada teste fizer seu próprio
-login. Por isso a suíte tem um único teste cobrindo o fluxo inteiro,
-com um único login, em vez de vários testes pequenos.
+(rate limit deliberado contra força bruta). Se cada teste fizesse seu
+próprio login, rodar a suíte localmente mais de uma ou duas vezes
+seguidas em menos de um minuto - bem comum ao depurar algo - esgotaria
+esse limite rápido (foi exatamente esse problema, encontrado quando a
+suíte ainda tinha só um teste). A fixture `contexto_autenticado`
+(`conftest.py`) loga uma única vez por execução inteira da suíte,
+reaproveitando o mesmo cookie de sessão em todos os testes - ao
+adicionar um novo teste, use a fixture `pagina_logada`, nunca logue
+manualmente de novo.
 
 ## Por que os dados de seed usados no teste são fixos no código
 
