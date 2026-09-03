@@ -1,5 +1,4 @@
 from datetime import time
-from typing import List, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -12,12 +11,12 @@ class LancamentoCreate(BaseModel):
     horario_inicio: time
     horario_fim: time
 
-    produto_id: Optional[int] = Field(default=None, gt=0)
-    ordem_producao_id: Optional[int] = Field(default=None, gt=0)
-    quantidade: Optional[int] = Field(default=None, ge=0)
-    ciclo_informado: Optional[float] = Field(default=None, gt=0)
-    cavidades_informado: Optional[int] = Field(default=None, gt=0)
-    motivo: Optional[str] = Field(default=None, max_length=150)
+    produto_id: int | None = Field(default=None, gt=0)
+    ordem_producao_id: int | None = Field(default=None, gt=0)
+    quantidade: int | None = Field(default=None, ge=0)
+    ciclo_informado: float | None = Field(default=None, gt=0)
+    cavidades_informado: int | None = Field(default=None, gt=0)
+    motivo: str | None = Field(default=None, max_length=150)
 
     @model_validator(mode="after")
     def _validar(self):
@@ -44,26 +43,26 @@ class LancamentoDetail(BaseModel):
     tipo: str
     horario_inicio: str
     horario_fim: str
-    produto_id: Optional[int] = None
-    produto_codigo: Optional[str] = None
-    produto_descricao: Optional[str] = None
-    ordem_producao_id: Optional[int] = None
-    numero_op: Optional[str] = None
-    quantidade: Optional[int] = None
-    ciclo_informado: Optional[float] = None
-    ciclo_padrao_peca: Optional[float] = None
-    cavidades_informado: Optional[int] = None
-    cavidades_padrao_peca: Optional[int] = None
-    motivo: Optional[str] = None
-    producao_esperada: Optional[int] = None
+    produto_id: int | None = None
+    produto_codigo: str | None = None
+    produto_descricao: str | None = None
+    ordem_producao_id: int | None = None
+    numero_op: str | None = None
+    quantidade: int | None = None
+    ciclo_informado: float | None = None
+    ciclo_padrao_peca: float | None = None
+    cavidades_informado: int | None = None
+    cavidades_padrao_peca: int | None = None
+    motivo: str | None = None
+    producao_esperada: int | None = None
 
 
 class TurnoLancamentoCreate(BaseModel):
     nome_turno: str = Field(..., min_length=2, max_length=50)
     responsavel_nome: str = Field(..., min_length=2, max_length=120)
-    regulador_nome: Optional[str] = Field(default=None, max_length=120)
-    observacoes: Optional[str] = Field(default=None, max_length=2000)
-    lancamentos: List[LancamentoCreate] = Field(..., min_length=1)
+    regulador_nome: str | None = Field(default=None, max_length=120)
+    observacoes: str | None = Field(default=None, max_length=2000)
+    lancamentos: list[LancamentoCreate] = Field(..., min_length=1)
 
 
 class TurnoLancamentoRascunho(BaseModel):
@@ -73,6 +72,6 @@ class TurnoLancamentoRascunho(BaseModel):
 
     nome_turno: str = Field(..., min_length=2, max_length=50)
     responsavel_nome: str = Field(..., min_length=2, max_length=120)
-    regulador_nome: Optional[str] = Field(default=None, max_length=120)
-    observacoes: Optional[str] = Field(default=None, max_length=2000)
-    lancamentos: List[LancamentoCreate] = Field(default_factory=list)
+    regulador_nome: str | None = Field(default=None, max_length=120)
+    observacoes: str | None = Field(default=None, max_length=2000)
+    lancamentos: list[LancamentoCreate] = Field(default_factory=list)

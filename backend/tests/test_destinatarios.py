@@ -1,5 +1,4 @@
 from app.core.security import gerar_hash_senha
-from app.models.destinatario_relatorio import DestinatarioRelatorio
 from app.models.usuario import Usuario
 
 

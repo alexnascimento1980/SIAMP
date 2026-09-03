@@ -2,7 +2,7 @@ from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.core.timezone import agora_brasilia
-from app.models.lancamento import Lancamento, TIPO_PARADA_PROGRAMADA, TIPO_PRODUCAO
+from app.models.lancamento import TIPO_PARADA_PROGRAMADA, TIPO_PRODUCAO, Lancamento
 from app.models.maquina import Maquina
 from app.models.ordem_producao import OrdemProducao
 from app.models.produto import Produto

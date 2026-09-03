@@ -1,7 +1,7 @@
-from datetime import date, datetime, time
 import csv
 import io
 import re
+from datetime import date, datetime, time
 
 from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
@@ -22,7 +22,6 @@ from app.services.analytics import (
 )
 from app.services.mailer import enviar_relatorio_email
 from app.services.pdf_generator import gerar_relatorio_dashboard_pdf, gerar_relatorio_turno_pdf
-
 
 STATUS_ASSINADO = "ASSINADO_DIGITALMENTE"
 # Turno salvo como rascunho, ainda sendo preenchido - permite salvar o

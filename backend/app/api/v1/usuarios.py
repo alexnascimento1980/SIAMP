@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import exigir_perfil, get_current_user
+from app.api.deps import exigir_perfil
 from app.core.database import get_db
 from app.core.security import gerar_hash_senha
 from app.models.usuario import Usuario
@@ -112,7 +112,7 @@ def alterar_perfil_usuario(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(erro),
-        )
+        ) from erro
 
     if alvo.id == usuario_atual.id and novo_perfil != usuario_atual.perfil:
         raise HTTPException(

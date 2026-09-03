@@ -1,6 +1,4 @@
-from datetime import time
-from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, time
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -20,29 +18,29 @@ class RegistroHorarioCreate(BaseModel):
     # com registros antigos). Identifica pelo id do catálogo de produtos
     # (GET /produtos/), não pelo código, já que o frontend já carrega a
     # lista com os ids reais para popular o seletor.
-    produto_id: Optional[int] = Field(default=None, gt=0)
+    produto_id: int | None = Field(default=None, gt=0)
     # Ordem de Produção atendida nessa hora/máquina (opcional). Permite
     # somar a produção real por OP mesmo quando ela é feita em mais de
     # uma injetora ao mesmo tempo, e mostrar qual OP foi atendida no
     # relatório de turno.
-    ordem_producao_id: Optional[int] = Field(default=None, gt=0)
+    ordem_producao_id: int | None = Field(default=None, gt=0)
     # Apontamento de qualidade (opcional). Quando informados, entram no
     # cálculo do Índice de Qualidade do OEE (ver app/services/analytics.py).
-    pecas_boas: Optional[int] = Field(default=None, ge=0)
-    refugo: Optional[int] = Field(default=None, ge=0)
-    meta_producao: Optional[int] = Field(default=None, ge=0)
+    pecas_boas: int | None = Field(default=None, ge=0)
+    refugo: int | None = Field(default=None, ge=0)
+    meta_producao: int | None = Field(default=None, ge=0)
     # Ciclo (segundos) informado manualmente pelo operador para esta
     # hora/máquina - prevalece sobre o ciclo da peça/máquina no cálculo
     # de capacidade esperada. Útil quando o ciclo padrão não reflete a
     # regulagem real do molde, ou quando ainda não há ciclo cadastrado.
-    ciclo_informado: Optional[float] = Field(default=None, gt=0)
-    inicio_parada: Optional[time] = None
-    retomada: Optional[time] = None
-    motivo_parada: Optional[str] = Field(default=None, max_length=150)
+    ciclo_informado: float | None = Field(default=None, gt=0)
+    inicio_parada: time | None = None
+    retomada: time | None = None
+    motivo_parada: str | None = Field(default=None, max_length=150)
     # Leitura do contador de peças da máquina no início/retomada da
     # parada, para conferência - não entra no cálculo de OEE.
-    contador_parada: Optional[int] = Field(default=None, ge=0)
-    contador_retomada: Optional[int] = Field(default=None, ge=0)
+    contador_parada: int | None = Field(default=None, ge=0)
+    contador_retomada: int | None = Field(default=None, ge=0)
     # Parada programada (troca de molde, manutenção preventiva, refeição
     # etc.): o tempo parado não entra na capacidade esperada do cálculo
     # de OEE (ver app/services/analytics.py). Só faz sentido quando
@@ -62,7 +60,7 @@ class RegistroHorarioCreate(BaseModel):
 
     @field_validator("retomada")
     @classmethod
-    def validar_retomada(cls, value: Optional[time], info):
+    def validar_retomada(cls, value: time | None, info):
         inicio = info.data.get("inicio_parada")
         if value is not None and inicio is not None and value < inicio:
             raise ValueError("retomada não pode ser anterior ao início da parada.")
@@ -70,15 +68,19 @@ class RegistroHorarioCreate(BaseModel):
 
     @field_validator("refugo")
     @classmethod
-    def validar_soma_qualidade(cls, value: Optional[int], info):
+    def validar_soma_qualidade(cls, value: int | None, info):
         pecas_boas = info.data.get("pecas_boas")
         prod_executada = info.data.get("prod_executada")
-        if value is not None and pecas_boas is not None and prod_executada is not None:
-            if (value + pecas_boas) > prod_executada:
-                raise ValueError(
-                    "A soma de peças boas e refugo não pode ser maior que a "
-                    "produção executada informada."
-                )
+        if (
+            value is not None
+            and pecas_boas is not None
+            and prod_executada is not None
+            and (value + pecas_boas) > prod_executada
+        ):
+            raise ValueError(
+                "A soma de peças boas e refugo não pode ser maior que a "
+                "produção executada informada."
+            )
         return value
 
     @field_validator("parada_programada")
@@ -94,9 +96,9 @@ class RegistroHorarioCreate(BaseModel):
 class FechamentoTurnoCreate(BaseModel):
     nome_turno: str = Field(..., min_length=2, max_length=50)
     responsavel_nome: str = Field(..., min_length=2, max_length=120)
-    regulador_nome: Optional[str] = Field(default=None, max_length=120)
-    observacoes: Optional[str] = Field(default=None, max_length=2000)
-    registros: List[RegistroHorarioCreate] = Field(..., min_length=1)
+    regulador_nome: str | None = Field(default=None, max_length=120)
+    observacoes: str | None = Field(default=None, max_length=2000)
+    registros: list[RegistroHorarioCreate] = Field(..., min_length=1)
 
 
 class RascunhoTurnoCreate(BaseModel):
@@ -106,9 +108,9 @@ class RascunhoTurnoCreate(BaseModel):
 
     nome_turno: str = Field(..., min_length=2, max_length=50)
     responsavel_nome: str = Field(..., min_length=2, max_length=120)
-    regulador_nome: Optional[str] = Field(default=None, max_length=120)
-    observacoes: Optional[str] = Field(default=None, max_length=2000)
-    registros: List[RegistroHorarioCreate] = Field(default_factory=list)
+    regulador_nome: str | None = Field(default=None, max_length=120)
+    observacoes: str | None = Field(default=None, max_length=2000)
+    registros: list[RegistroHorarioCreate] = Field(default_factory=list)
 
 
 class ResumoProducaoResponse(BaseModel):
@@ -137,38 +139,38 @@ class RegistroHorarioDetail(BaseModel):
     numero_maquina: str
     hora_referencia: str
     prod_executada: int
-    pecas_boas: Optional[int] = None
-    refugo: Optional[int] = None
-    produto_id: Optional[int] = None
-    produto_codigo: Optional[str] = None
-    produto_descricao: Optional[str] = None
-    ordem_producao_id: Optional[int] = None
-    numero_op: Optional[str] = None
-    ciclo_informado: Optional[float] = None
-    inicio_parada: Optional[time] = None
-    retomada: Optional[time] = None
-    motivo_parada: Optional[str] = None
+    pecas_boas: int | None = None
+    refugo: int | None = None
+    produto_id: int | None = None
+    produto_codigo: str | None = None
+    produto_descricao: str | None = None
+    ordem_producao_id: int | None = None
+    numero_op: str | None = None
+    ciclo_informado: float | None = None
+    inicio_parada: time | None = None
+    retomada: time | None = None
+    motivo_parada: str | None = None
     parada_programada: bool = False
-    contador_parada: Optional[int] = None
-    contador_retomada: Optional[int] = None
+    contador_parada: int | None = None
+    contador_retomada: int | None = None
 
 
 class TurnoDetail(BaseModel):
     id: int
     nome_turno: str
     responsavel_nome: str
-    regulador_nome: Optional[str] = None
-    observacoes: Optional[str] = None
+    regulador_nome: str | None = None
+    observacoes: str | None = None
     data_registro: datetime
     status_assinatura: str
     modelo_apontamento: str = "HORARIO"
-    editado_por_nome: Optional[str] = None
-    editado_em: Optional[datetime] = None
+    editado_por_nome: str | None = None
+    editado_em: datetime | None = None
     marcado_teste: bool = False
-    registros: List[RegistroHorarioDetail] = []
-    lancamentos: List[LancamentoDetail] = []
+    registros: list[RegistroHorarioDetail] = []
+    lancamentos: list[LancamentoDetail] = []
 
 
 class TurnosMarcarTeste(BaseModel):
-    turno_ids: List[int] = Field(..., min_length=1)
+    turno_ids: list[int] = Field(..., min_length=1)
     marcado_teste: bool

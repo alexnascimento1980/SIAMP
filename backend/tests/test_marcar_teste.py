@@ -1,10 +1,10 @@
 from datetime import time
 
 from app.core.security import gerar_hash_senha
+from app.models.lancamento import Lancamento
 from app.models.maquina import Maquina
 from app.models.produto import Produto
 from app.models.turno import Turno
-from app.models.lancamento import Lancamento
 from app.models.usuario import Usuario
 
 
@@ -230,6 +230,7 @@ def test_excluir_turno_apaga_lancamentos_em_cascata(client, db_session):
 
 def test_excluir_turno_modelo_por_hora_apaga_registros_em_cascata(client, db_session):
     from datetime import time
+
     from app.models.registro_turno import RegistroHorario
 
     admin = _criar_admin(db_session)
@@ -261,6 +262,7 @@ def test_excluir_turno_modelo_por_hora_apaga_registros_em_cascata(client, db_ses
 
 def test_excluir_turno_nao_apaga_ordem_de_producao_referenciada(client, db_session):
     from datetime import date, time
+
     from app.models.lancamento import Lancamento
     from app.models.ordem_producao import OrdemProducao
 

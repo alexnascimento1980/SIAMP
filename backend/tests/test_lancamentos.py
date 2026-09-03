@@ -1,9 +1,7 @@
-from datetime import date, time
 
 from app.core.security import gerar_hash_senha
 from app.models.maquina import Maquina
 from app.models.produto import Produto
-from app.models.turno import Turno
 from app.models.usuario import Usuario
 
 

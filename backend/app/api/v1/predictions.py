@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+
 from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.models.usuario import Usuario
@@ -12,7 +13,9 @@ router = APIRouter(prefix="/predictions", tags=["Inteligência Artificial"])
 class InferenciaRequest(BaseModel):
     maquina_id: int = Field(..., example=1)
     produto_id: int | None = Field(default=None, example=1)
-    ciclo_efetivo: float | None = Field(default=None, example=18.5, description="Ciclo real informado, ou padrão da peça/máquina")
+    ciclo_efetivo: float | None = Field(
+        default=None, example=18.5, description="Ciclo real informado, ou padrão da peça/máquina"
+    )
     ciclo_padrao_peca: float | None = Field(default=None, example=18.0)
     cavidades_efetivas: int | None = Field(default=None, example=4)
     duracao_min: float = Field(..., example=120.0)

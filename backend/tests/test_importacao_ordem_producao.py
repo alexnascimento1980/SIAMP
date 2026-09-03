@@ -1,5 +1,4 @@
 import io
-from datetime import date
 
 from app.core.security import gerar_hash_senha
 from app.models.maquina import Maquina
@@ -68,7 +67,7 @@ def test_importar_csv_com_linha_valida(client, db_session):
     csv_conteudo = (
         "numero_op,produto_codigo,numero_maquina,quantidade_a_produzir,periodo_inicio,periodo_fim\n"
         f"OP-IMP-1,{peca.codigo},{maquina.numero_maquina},1000,2026-09-01,2026-09-05\n"
-    ).encode("utf-8")
+    ).encode()
 
     res = _upload(client, csv_conteudo, "ordens.csv")
     assert res.status_code == 200, res.text
@@ -89,7 +88,7 @@ def test_importar_csv_peca_nao_cadastrada_e_rejeitada_e_listada(client, db_sessi
     csv_conteudo = (
         "numero_op,produto_codigo,numero_maquina,quantidade_a_produzir,periodo_inicio,periodo_fim\n"
         f"OP-IMP-2,CODIGO-INEXISTENTE,{maquina.numero_maquina},500,2026-09-01,2026-09-05\n"
-    ).encode("utf-8")
+    ).encode()
 
     res = _upload(client, csv_conteudo, "ordens.csv")
     assert res.status_code == 200, res.text
@@ -108,7 +107,7 @@ def test_importar_csv_maquina_nao_cadastrada_e_rejeitada_e_listada(client, db_se
     csv_conteudo = (
         "numero_op,produto_codigo,numero_maquina,quantidade_a_produzir,periodo_inicio,periodo_fim\n"
         f"OP-IMP-3,{peca.codigo},99,500,2026-09-01,2026-09-05\n"
-    ).encode("utf-8")
+    ).encode()
 
     res = _upload(client, csv_conteudo, "ordens.csv")
     assert res.status_code == 200
@@ -137,7 +136,7 @@ def test_importar_csv_numero_op_ja_existente_e_rejeitado(client, db_session):
     csv_conteudo = (
         "numero_op,produto_codigo,numero_maquina,quantidade_a_produzir,periodo_inicio,periodo_fim\n"
         f"OP-DUP,{peca.codigo},{maquina.numero_maquina},200,2026-09-01,2026-09-05\n"
-    ).encode("utf-8")
+    ).encode()
 
     res = _upload(client, csv_conteudo, "ordens.csv")
     dados = res.json()
@@ -154,7 +153,7 @@ def test_importar_csv_numero_op_duplicado_dentro_do_arquivo(client, db_session):
         "numero_op,produto_codigo,numero_maquina,quantidade_a_produzir,periodo_inicio,periodo_fim\n"
         f"OP-REPETIDA,{peca.codigo},{maquina.numero_maquina},100,2026-09-01,2026-09-05\n"
         f"OP-REPETIDA,{peca.codigo},{maquina.numero_maquina},200,2026-09-06,2026-09-10\n"
-    ).encode("utf-8")
+    ).encode()
 
     res = _upload(client, csv_conteudo, "ordens.csv")
     dados = res.json()
@@ -171,7 +170,7 @@ def test_importar_csv_data_invalida_e_rejeitada(client, db_session):
     csv_conteudo = (
         "numero_op,produto_codigo,numero_maquina,quantidade_a_produzir,periodo_inicio,periodo_fim\n"
         f"OP-DATA-RUIM,{peca.codigo},{maquina.numero_maquina},100,31-31-2026,2026-09-05\n"
-    ).encode("utf-8")
+    ).encode()
 
     res = _upload(client, csv_conteudo, "ordens.csv")
     dados = res.json()
@@ -187,7 +186,7 @@ def test_importar_csv_com_separador_ponto_e_virgula(client, db_session):
     csv_conteudo = (
         "numero_op;produto_codigo;numero_maquina;quantidade_a_produzir;periodo_inicio;periodo_fim\n"
         f"OP-PTV;{peca.codigo};{maquina.numero_maquina};300;01/09/2026;05/09/2026\n"
-    ).encode("utf-8")
+    ).encode()
 
     res = _upload(client, csv_conteudo, "ordens.csv")
     dados = res.json()
@@ -209,7 +208,7 @@ def test_importar_xml_com_linha_valida(client, db_session):
         <periodo_inicio>2026-09-01</periodo_inicio>
         <periodo_fim>2026-09-05</periodo_fim>
       </ordem>
-    </ordens_producao>""".encode("utf-8")
+    </ordens_producao>""".encode()
 
     res = _upload(client, xml_conteudo, "ordens.xml", content_type="application/xml")
     assert res.status_code == 200, res.text
@@ -280,7 +279,7 @@ def test_importar_csv_linha_valida_e_linha_com_erro_juntas(client, db_session):
         "numero_op,produto_codigo,numero_maquina,quantidade_a_produzir,periodo_inicio,periodo_fim\n"
         f"OP-BOA,{peca.codigo},{maquina.numero_maquina},100,2026-09-01,2026-09-05\n"
         f"OP-RUIM,CODIGO-FALSO,{maquina.numero_maquina},100,2026-09-01,2026-09-05\n"
-    ).encode("utf-8")
+    ).encode()
 
     res = _upload(client, csv_conteudo, "ordens.csv")
     dados = res.json()

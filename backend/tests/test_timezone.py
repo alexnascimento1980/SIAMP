@@ -1,7 +1,7 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from app.core.timezone import agora_brasilia
 from app.core.security import gerar_hash_senha
+from app.core.timezone import agora_brasilia
 from app.models.maquina import Maquina
 from app.models.produto import Produto
 from app.models.turno import Turno
@@ -9,7 +9,7 @@ from app.models.usuario import Usuario
 
 
 def test_agora_brasilia_tem_offset_de_3_horas_do_utc():
-    utc_agora = datetime.now(timezone.utc).replace(tzinfo=None)
+    utc_agora = datetime.now(UTC).replace(tzinfo=None)
     brasilia_agora = agora_brasilia()
 
     diferenca_horas = (utc_agora - brasilia_agora).total_seconds() / 3600

@@ -179,7 +179,7 @@ def test_reenviar_email_bem_sucedido_com_smtp_configurado(client, db_session, us
     _login(client, admin)
 
     from types import SimpleNamespace
-    from unittest.mock import MagicMock, patch
+    from unittest.mock import patch
 
     fake_settings = SimpleNamespace(
         smtp_user="siamp@empresa.com",
@@ -192,10 +192,9 @@ def test_reenviar_email_bem_sucedido_com_smtp_configurado(client, db_session, us
     )
     with patch("app.services.turno_service.settings", fake_settings), patch(
         "app.services.mailer.settings", fake_settings
-    ):
-        with patch("smtplib.SMTP") as mock_smtp:
-            mock_smtp.return_value.__enter__.return_value = mock_smtp.return_value
-            res = client.post(f"/api/v1/turnos/{turno_id}/reenviar-email")
+    ), patch("smtplib.SMTP") as mock_smtp:
+        mock_smtp.return_value.__enter__.return_value = mock_smtp.return_value
+        res = client.post(f"/api/v1/turnos/{turno_id}/reenviar-email")
 
     assert res.status_code == 200, res.text
     assert res.json()["status"] == "sucesso"
@@ -266,12 +265,12 @@ def test_producao_esperada_por_linha_no_relatorio(client, db_session, usuario_te
 
 
 def test_destinatarios_do_banco_tem_prioridade_sobre_env(client, db_session, usuario_teste, monkeypatch):
-    from app.models.destinatario_relatorio import DestinatarioRelatorio
-    from app.services.turno_service import _resolver_destinatarios
+    from types import SimpleNamespace
 
     # Sem nada cadastrado no banco -> cai para REPORT_RECIPIENTS do .env.
     import app.services.turno_service as turno_service_mod
-    from types import SimpleNamespace
+    from app.models.destinatario_relatorio import DestinatarioRelatorio
+    from app.services.turno_service import _resolver_destinatarios
 
     fake_settings = SimpleNamespace(report_recipients=["env@empresa.com"])
     monkeypatch.setattr(turno_service_mod, "settings", fake_settings)
@@ -345,10 +344,9 @@ def test_assunto_do_email_inclui_data_dd_mm_aa(client, db_session, usuario_teste
     )
     with patch("app.services.turno_service.settings", fake_settings), patch(
         "app.services.mailer.settings", fake_settings
-    ):
-        with patch("smtplib.SMTP") as mock_smtp:
-            mock_smtp.return_value.__enter__.return_value = mock_smtp.return_value
-            res = client.post(f"/api/v1/turnos/{turno_id}/reenviar-email")
+    ), patch("smtplib.SMTP") as mock_smtp:
+        mock_smtp.return_value.__enter__.return_value = mock_smtp.return_value
+        res = client.post(f"/api/v1/turnos/{turno_id}/reenviar-email")
 
     assert res.status_code == 200, res.text
     mensagem_enviada = mock_smtp.return_value.send_message.call_args[0][0]
@@ -360,8 +358,9 @@ def test_assunto_do_email_inclui_data_dd_mm_aa(client, db_session, usuario_teste
 
 
 def test_fechamento_com_ordem_producao_aparece_no_detalhe_e_pdf(client, db_session, usuario_teste):
-    from app.models.ordem_producao import OrdemProducao
     from datetime import date
+
+    from app.models.ordem_producao import OrdemProducao
 
     _login(client, usuario_teste)
     maquina, _peca = _criar_maquina_e_peca(db_session)
@@ -555,7 +554,9 @@ def test_rascunho_em_andamento_nao_aparece_nas_metricas_do_dashboard(client, db_
         json={
             "nome_turno": "1º Turno",
             "responsavel_nome": "Líder Teste",
-            "registros": [{"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 999}],
+            "registros": [
+                {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 999}
+            ],
         },
     )
     # Turno fechado de verdade: deve contar.
@@ -693,10 +694,9 @@ def test_fechamento_agenda_email_so_com_brevo_configurado_sem_smtp(client, db_se
     }
     with patch("app.services.turno_service.settings", fake_settings), patch(
         "app.services.mailer.settings", fake_settings
-    ):
-        with patch("requests.post") as mock_post:
-            mock_post.return_value = MagicMock(status_code=201, text="")
-            res = client.post("/api/v1/turnos/fechamento", json=payload)
+    ), patch("requests.post") as mock_post:
+        mock_post.return_value = MagicMock(status_code=201, text="")
+        res = client.post("/api/v1/turnos/fechamento", json=payload)
 
     assert res.status_code == 201, res.text
     assert res.json()["relatorio_email_agendado"] is True

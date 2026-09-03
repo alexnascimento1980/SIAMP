@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
-from app.models.lancamento import Lancamento, TIPO_PARADA_PROGRAMADA, TIPO_PARADA_FALHA, TIPO_PRODUCAO
+
+from app.models.lancamento import TIPO_PARADA_FALHA, TIPO_PARADA_PROGRAMADA, TIPO_PRODUCAO, Lancamento
 from app.models.maquina import Maquina
 from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
