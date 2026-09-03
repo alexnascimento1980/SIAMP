@@ -21,10 +21,17 @@ class OrdemProducaoBase(BaseModel):
     produto_id: int = Field(..., gt=0)
     quantidade_a_produzir: int = Field(..., gt=0)
 
-    # Exige selecionar uma máquina já cadastrada (pelo numero_maquina,
-    # ex.: "6") - igual ao numero_maquina já usado no apontamento. Não
-    # expõe o id interno para quem preenche o formulário.
-    numero_maquina: str = Field(..., min_length=1, max_length=30)
+    # Máquina é opcional: uma OP pode ser atendida por mais de uma
+    # injetora ao longo do período (o comparativo de meta x produção
+    # real soma por ordem_producao_id nos lançamentos/registros,
+    # independente de qual máquina cada um usou - não depende deste
+    # campo, que serve só de referência/registro do "Equipamento"
+    # informado no documento original, quando existir um único).
+    # Quando informada, exige ser uma máquina já cadastrada (pelo
+    # numero_maquina, ex.: "6") - igual ao numero_maquina já usado no
+    # apontamento. Não expõe o id interno para quem preenche o
+    # formulário.
+    numero_maquina: str | None = Field(default=None, max_length=30)
     equipamento_descricao: str | None = Field(default=None, max_length=150)
 
     ferramenta_codigo: str | None = Field(default=None, max_length=50)
