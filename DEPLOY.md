@@ -69,6 +69,7 @@ ficar exposto fora dele. Para o navegador, é tudo uma origem só.
    | `BREVO_API_KEY`     | Chave da **API** do Brevo (Settings → SMTP & API → API Keys) - **não** a chave SMTP                                                                                           |
    | `REPORT_RECIPIENTS` | Opcional - prefira cadastrar pela tela Destinatários depois do primeiro login                                                                                                 |
    | `SEED_ON_START`     | `true` no primeiro deploy (carrega as 102 peças e as 6 máquinas de exemplo); pode deixar `true` sempre, é seguro repetir (usa `ON CONFLICT DO NOTHING`)                       |
+   | `ADMIN_EMAIL` / `ADMIN_SENHA` / `ADMIN_NOME` | Opcional - cria o primeiro usuário admin automaticamente, sem precisar de acesso a shell. Ver passo 3 abaixo.                                              |
 
 5. Clica em **Create Web Service**. O primeiro build demora alguns
    minutos (instala dependências Python + nginx).
@@ -92,9 +93,31 @@ O `entrypoint.sh` já roda `alembic upgrade head` (e o seed, se
 não precisa de nenhum passo manual de migration.
 
 O que falta é **criar o primeiro usuário administrador**, já que não
-existe cadastro público. Como o plano gratuito não dá acesso a shell
-dentro do container, rode o script direto da sua máquina, conectando
-no mesmo banco Supabase:
+existe cadastro público. Duas formas:
+
+**Opção 1 — automática (recomendada, principalmente aqui):** como o
+plano gratuito do Render não dá acesso a shell dentro do container, o
+jeito mais simples é deixar o próprio `entrypoint.sh` garantir essa
+conta sozinho a cada início do container - sem precisar rodar nada da
+sua máquina. Adiciona três variáveis de ambiente ao serviço no Render
+(mesma tabela do passo 2):
+
+| Variável       | Valor                                              |
+| -------------- | --------------------------------------------------- |
+| `ADMIN_NOME`   | Nome de exibição, ex.: `Admin`                       |
+| `ADMIN_EMAIL`  | E-mail de login do primeiro admin                    |
+| `ADMIN_SENHA`  | Senha forte - troque depois pela tela de Usuários se quiser |
+
+No próximo deploy (ou `Manual Deploy` pelo painel), essa conta é
+criada automaticamente - já nasce marcada como **protegida** contra
+exclusão/desativação acidental, e é restaurada sozinha (ativa,
+perfil ADMIN, protegida) se um dia for excluída ou alterada por
+engano, sem precisar de nenhuma ação manual. A senha nunca é
+sobrescrita automaticamente depois da primeira criação, mesmo que a
+variável continue definida - trocar pela tela de Usuários é seguro.
+
+**Opção 2 — manual, sob demanda:** conectando no mesmo banco Supabase
+direto da sua máquina:
 
 ```bash
 cd backend
