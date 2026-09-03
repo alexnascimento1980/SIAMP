@@ -15,21 +15,42 @@ uma pessoa usaria.
 ## Rodando localmente
 
 Precisa da stack completa de pé (não do `TestClient`, da aplicação
-rodando de verdade):
+rodando de verdade). **Não edite nem sobrescreva o `.env` da raiz do
+projeto** - ele já tem suas configurações reais (senha do banco,
+`JWT_SECRET_KEY`, credenciais de e-mail, sua conta admin protegida).
+Suba a stack normalmente, do jeito que você já faz:
 
 ```bash
-# na raiz do projeto
-cp .env.example .env
-# edita o .env e preenche ADMIN_EMAIL=admin-e2e@siamp.test e
-# ADMIN_SENHA=SenhaE2E-Testes-123 (precisam bater com conftest.py)
+# na raiz do projeto, com o .env que você já tem configurado
 docker compose up --build -d
+```
 
-# espera responder em http://localhost:8090, depois:
+Os testes fazem login usando as credenciais das variáveis de ambiente
+`E2E_ADMIN_EMAIL`/`E2E_ADMIN_SENHA` - defina-as apontando pra uma
+conta ADMIN que já existe no seu banco (ex.: a sua conta admin
+protegida), sem precisar criar uma conta nova só pra isso:
+
+```powershell
+# PowerShell - troque pelos valores da sua conta admin real
+$env:E2E_ADMIN_EMAIL = "seu-email-admin@empresa.com"
+$env:E2E_ADMIN_SENHA = "sua-senha-real"
+
 cd e2e
 pip install -r requirements.txt
 playwright install --with-deps chromium
 pytest -v
 ```
+
+```bash
+# bash/Linux/macOS - equivalente
+export E2E_ADMIN_EMAIL="seu-email-admin@empresa.com"
+export E2E_ADMIN_SENHA="sua-senha-real"
+```
+
+Se essas duas variáveis não forem definidas, os testes usam um valor
+padrão (`admin-e2e@siamp.test`) que só existe na stack isolada do CI
+- rodar localmente sem defini-las vai falhar no login, não porque o
+teste esteja quebrado, só porque essa conta não existe no seu banco.
 
 ## Rodando com `--headed` (ver o navegador de verdade, útil para depurar)
 
@@ -46,13 +67,11 @@ algo - esgota esse limite rápido se cada teste fizer seu próprio
 login. Por isso a suíte tem um único teste cobrindo o fluxo inteiro,
 com um único login, em vez de vários testes pequenos.
 
-## Por que as credenciais e dados de seed são fixos no código
+## Por que os dados de seed usados no teste são fixos no código
 
-`EMAIL_ADMIN_E2E`/`SENHA_ADMIN_E2E` (em `conftest.py`) e os
-identificadores de máquina/peça usados no teste (`data-numero-
+Os identificadores de máquina/peça usados no teste (`data-numero-
 maquina="1"`, "1 - Tube Alimentation 1/2") dependem de dados que já
-vêm de `database/seeds.sql` (via `SEED_ON_START=true`) e do bootstrap
-automático de conta admin (`ADMIN_EMAIL`/`ADMIN_SENHA` no `.env`, ver
-`backend/app/scripts/create_admin.py`). Se algum desses três
-mudar - o seed, o bootstrap, ou o teste -, os outros dois precisam
-acompanhar.
+vêm de `database/seeds.sql` (via `SEED_ON_START=true`). Se algum dia
+esses dados de seed mudarem, o teste precisa acompanhar. As
+credenciais de login, diferente disso, são configuráveis por variável
+de ambiente (ver seção acima) - não fixas no código.
