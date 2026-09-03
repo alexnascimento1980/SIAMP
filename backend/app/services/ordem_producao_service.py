@@ -1,8 +1,7 @@
-from datetime import date
-
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.core.timezone import agora_brasilia
 from app.models.maquina import Maquina
 from app.models.ordem_producao import OrdemProducao
 from app.models.produto import Produto
@@ -191,5 +190,9 @@ def calcular_comparativo(db: Session, ordem_id: int) -> OrdemProducaoComparativo
         percentual_atingido=percentual,
         periodo_inicio=ordem.periodo_inicio,
         periodo_fim=ordem.periodo_fim,
-        dentro_do_prazo=date.today() <= ordem.periodo_fim,
+        # date.today() usaria UTC no servidor (produção roda em UTC),
+        # divergindo da data real em Brasília por até 3h perto da
+        # meia-noite - mesma classe de bug já corrigida antes em
+        # outros pontos do sistema (ver core/timezone.py).
+        dentro_do_prazo=agora_brasilia().date() <= ordem.periodo_fim,
     )

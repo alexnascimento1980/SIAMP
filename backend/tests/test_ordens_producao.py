@@ -1,4 +1,4 @@
-from datetime import date, datetime, time
+from datetime import datetime, time
 
 from app.core.security import gerar_hash_senha
 from app.models.maquina import Maquina
@@ -177,6 +177,41 @@ def test_comparativo_sem_producao_real(client, db_session):
     assert comparativo["quantidade_meta"] == 48000
     assert comparativo["quantidade_produzida"] == 0
     assert comparativo["percentual_atingido"] == 0.0
+
+
+def test_dentro_do_prazo_usa_horario_de_brasilia_nao_utc(client, db_session, monkeypatch):
+    # Bug real encontrado por um linter (ruff, regra DTZ011): a
+    # comparação usava date.today() (UTC no servidor) em vez de
+    # agora_brasilia().date() - mesma classe de bug já corrigida antes
+    # em outros pontos do sistema. Sem a correção, um servidor em UTC
+    # poderia considerar uma OP "fora do prazo" até 3h antes da hora
+    # real da virada do dia em Brasília (ou o oposto, dependendo do
+    # horário). Mocka agora_brasilia() para os dois lados do prazo,
+    # já que o bug só se manifesta perto da meia-noite - não dá pra
+    # depender do horário real de quando o teste roda.
+    import app.services.ordem_producao_service as modulo
+
+    admin = _criar_admin(db_session)
+    db_session.add(
+        Maquina(numero_maquina="6", descricao="Injetora", cavidades=8, ciclo_padrao=19.0)
+    )
+    db_session.commit()
+    produto = _seed_produto(db_session)
+
+    _login(client, admin)
+    ordem_id = client.post(
+        "/api/v1/ordens-producao/", json=_payload_op_exemplo(produto.id)
+    ).json()["id"]
+
+    # periodo_fim = 2026-08-20 - ainda dentro do prazo
+    monkeypatch.setattr(modulo, "agora_brasilia", lambda: datetime(2026, 8, 20, 10, 0))
+    res = client.get(f"/api/v1/ordens-producao/{ordem_id}/comparativo")
+    assert res.json()["dentro_do_prazo"] is True
+
+    # um dia depois do prazo - fora do prazo
+    monkeypatch.setattr(modulo, "agora_brasilia", lambda: datetime(2026, 8, 21, 10, 0))
+    res = client.get(f"/api/v1/ordens-producao/{ordem_id}/comparativo")
+    assert res.json()["dentro_do_prazo"] is False
 
 
 def test_comparativo_soma_producao_de_multiplas_maquinas(client, db_session):
