@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, datetime, time, timedelta
 
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
@@ -20,12 +20,24 @@ LIMITE_TURNOS_GRAFICO = 10
 # "turno" não filtra por data (é tratado à parte, pelos KPIs do
 # próprio turno sendo fechado); os demais recortam Turno.data_registro
 # a partir de "agora" (fuso de Brasília) para trás.
-PERIODOS_VALIDOS = {"diario", "semanal", "mensal", "total"}
+PERIODOS_VALIDOS = {"diario", "semanal", "mensal", "total", "personalizado"}
 
 
-def calcular_intervalo_periodo(periodo: str):
+def calcular_intervalo_periodo(
+    periodo: str,
+    data_inicio_custom: date | None = None,
+    data_fim_custom: date | None = None,
+):
     """Retorna (data_inicio, data_fim) para o período pedido, ou
-    (None, None) para 'total' (sem filtro - todo o histórico)."""
+    (None, None) para 'total' (sem filtro - todo o histórico).
+
+    'personalizado' usa as datas informadas por quem chama (tela de
+    Dashboard - filtro de intervalo específico), em vez de calcular a
+    partir de "agora" como os demais períodos - data_fim_custom é
+    tratado como o FIM daquele dia (23:59:59), não o instante exato
+    informado, para incluir turnos fechados em qualquer horário
+    daquele último dia (mesmo padrão intuitivo de "até tal data,
+    incluindo ela inteira")."""
     agora = agora_brasilia()
     if periodo == "diario":
         inicio = agora.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -33,12 +45,23 @@ def calcular_intervalo_periodo(periodo: str):
         inicio = agora - timedelta(days=7)
     elif periodo == "mensal":
         inicio = agora - timedelta(days=30)
+    elif periodo == "personalizado":
+        if data_inicio_custom is None or data_fim_custom is None:
+            return None, None
+        inicio = datetime.combine(data_inicio_custom, time.min)
+        fim = datetime.combine(data_fim_custom, time.max)
+        return inicio, fim
     else:
         return None, None
     return inicio, agora
 
 
-def calcular_metricas_acumuladas(db: Session, periodo: str = "total") -> dict:
+def calcular_metricas_acumuladas(
+    db: Session,
+    periodo: str = "total",
+    data_inicio_custom: date | None = None,
+    data_fim_custom: date | None = None,
+) -> dict:
     """Métricas acumuladas (total produzido, OEE médio, produção por
     injetora), com filtro de período opcional. Só turnos fechados
     (ASSINADO_DIGITALMENTE) entram - um rascunho em andamento não deve
@@ -47,7 +70,7 @@ def calcular_metricas_acumuladas(db: Session, periodo: str = "total") -> dict:
     ver endpoint PATCH /turnos/marcar-teste. Soma os dois modelos de
     apontamento (HORARIO e LANCAMENTO).
     """
-    data_inicio, data_fim = calcular_intervalo_periodo(periodo)
+    data_inicio, data_fim = calcular_intervalo_periodo(periodo, data_inicio_custom, data_fim_custom)
 
     query_turnos = db.query(Turno).filter(
         Turno.status_assinatura == STATUS_ASSINADO,
