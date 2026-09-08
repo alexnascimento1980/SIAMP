@@ -239,3 +239,79 @@ def test_dashboard_periodo_invalido_cai_para_total(client, db_session, usuario_t
     res = client.get("/api/v1/dashboard/metricas-gerais?periodo=bagunca")
     assert res.status_code == 200
     assert res.json()["periodo"] == "total"
+
+
+def test_dashboard_periodo_personalizado_filtra_intervalo_exato(client, db_session, usuario_teste):
+    from datetime import timedelta
+
+    from app.core.timezone import agora_brasilia
+
+    _login(client, usuario_teste)
+    maquina = Maquina(numero_maquina="1", descricao="Injetora", ativo=True)
+    db_session.add(maquina)
+    db_session.commit()
+    db_session.refresh(maquina)
+
+    agora = agora_brasilia()
+    # Dentro do intervalo escolhido (10 dias atrás)
+    _criar_turno_com_data(db_session, maquina, agora - timedelta(days=10), quantidade=100)
+    # Fora, antes do intervalo (20 dias atrás)
+    _criar_turno_com_data(db_session, maquina, agora - timedelta(days=20), quantidade=999)
+    # Fora, depois do intervalo (hoje)
+    _criar_turno_com_data(db_session, maquina, agora, quantidade=888)
+
+    data_inicio = (agora - timedelta(days=15)).date().isoformat()
+    data_fim = (agora - timedelta(days=5)).date().isoformat()
+
+    res = client.get(
+        f"/api/v1/dashboard/metricas-gerais?periodo=personalizado"
+        f"&data_inicio={data_inicio}&data_fim={data_fim}"
+    )
+    assert res.status_code == 200, res.text
+    dados = res.json()
+    assert dados["periodo"] == "personalizado"
+    assert dados["data_inicio"] == data_inicio
+    assert dados["data_fim"] == data_fim
+    assert dados["kpis"]["total_pecas_produzidas"] == 100
+
+
+def test_dashboard_periodo_personalizado_e_inclusivo_no_dia_final(client, db_session, usuario_teste):
+    # data_fim deve incluir o dia inteiro (até 23:59:59), não só o
+    # instante exato informado - um turno fechado às 22h do último
+    # dia do intervalo não pode ficar de fora por causa disso.
+    from app.core.timezone import agora_brasilia
+
+    _login(client, usuario_teste)
+    maquina = Maquina(numero_maquina="1", descricao="Injetora", ativo=True)
+    db_session.add(maquina)
+    db_session.commit()
+    db_session.refresh(maquina)
+
+    hoje = agora_brasilia().replace(hour=22, minute=30, second=0, microsecond=0)
+    _criar_turno_com_data(db_session, maquina, hoje, quantidade=100)
+
+    data_inicio = hoje.date().isoformat()
+    data_fim = hoje.date().isoformat()
+
+    res = client.get(
+        f"/api/v1/dashboard/metricas-gerais?periodo=personalizado"
+        f"&data_inicio={data_inicio}&data_fim={data_fim}"
+    )
+    assert res.status_code == 200
+    assert res.json()["kpis"]["total_pecas_produzidas"] == 100
+
+
+def test_dashboard_personalizado_sem_datas_retorna_erro_claro(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    res = client.get("/api/v1/dashboard/metricas-gerais?periodo=personalizado")
+    assert res.status_code == 400
+    assert "data_inicio" in res.json()["detail"]
+
+
+def test_dashboard_personalizado_data_fim_antes_do_inicio_e_rejeitado(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    res = client.get(
+        "/api/v1/dashboard/metricas-gerais?periodo=personalizado"
+        "&data_inicio=2026-09-10&data_fim=2026-09-01"
+    )
+    assert res.status_code == 400

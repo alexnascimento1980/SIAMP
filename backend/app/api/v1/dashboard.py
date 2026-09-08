@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends
+from datetime import date
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -148,26 +150,45 @@ def _montar_diagnostico_ia(db: Session) -> dict:
 @router.get("/metricas-gerais")
 def obter_metricas_dashboard(
     periodo: str = "total",
+    data_inicio: date | None = None,
+    data_fim: date | None = None,
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_current_user),
 ):
     """
     periodo: 'diario' (hoje), 'semanal' (últimos 7 dias), 'mensal'
-    (últimos 30 dias) ou 'total' (todo o histórico, padrão) - filtra
-    os KPIs acumulados e a produção por injetora. O gráfico de
-    'Produção por Turno' (últimos 10 turnos) e o comparativo de
-    Ordens de Produção continuam sempre mostrando os mais recentes,
-    independente do período escolhido - são naturalmente "por turno",
-    não acumulados por data.
+    (últimos 30 dias), 'total' (todo o histórico, padrão) ou
+    'personalizado' (intervalo específico, exige data_inicio e
+    data_fim) - filtra os KPIs acumulados e a produção por injetora.
+    O gráfico de 'Produção por Turno' (últimos 10 turnos) e o
+    comparativo de Ordens de Produção continuam sempre mostrando os
+    mais recentes, independente do período escolhido - são
+    naturalmente "por turno", não acumulados por data.
     """
     if periodo not in PERIODOS_VALIDOS:
         periodo = "total"
 
-    metricas = calcular_metricas_acumuladas(db, periodo=periodo)
+    if periodo == "personalizado":
+        if data_inicio is None or data_fim is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Período personalizado exige data_inicio e data_fim.",
+            )
+        if data_fim < data_inicio:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A data final não pode ser anterior à data inicial.",
+            )
+
+    metricas = calcular_metricas_acumuladas(
+        db, periodo=periodo, data_inicio_custom=data_inicio, data_fim_custom=data_fim
+    )
     insight_ia = _montar_diagnostico_ia(db)
 
     return {
         "periodo": periodo,
+        "data_inicio": data_inicio.isoformat() if data_inicio else None,
+        "data_fim": data_fim.isoformat() if data_fim else None,
         "kpis": {
             "total_turnos_encerrados": metricas["total_turnos_encerrados"],
             "total_pecas_produzidas": metricas["total_pecas_produzidas"],
