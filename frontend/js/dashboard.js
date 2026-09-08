@@ -3,11 +3,43 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (!sessao) return;
 
   document.querySelectorAll('input[name="periodo"]').forEach((radio) => {
-    radio.addEventListener("change", () => carregarDashboard(radio.value));
+    radio.addEventListener("change", () => {
+      const ehPersonalizado = radio.value === "personalizado";
+      document.getElementById("filtroPersonalizado").classList.toggle("d-none", !ehPersonalizado);
+      // "Personalizado" só recarrega quando o usuário escolher as
+      // datas e clicar em Aplicar - os outros períodos continuam
+      // recarregando assim que selecionados, sem mudança nenhuma.
+      if (!ehPersonalizado) {
+        carregarDashboard(radio.value);
+      }
+    });
   });
+
+  document.getElementById("btnAplicarPersonalizado").addEventListener("click", aplicarPeriodoPersonalizado);
 
   carregarDashboard("total");
 });
+
+function aplicarPeriodoPersonalizado() {
+  const erroEl = document.getElementById("erroPersonalizado");
+  erroEl.classList.add("d-none");
+
+  const dataInicio = document.getElementById("dataInicioPersonalizado").value;
+  const dataFim = document.getElementById("dataFimPersonalizado").value;
+
+  if (!dataInicio || !dataFim) {
+    erroEl.innerText = "Preencha as duas datas.";
+    erroEl.classList.remove("d-none");
+    return;
+  }
+  if (dataFim < dataInicio) {
+    erroEl.innerText = "A data final não pode ser anterior à data inicial.";
+    erroEl.classList.remove("d-none");
+    return;
+  }
+
+  carregarDashboard("personalizado", dataInicio, dataFim);
+}
 
 const ROTULOS_PERIODO = {
   diario: "- hoje",
@@ -16,6 +48,14 @@ const ROTULOS_PERIODO = {
   total: "",
 };
 
+function rotuloPeriodo(dados) {
+  if (dados.periodo === "personalizado" && dados.data_inicio && dados.data_fim) {
+    const formatar = (iso) => iso.split("-").reverse().join("/");
+    return `- de ${formatar(dados.data_inicio)} até ${formatar(dados.data_fim)}`;
+  }
+  return ROTULOS_PERIODO[dados.periodo] || "";
+}
+
 // Guarda as instâncias já criadas do Chart.js - trocar de período
 // dispara uma nova busca e recria os gráficos, e o Chart.js exige
 // destruir a instância anterior antes de reusar o mesmo <canvas>,
@@ -23,18 +63,28 @@ const ROTULOS_PERIODO = {
 let graficoProducaoInstancia = null;
 let graficoTurnosInstancia = null;
 
-async function carregarDashboard(periodo = "total") {
+async function carregarDashboard(periodo = "total", dataInicio = null, dataFim = null) {
   try {
-    const res = await chamarApi(`/dashboard/metricas-gerais?periodo=${periodo}`);
+    let caminho = `/dashboard/metricas-gerais?periodo=${periodo}`;
+    if (periodo === "personalizado" && dataInicio && dataFim) {
+      caminho += `&data_inicio=${dataInicio}&data_fim=${dataFim}`;
+    }
+    const res = await chamarApi(caminho);
 
     if (!res.ok) {
+      if (periodo === "personalizado") {
+        const erro = await res.json().catch(() => null);
+        const erroEl = document.getElementById("erroPersonalizado");
+        erroEl.innerText = extrairMensagemDeErro(erro, "Não foi possível aplicar o período.");
+        erroEl.classList.remove("d-none");
+        return;
+      }
       throw new Error(`Falha ao carregar dashboard (HTTP ${res.status})`);
     }
 
     const dados = await res.json();
 
-    document.getElementById("rotuloPeriodoGrafico").innerText =
-      ROTULOS_PERIODO[dados.periodo] || "";
+    document.getElementById("rotuloPeriodoGrafico").innerText = rotuloPeriodo(dados);
 
     // Atualiza KPIs
     document.getElementById("kpiProducao").innerText =

@@ -51,7 +51,23 @@
 
           <input type="radio" class="btn-check" name="periodo" id="periodoTotal" value="total" checked autocomplete="off">
           <label class="btn btn-outline-primary btn-sm" for="periodoTotal">Total</label>
+
+          <input type="radio" class="btn-check" name="periodo" id="periodoPersonalizado" value="personalizado" autocomplete="off">
+          <label class="btn btn-outline-primary btn-sm" for="periodoPersonalizado">Personalizado</label>
         </div>
+      </div>
+
+      <div id="filtroPersonalizado" class="d-flex align-items-end gap-2 mb-3 d-none">
+        <div>
+          <label class="form-label mb-1 small">Data início</label>
+          <input type="date" id="dataInicioPersonalizado" class="form-control form-control-sm">
+        </div>
+        <div>
+          <label class="form-label mb-1 small">Data fim</label>
+          <input type="date" id="dataFimPersonalizado" class="form-control form-control-sm">
+        </div>
+        <button class="btn btn-primary btn-sm" id="btnAplicarPersonalizado">Aplicar</button>
+        <div id="erroPersonalizado" class="text-danger small d-none"></div>
       </div>
 
       <!-- Linha de KPIs -->
