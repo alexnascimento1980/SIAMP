@@ -2,7 +2,7 @@ from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.core.timezone import agora_brasilia
-from app.models.lancamento import TIPO_PARADA_PROGRAMADA, TIPO_PRODUCAO, Lancamento
+from app.models.lancamento import TIPO_PARADA_FALHA, TIPO_PARADA_PROGRAMADA, TIPO_PRODUCAO, Lancamento
 from app.models.maquina import Maquina
 from app.models.ordem_producao import OrdemProducao
 from app.models.produto import Produto
@@ -140,6 +140,23 @@ def montar_registros_pdf_lancamento(db: Session, turno_id: int) -> list[dict]:
                 "parada_programada": False,
             })
         else:
+            # PARADA_FALHA agora conta como capacidade esperada perdida
+            # no total do turno (ver analytics.calcular_capacidade_
+            # esperada_lancamento) - mostrar aqui o mesmo valor usado
+            # naquela soma, para a coluna "Esperado" de cada linha
+            # somar exatamente igual ao "Produção Esperada" do
+            # cabeçalho do relatório. PARADA_PROGRAMADA nunca conta
+            # (0 é o valor correto ali, não falta de dado).
+            if lanc.tipo == TIPO_PARADA_FALHA:
+                esperado_falha = calcular_capacidade_esperada_lancamento(lanc, maq, produto)
+                ciclo_padrao, cavidades_padrao = resolver_ciclo_cavidades(maq, None)
+                producao_esperada_parada = (
+                    "N/D" if esperado_falha == 0 and not (ciclo_padrao and cavidades_padrao)
+                    else esperado_falha
+                )
+            else:
+                producao_esperada_parada = 0
+
             resultado.append({
                 "hora_referencia": f"{inicio_str}-{fim_str}",
                 "numero_maquina": maq.numero_maquina,
@@ -148,7 +165,7 @@ def montar_registros_pdf_lancamento(db: Session, turno_id: int) -> list[dict]:
                 ),
                 "numero_op": None,
                 "prod_executada": 0,
-                "producao_esperada": 0,
+                "producao_esperada": producao_esperada_parada,
                 "inicio_parada": inicio_str,
                 "retomada": fim_str,
                 "parada_programada": lanc.tipo == TIPO_PARADA_PROGRAMADA,
