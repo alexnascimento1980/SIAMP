@@ -34,17 +34,55 @@ jobs:
       - name: Subir a stack (docker compose)
         run: docker compose up --build -d
 
-      - name: Aguardar o frontend responder
+      - name: Aguardar a stack ficar pronta
         run: |
+          echo "=== Aguardando o frontend (nginx, arquivos estáticos) ==="
+          frontend_pronto=false
           for tentativa in $(seq 1 30); do
             if curl -sf http://localhost:8090/login.html > /dev/null; then
               echo "Frontend respondendo (tentativa $tentativa)."
-              exit 0
+              frontend_pronto=true
+              break
             fi
             echo "Aguardando frontend (tentativa $tentativa/30)..."
             sleep 2
           done
-          echo "Frontend não respondeu a tempo."
+          if [ "$frontend_pronto" = "false" ]; then
+            echo "Frontend não respondeu a tempo."
+            docker compose logs
+            exit 1
+          fi
+
+          # O health check do backend (GET /) fica na raiz do próprio
+          # backend, mas na porta pública (8090) essa mesma raiz é
+          # servida pelo nginx do frontend (arquivos estáticos) - nginx
+          # só repassa /api/ pra lá (ver nginx.conf.template). Por isso
+          # a checagem usa um endpoint sob /api/ mesmo, e trata tanto
+          # 200 quanto 401 como "pronto" (401 é a resposta CORRETA e
+          # esperada de uma rota autenticada sem nenhum cookie -
+          # confirma que o backend está de pé processando requisições
+          # até o fim, não que "não está pronto"; só conexão recusada/
+          # timeout/5xx contam como "ainda não").
+          #
+          # Migrations + bootstrap de admin + carga de seeds rodam
+          # antes do Uvicorn nem subir, e podem levar mais tempo que o
+          # nginx simples do frontend - checar só o frontend (como
+          # este workflow fazia antes) não garantia que o backend já
+          # tinha terminado essa sequência, causando timeout
+          # intermitente no primeiro login de cada execução (mais
+          # visível conforme mais migrations se acumulam ao longo do
+          # projeto).
+          echo "=== Aguardando o backend (API) ficar pronto de verdade ==="
+          for tentativa in $(seq 1 30); do
+            codigo=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8090/api/v1/auth/me)
+            if [ "$codigo" = "200" ] || [ "$codigo" = "401" ]; then
+              echo "Backend respondendo (tentativa $tentativa, código $codigo)."
+              exit 0
+            fi
+            echo "Aguardando backend (tentativa $tentativa/30, código $codigo)..."
+            sleep 2
+          done
+          echo "Backend não respondeu a tempo."
           docker compose logs
           exit 1
 
