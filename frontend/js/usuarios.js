@@ -41,7 +41,7 @@ function renderizarUsuarios(usuarios) {
     const badgeStatus = u.ativo
       ? '<span class="badge bg-success">Ativo</span>'
       : '<span class="badge bg-secondary">Inativo</span>';
-    const nomeEscapado = escaparHtml(u.nome).replace(/'/g, "\\'");
+    const nomeEscapado = escaparHtml(u.nome);
 
     // Conta protegida: Desativar/Excluir ficam desabilitados, com
     // dica explicando o motivo - evita repetir o mesmo acidente que
@@ -52,20 +52,33 @@ function renderizarUsuarios(usuarios) {
       : u.ativo
       ? `<button class="btn btn-sm btn-outline-danger" onclick="alterarStatus(${u.id}, false)">Desativar</button>`
       : `<button class="btn btn-sm btn-outline-success" onclick="alterarStatus(${u.id}, true)">Reativar</button>`;
-    const botaoReset = `<button class="btn btn-sm btn-outline-secondary" onclick="abrirResetSenha(${u.id}, '${nomeEscapado}')" title="Resetar senha">
+    // O nome do usuário (texto livre) vai em data-usuario-nome, NUNCA
+    // interpolado direto dentro do onclick="..." - escaparHtml() só
+    // protege contra quebra de HTML/atributo, não contra quebra do
+    // próprio JavaScript dentro de um onclick: o navegador decodifica
+    // as entidades do atributo ANTES de tratar o conteúdo como código,
+    // então um &#39; (aspas escapada) vira ' de novo bem no ponto onde
+    // o JS é montado, permitindo escapar da string e injetar código
+    // arbitrário (achado real numa avaliação de segurança do projeto -
+    // .replace(/'/g, "\\'") que existia aqui antes era um no-op inútil,
+    // já que escaparHtml() já tinha convertido toda aspas em &#39;, não
+    // sobrando ' literal pra esse replace encontrar). data-* é um
+    // atributo comum, sem essa segunda camada de interpretação -
+    // escaparHtml() sozinho já é suficiente ali.
+    const botaoReset = `<button class="btn btn-sm btn-outline-secondary" data-usuario-nome="${nomeEscapado}" onclick="abrirResetSenha(${u.id}, this.dataset.usuarioNome)" title="Resetar senha">
       <i class="bi bi-key"></i>
     </button>`;
     const botaoExcluir = u.protegido
       ? `<button class="btn btn-sm btn-outline-secondary" disabled title="Conta protegida - remova a proteção para excluir">
           <i class="bi bi-trash"></i>
         </button>`
-      : `<button class="btn btn-sm btn-outline-danger" onclick="abrirExcluirUsuario(${u.id}, '${nomeEscapado}')" title="Excluir definitivamente">
+      : `<button class="btn btn-sm btn-outline-danger" data-usuario-nome="${nomeEscapado}" onclick="abrirExcluirUsuario(${u.id}, this.dataset.usuarioNome)" title="Excluir definitivamente">
           <i class="bi bi-trash"></i>
         </button>`;
-    const botaoProtegido = `<button class="btn btn-sm ${u.protegido ? "btn-warning" : "btn-outline-secondary"}" onclick="alternarProtecao(${u.id}, ${!u.protegido}, '${nomeEscapado}')" title="${u.protegido ? "Remover proteção contra exclusão/desativação" : "Proteger contra exclusão/desativação acidental"}">
+    const botaoProtegido = `<button class="btn btn-sm ${u.protegido ? "btn-warning" : "btn-outline-secondary"}" data-usuario-nome="${nomeEscapado}" onclick="alternarProtecao(${u.id}, ${!u.protegido}, this.dataset.usuarioNome)" title="${u.protegido ? "Remover proteção contra exclusão/desativação" : "Proteger contra exclusão/desativação acidental"}">
       <i class="bi bi-shield-lock${u.protegido ? "-fill" : ""}"></i>
     </button>`;
-    const perfilClicavel = `<span class="badge bg-primary" role="button" onclick="abrirAlterarPerfil(${u.id}, '${nomeEscapado}', '${u.perfil}')" title="Clique para alterar">
+    const perfilClicavel = `<span class="badge bg-primary" role="button" data-usuario-nome="${nomeEscapado}" data-usuario-perfil="${escaparHtml(u.perfil)}" onclick="abrirAlterarPerfil(${u.id}, this.dataset.usuarioNome, this.dataset.usuarioPerfil)" title="Clique para alterar">
       ${escaparHtml(u.perfil)} <i class="bi bi-pencil-square ms-1" style="font-size: 0.7em;"></i>
     </span>`;
     const marcaProtegido = u.protegido
