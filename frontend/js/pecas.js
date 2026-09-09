@@ -74,8 +74,14 @@ function renderizarPecas() {
     const botaoStatus = p.ativo
       ? `<button class="btn btn-sm btn-outline-danger" onclick="alterarStatus(${p.id}, false)">Desativar</button>`
       : `<button class="btn btn-sm btn-outline-success" onclick="alterarStatus(${p.id}, true)">Reativar</button>`;
+    // p.codigo (texto livre) vai em data-peca-codigo, NUNCA
+    // interpolado direto dentro do onclick="..." - mesmo motivo já
+    // documentado em usuarios.js e historico.js (escaparHtml() não
+    // protege contra a segunda camada de interpretação de um onclick,
+    // só contra quebra de HTML/atributo - achado numa avaliação de
+    // segurança do projeto).
     const botaoExcluir = ehAdmin
-      ? `<button class="btn btn-sm btn-outline-danger" onclick="abrirExclusaoPeca(${p.id}, '${escaparHtml(p.codigo).replace(/'/g, "\\'")}')" title="Excluir permanentemente">
+      ? `<button class="btn btn-sm btn-outline-danger" data-peca-codigo="${escaparHtml(p.codigo)}" onclick="abrirExclusaoPeca(${p.id}, this.dataset.pecaCodigo)" title="Excluir permanentemente">
           <i class="bi bi-trash"></i>
         </button>`
       : "";

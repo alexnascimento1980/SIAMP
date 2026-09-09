@@ -107,8 +107,24 @@ function renderizarTurnos(turnos) {
     // Exclusão definitiva é mais restrita que as demais ações desta
     // tela (só ADMIN, não SUPERVISOR) - mesma política já usada para
     // excluir usuário e peça, por ser uma ação irreversível.
+    //
+    // nome_turno (texto livre, definido por qualquer usuário ao
+    // fechar um turno) vai em data-turno-nome, NUNCA interpolado
+    // direto dentro do onclick="..." - escaparHtml() só protege
+    // contra quebra de HTML/atributo, não contra quebra do próprio
+    // JavaScript dentro de um onclick: o navegador decodifica as
+    // entidades do atributo ANTES de tratar o conteúdo como código,
+    // então um &#39; (aspas escapada) vira ' de novo bem no ponto
+    // onde o JS é montado, permitindo escapar da string e injetar
+    // código arbitrário (escalonamento real de OPERADOR para ADMIN,
+    // achado numa avaliação de segurança do projeto - o
+    // .replace(/'/g, "\\'") que existia aqui antes era um no-op
+    // inútil, já que escaparHtml() já tinha convertido toda aspas em
+    // &#39;, não sobrando ' literal pra esse replace encontrar).
+    // data-* é um atributo comum, sem essa segunda camada de
+    // interpretação - escaparHtml() sozinho já é suficiente ali.
     const botaoExcluir = perfilUsuario === "ADMIN"
-      ? `<button class="btn btn-sm btn-outline-danger" title="Excluir definitivamente" onclick="abrirExclusaoTurno(${t.id}, '${escaparHtml(t.nome_turno).replace(/'/g, "\\'")}', '${dataFormatada}')">
+      ? `<button class="btn btn-sm btn-outline-danger" title="Excluir definitivamente" data-turno-nome="${escaparHtml(t.nome_turno)}" data-turno-data="${escaparHtml(dataFormatada)}" onclick="abrirExclusaoTurno(${t.id}, this.dataset.turnoNome, this.dataset.turnoData)">
            <i class="bi bi-trash"></i>
          </button>`
       : "";
