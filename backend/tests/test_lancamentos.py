@@ -72,6 +72,56 @@ def test_horario_fim_igual_ao_inicio_e_rejeitado(client, db_session, usuario_tes
     assert res.status_code == 422
 
 
+def test_motivo_com_ate_2000_caracteres_e_aceito(client, db_session, usuario_teste):
+    # Pedido do usuário: motivo passa a ser o único campo de texto
+    # usado por Parada Programada/Falha na Injetora, precisando de um
+    # limite bem mais alto que uma frase curta (era 150 antes).
+    _login(client, usuario_teste)
+    maquina, _ = _criar_maquina_e_peca(db_session)
+    motivo_longo = "A" * 2000
+
+    payload = {
+        "nome_turno": "1º Turno",
+        "responsavel_nome": "Líder Teste",
+        "lancamentos": [
+            {
+                "numero_maquina": maquina.numero_maquina,
+                "tipo": "PARADA_FALHA",
+                "horario_inicio": "07:00",
+                "horario_fim": "08:00",
+                "motivo": motivo_longo,
+            }
+        ],
+    }
+    res = client.post("/api/v1/turnos/lancamento", json=payload)
+    assert res.status_code == 201, res.text
+
+    turno_id = res.json()["turno_id"]
+    detalhe = client.get(f"/api/v1/turnos/{turno_id}").json()
+    assert detalhe["lancamentos"][0]["motivo"] == motivo_longo
+
+
+def test_motivo_acima_de_2000_caracteres_e_rejeitado(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina, _ = _criar_maquina_e_peca(db_session)
+
+    payload = {
+        "nome_turno": "1º Turno",
+        "responsavel_nome": "Líder Teste",
+        "lancamentos": [
+            {
+                "numero_maquina": maquina.numero_maquina,
+                "tipo": "PARADA_FALHA",
+                "horario_inicio": "07:00",
+                "horario_fim": "08:00",
+                "motivo": "A" * 2001,
+            }
+        ],
+    }
+    res = client.post("/api/v1/turnos/lancamento", json=payload)
+    assert res.status_code == 422
+
+
 def test_lancamento_atravessando_meia_noite_e_aceito(client, db_session, usuario_teste):
     # 3º turno: 22:00 até 05:00 do dia seguinte - não deve ser
     # rejeitado, e a duração deve ser calculada como 7h (não negativa).
