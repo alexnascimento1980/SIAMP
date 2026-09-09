@@ -793,6 +793,111 @@ def test_indice_producao_e_limitado_a_100_por_cento(client, db_session, usuario_
     assert kpis["eficiencia_oee"] == 100.0
 
 
+def test_parada_falha_reduz_indice_producao_no_modelo_lancamento(client, db_session, usuario_teste):
+    # Correção: antes desta mudança, uma PARADA_FALHA (não programada)
+    # simplesmente não entrava em lugar nenhum da conta de índice de
+    # produção/eficiência OEE no modelo Lançamento - uma quebra de
+    # várias horas podia coexistir com "Eficiência (OEE): 100%",
+    # desde que o que fosse produzido no tempo restante batesse com o
+    # esperado. Corrigido para tratar o tempo de falha como
+    # capacidade esperada perdida (usando o ciclo/cavidades da
+    # MÁQUINA, já que uma parada não tem peça vinculada) - mesmo
+    # princípio já usado no modelo por hora (RegistroHorario) para
+    # parada não programada.
+    _login(client, usuario_teste)
+    maquina = Maquina(
+        numero_maquina="1", descricao="Injetora 1", ativo=True,
+        ciclo_padrao=10.0, cavidades=2,
+    )
+    peca = Produto(codigo="PL1", descricao="Peça Lançamento", ciclo_padrao=10.0, cavidades=2)
+    db_session.add_all([maquina, peca])
+    db_session.commit()
+    db_session.refresh(maquina)
+    db_session.refresh(peca)
+
+    # 05:00-06:00 produzindo no ritmo esperado (720 = 3600/10*2).
+    # 06:00-06:30 quebrada (falha) - meia hora perdida, esperado
+    # 360 (1800/10*2) que NINGUÉM produziu.
+    res = client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": peca.id,
+                    "quantidade": 720,
+                },
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PARADA_FALHA",
+                    "horario_inicio": "06:00",
+                    "horario_fim": "06:30",
+                    "motivo": "Sensor de temperatura travado",
+                },
+            ],
+        },
+    )
+    assert res.status_code == 201, res.text
+    kpis = res.json()["kpis"]
+    assert kpis["total_produzido"] == 720
+    assert kpis["total_esperado"] == 1080  # 720 (produção) + 360 (falha)
+    assert kpis["indice_producao"] == round(720 / 1080 * 100, 2)  # 66.67%
+    assert kpis["eficiencia_oee"] < 100.0
+    assert kpis["minutos_parados_nao_programados"] == 30
+
+
+def test_parada_programada_continua_sem_penalizar_indice_no_modelo_lancamento(client, db_session, usuario_teste):
+    # Contraste com o teste acima: parada PROGRAMADA (troca de molde,
+    # manutenção preventiva, refeição etc.) continua sem entrar no
+    # esperado - não é justo penalizar o turno por algo planejado.
+    _login(client, usuario_teste)
+    maquina = Maquina(
+        numero_maquina="1", descricao="Injetora 1", ativo=True,
+        ciclo_padrao=10.0, cavidades=2,
+    )
+    peca = Produto(codigo="PL1", descricao="Peça Lançamento", ciclo_padrao=10.0, cavidades=2)
+    db_session.add_all([maquina, peca])
+    db_session.commit()
+    db_session.refresh(maquina)
+    db_session.refresh(peca)
+
+    res = client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": peca.id,
+                    "quantidade": 720,
+                },
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PARADA_PROGRAMADA",
+                    "horario_inicio": "06:00",
+                    "horario_fim": "06:30",
+                    "motivo": "Troca de molde programada",
+                },
+            ],
+        },
+    )
+    assert res.status_code == 201, res.text
+    kpis = res.json()["kpis"]
+    assert kpis["total_esperado"] == 720  # a parada programada não soma nada aqui
+    assert kpis["indice_producao"] == 100.0
+    assert kpis["eficiencia_oee"] == 100.0
+    assert kpis["minutos_parados_programados"] == 30
+
+
 def test_pdf_mostra_nd_quando_producao_sem_ciclo_cadastrado(client, db_session, usuario_teste):
     # Regressão: produção real numa peça sem ciclo/cavidades cadastrados
     # mostrava "Esperado: 0" no PDF, que parece uma meta cumprida com
@@ -828,7 +933,95 @@ def test_pdf_mostra_nd_quando_producao_sem_ciclo_cadastrado(client, db_session, 
     linhas = montar_registros_pdf_lancamento(db_session, turno_id)
     assert len(linhas) == 1
     assert linhas[0]["prod_executada"] == 500
-    assert linhas[0]["producao_esperada"] == "N/D"
+
+
+def test_pdf_linha_de_falha_mostra_esperado_consistente_com_total(client, db_session, usuario_teste):
+    # Correção relacionada: antes, toda linha de parada (programada ou
+    # falha) sempre mostrava "Esperado: 0" no PDF - inofensivo para
+    # parada programada (0 é o valor correto ali), mas inconsistente
+    # para falha depois da correção do total agregado (que passou a
+    # contar o tempo de falha como capacidade perdida). Sem esse
+    # ajuste, somar a coluna "Esperado" linha por linha não batia mais
+    # com "Produção Esperada" do cabeçalho do relatório.
+    _login(client, usuario_teste)
+    maquina = Maquina(
+        numero_maquina="1", descricao="Injetora 1", ativo=True,
+        ciclo_padrao=10.0, cavidades=2,
+    )
+    peca = Produto(codigo="PL1", descricao="Peça Lançamento", ciclo_padrao=10.0, cavidades=2)
+    db_session.add_all([maquina, peca])
+    db_session.commit()
+    db_session.refresh(maquina)
+    db_session.refresh(peca)
+
+    res = client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": peca.id,
+                    "quantidade": 720,
+                },
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PARADA_FALHA",
+                    "horario_inicio": "06:00",
+                    "horario_fim": "06:30",
+                    "motivo": "Sensor travado",
+                },
+            ],
+        },
+    )
+    turno_id = res.json()["turno_id"]
+    total_esperado_agregado = res.json()["kpis"]["total_esperado"]
+
+    from app.services.lancamento_service import montar_registros_pdf_lancamento
+
+    linhas = montar_registros_pdf_lancamento(db_session, turno_id)
+    linha_falha = next(linha for linha in linhas if linha["produto_descricao"] == "Sensor travado")
+    assert linha_falha["producao_esperada"] == 360
+
+    soma_por_linha = sum(linha["producao_esperada"] for linha in linhas)
+    assert soma_por_linha == total_esperado_agregado
+
+
+def test_pdf_linha_de_parada_programada_continua_mostrando_zero(client, db_session, usuario_teste):
+    _login(client, usuario_teste)
+    maquina = Maquina(
+        numero_maquina="1", descricao="Injetora 1", ativo=True,
+        ciclo_padrao=10.0, cavidades=2,
+    )
+    db_session.add(maquina)
+    db_session.commit()
+    db_session.refresh(maquina)
+
+    turno_id = client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PARADA_PROGRAMADA",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "05:30",
+                    "motivo": "Troca de molde",
+                }
+            ],
+        },
+    ).json()["turno_id"]
+
+    from app.services.lancamento_service import montar_registros_pdf_lancamento
+
+    linhas = montar_registros_pdf_lancamento(db_session, turno_id)
+    assert linhas[0]["producao_esperada"] == 0
 
 
 def test_pdf_mostra_origem_do_ciclo_usado_no_calculo(client, db_session, usuario_teste):

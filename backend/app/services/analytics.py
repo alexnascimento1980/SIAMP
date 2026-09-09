@@ -213,13 +213,27 @@ def _duracao_segundos(lanc: Lancamento) -> int:
 def calcular_capacidade_esperada_lancamento(
     lanc: Lancamento, maq: Maquina, produto: Produto | None
 ) -> int:
-    """Capacidade teórica esperada de UM lançamento de produção, com
-    base na duração real do intervalo (não mais numa hora cheia fixa).
-    Só se aplica a lançamentos do tipo PRODUCAO - paradas não têm
-    'esperado' (o tempo delas simplesmente não conta como capacidade
-    disponível, em vez de contar e depois ser proporcionalmente
-    descontado como no modelo por hora)."""
-    if lanc.tipo != TIPO_PRODUCAO:
+    """Capacidade teórica esperada de UM lançamento, com base na
+    duração real do intervalo (não mais numa hora cheia fixa).
+
+    PRODUCAO: capacidade que deveria ter sido produzida no tempo do
+    lançamento, com o ciclo/cavidades resolvido (peça > máquina, ou
+    informado manualmente).
+
+    PARADA_FALHA (não programada): mesma fórmula, mas com o ciclo/
+    cavidades da MÁQUINA (uma parada não tem peça vinculada - ver
+    Lancamento.produto_id, "Só para tipo=PRODUCAO"). O tempo perdido
+    numa quebra conta como capacidade que deveria ter sido produzida
+    e não foi - precisa reduzir o índice corretamente, em vez de
+    simplesmente não entrar em lugar nenhum da conta. Mesmo
+    tratamento já usado no modelo por hora (RegistroHorario) para
+    parada não programada - ver calcular_capacidade_esperada_registro.
+
+    PARADA_PROGRAMADA: sempre 0 - parada programada (troca de molde,
+    manutenção preventiva, refeição etc.) não deve penalizar o
+    índice, mesmo padrão do modelo por hora.
+    """
+    if lanc.tipo == TIPO_PARADA_PROGRAMADA:
         return 0
 
     ciclo, cavidades = resolver_ciclo_cavidades(maq, produto)
@@ -229,7 +243,10 @@ def calcular_capacidade_esperada_lancamento(
     # têm prioridade máxima - mesma lógica já usada no modelo por hora
     # (RegistroHorario.ciclo_informado). Cavidades informadas cobrem o
     # caso de uma ou mais cavidades do molde estarem temporariamente
-    # desativadas naquele lançamento.
+    # desativadas naquele lançamento. Só existem para PRODUCAO (o
+    # formulário não expõe esses campos para paradas), então ficam
+    # None/sem efeito para PARADA_FALHA - sem problema, o fallback
+    # (ciclo/cavidades da máquina) já cobre esse caso.
     if lanc.ciclo_informado:
         ciclo = lanc.ciclo_informado
     if lanc.cavidades_informado:
@@ -246,7 +263,14 @@ def _kpis_a_partir_de_lancamentos(
     lancamentos: list[tuple[Lancamento, Maquina, Produto | None]],
 ) -> dict:
     """Mesmo formato de saída de _kpis_a_partir_de_registros, calculado
-    a partir de lançamentos livres em vez de registros por hora."""
+    a partir de lançamentos livres em vez de registros por hora.
+
+    Índice de Produção combina Disponibilidade e Performance (mesmo
+    princípio do modelo por hora): parada não programada (FALHA) conta
+    como capacidade esperada perdida, reduzindo o índice; parada
+    programada não conta, para não penalizar o turno por algo
+    planejado (troca de molde, manutenção preventiva, refeição etc.).
+    """
     total_produzido = 0
     total_esperado = 0
 
@@ -257,12 +281,16 @@ def _kpis_a_partir_de_lancamentos(
         if lanc.tipo == TIPO_PRODUCAO:
             total_produzido += lanc.quantidade or 0
             total_esperado += calcular_capacidade_esperada_lancamento(lanc, maq, produto)
+        elif lanc.tipo == TIPO_PARADA_FALHA:
+            # Não soma produzido (nada foi produzido durante a falha) -
+            # só esperado, para que o tempo perdido reduza o índice
+            # corretamente em vez de não entrar em lugar nenhum da
+            # conta (ver docstring de calcular_capacidade_esperada_
+            # lancamento).
+            total_esperado += calcular_capacidade_esperada_lancamento(lanc, maq, produto)
+            minutos_parados_nao_programados += round(_duracao_segundos(lanc) / 60)
         else:
-            duracao_min = round(_duracao_segundos(lanc) / 60)
-            if lanc.tipo == TIPO_PARADA_PROGRAMADA:
-                minutos_parados_programados += duracao_min
-            elif lanc.tipo == TIPO_PARADA_FALHA:
-                minutos_parados_nao_programados += duracao_min
+            minutos_parados_programados += round(_duracao_segundos(lanc) / 60)
 
     minutos_parados = minutos_parados_programados + minutos_parados_nao_programados
     # Limitado a 100% - mesma convenção do modelo por hora (ver comentário
