@@ -163,7 +163,16 @@ function esconderMensagem() {
 }
 
 function escaparHtml(texto) {
+  // .textContent + .innerHTML escapa <, > e & corretamente para uso
+  // como texto/innerHTML - mas NÃO aspas, que só importam quando o
+  // valor é interpolado dentro de um atributo HTML (ex.: value="...").
+  // Escapadas aqui também, como reforço geral - mesmo que o padrão
+  // preferido do projeto seja não interpolar em atributo nenhum
+  // (setar .value via API do DOM em vez disso), essa função pode vir
+  // a ser usada assim por engano no futuro, e sem isso o escape
+  // ficaria incompleto silenciosamente (achado numa avaliação de
+  // segurança - ver commit que corrigiu apontamento_horario.js).
   const div = document.createElement("div");
   div.textContent = texto;
-  return div.innerHTML;
+  return div.innerHTML.replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 }
