@@ -61,23 +61,34 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-          # O runner do GitHub Actions já vem com o repositório apt do
-          # Google Chrome pré-configurado (para outras ferramentas, não
-          # para o Playwright) - "playwright install --with-deps" roda
-          # um "apt-get update" que inclui esse repositório mesmo sem
-          # precisar dele (o Chromium usado é o empacotado pelo próprio
-          # Playwright, não o Google Chrome do sistema). Esse repositório
-          # específico tem um histórico de falhas transitórias de
-          # propagação (arquivo de índice inconsistente com o esperado,
-          # "Hash Sum mismatch") - removê-lo antes evita que uma falha
-          # de infraestrutura externa e alheia ao Playwright quebre o
-          # CI. Busca por conteúdo em vez de um nome de arquivo fixo -
-          # mais resistente a mudanças de convenção de nomes entre
-          # versões da imagem do runner. "|| true" no grep/rm: se não
-          # achar nada, não é erro, só não há nada a remover.
-          sudo grep -rl "dl.google.com/linux/chrome" /etc/apt/sources.list.d/ 2>/dev/null | xargs -r sudo rm -f || true
-
-          playwright install --with-deps chromium
+          # "playwright install --with-deps" roda "apt-get update" por
+          # baixo dos panos, e um repositório pré-configurado no runner
+          # (Google Chrome - não usado pelo Playwright, que instala seu
+          # próprio Chromium empacotado) já causou falha transitória de
+          # propagação de mirror mais de uma vez ("Hash Sum mismatch" -
+          # o índice servido pelo mirror não batia com o hash que o
+          # próprio mirror tinha acabado de anunciar, sinal de
+          # atualização em andamento bem na hora da requisição). Tentar
+          # localizar e remover esse repositório específico antes não
+          # se mostrou confiável (o layout de onde ele é declarado varia
+          # entre versões da imagem do runner, sem um jeito robusto de
+          # cobrir todos os casos sem acesso direto para inspecionar) -
+          # repetir a instalação algumas vezes é mais simples e cobre
+          # a causa raiz real (instabilidade pontual e externa de um
+          # mirror), não só um sintoma específico dela.
+          instalado=false
+          for tentativa in 1 2 3; do
+            if playwright install --with-deps chromium; then
+              instalado=true
+              break
+            fi
+            echo "Tentativa $tentativa de instalar o navegador falhou (provável instabilidade transitória de um mirror apt externo) - tentando de novo em 15s..."
+            sleep 15
+          done
+          if [ "$instalado" = "false" ]; then
+            echo "Falhou após 3 tentativas - provavelmente não é mais instabilidade transitória."
+            exit 1
+          fi
 
       - name: Rodar testes E2E
         working-directory: e2e
