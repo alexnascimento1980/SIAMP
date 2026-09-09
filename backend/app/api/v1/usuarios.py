@@ -120,6 +120,23 @@ def alterar_perfil_usuario(
             detail="Você não pode alterar o próprio perfil de acesso.",
         )
 
+    # Mesma proteção já aplicada a excluir/desativar - alterar o
+    # perfil de uma conta protegida (ex.: rebaixar um ADMIN protegido
+    # para OPERADOR) tira o mesmo acesso administrativo que a
+    # proteção existe justamente para preservar contra ação acidental
+    # de outro ADMIN. Só bloqueia se o perfil for de fato mudar -
+    # reenviar o mesmo perfil que já está lá (sem efeito prático) não
+    # precisa exigir desproteger antes, mesmo padrão já usado na
+    # exceção de "própria conta" logo acima.
+    if alvo.protegido and novo_perfil != alvo.perfil:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"'{alvo.nome}' está marcada como conta protegida - "
+                "remova a proteção antes de alterar o perfil."
+            ),
+        )
+
     alvo.perfil = novo_perfil
     db.commit()
     db.refresh(alvo)
@@ -212,6 +229,24 @@ def resetar_senha_usuario(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Usuário não encontrado.",
+        )
+
+    # Mesma proteção já aplicada a excluir/desativar/alterar perfil -
+    # resetar a senha de OUTRA conta protegida permitiria assumir a
+    # sessão dela na prática (efeito equivalente a excluir/desativar,
+    # que já são bloqueados), justamente o cenário que a proteção
+    # existe pra evitar. Não bloqueia resetar a PRÓPRIA senha mesmo
+    # que a própria conta esteja protegida - isso não reduz segurança
+    # nenhuma (a pessoa já está autenticada como ela mesma) e é
+    # exatamente o fluxo de recuperação que este endpoint existe pra
+    # cobrir.
+    if alvo.protegido and alvo.id != usuario_atual.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"'{alvo.nome}' está marcada como conta protegida - "
+                "remova a proteção antes de resetar a senha."
+            ),
         )
 
     alvo.senha_hash = gerar_hash_senha(dados.nova_senha)
