@@ -16,7 +16,7 @@ class LancamentoCreate(BaseModel):
     quantidade: int | None = Field(default=None, ge=0)
     ciclo_informado: float | None = Field(default=None, gt=0)
     cavidades_informado: int | None = Field(default=None, gt=0)
-    motivo: str | None = Field(default=None, max_length=150)
+    motivo: str | None = Field(default=None, max_length=2000)
 
     @model_validator(mode="after")
     def _validar(self):

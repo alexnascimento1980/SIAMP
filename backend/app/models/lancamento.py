@@ -62,8 +62,11 @@ class Lancamento(Base):
     cavidades_informado: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Detalhe livre - motivo da falha (tipo=PARADA_FALHA) ou
-    # observação da parada programada (tipo=PARADA_PROGRAMADA).
-    motivo: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    # observação da parada programada (tipo=PARADA_PROGRAMADA). Único
+    # campo de texto usado por esses dois tipos (junto de início/fim -
+    # ciclo/cavidades/produto não se aplicam a paradas), por isso o
+    # limite bem mais alto que uma frase curta.
+    motivo: Mapped[str | None] = mapped_column(String(2000), nullable=True)
 
     turno = relationship("Turno", back_populates="lancamentos")
     maquina = relationship("Maquina")
