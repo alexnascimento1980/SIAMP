@@ -354,8 +354,8 @@ function renderizarTabela() {
           onchange="salvarValor('${hora}', 'paradaProgramada', this.checked)">
       </td>
       <td>
-        <input type="text" class="form-control text-start" placeholder="Ex: Molde travado" 
-          value="${salvo.motivo}" onchange="salvarValor('${hora}', 'motivo', this.value)">
+        <input type="text" class="form-control text-start input-motivo" placeholder="Ex: Molde travado" 
+          onchange="salvarValor('${hora}', 'motivo', this.value)">
       </td>
     `;
 
@@ -368,6 +368,19 @@ function renderizarTabela() {
     if (salvo.ordemProducaoId) {
       tr.querySelector(".select-op").value = String(salvo.ordemProducaoId);
     }
+    // Motivo também via API do DOM, pelo mesmo motivo dos selects
+    // acima - mas aqui por razão mais séria que só dificuldade de
+    // escapar: motivo vem de reg.motivo_parada (texto livre, gravado
+    // por qualquer operador, sem limite de tamanho relevante),
+    // recarregado ao reabrir um turno HORARIO para correção. Colocar
+    // esse valor direto dentro de um atributo (value="...") é
+    // vulnerável a XSS armazenado mesmo com escaparHtml() (que trata
+    // <, > e & para uso como texto/innerHTML, mas não aspas - um
+    // valor como '" onmouseover="...' ainda escaparia do atributo).
+    // Achado numa avaliação de segurança do projeto - .value via DOM
+    // nunca interpreta o conteúdo como HTML, elimina o vetor por
+    // completo em vez de só mitigá-lo.
+    tr.querySelector(".input-motivo").value = salvo.motivo;
     tbody.appendChild(tr);
   });
 }
@@ -471,9 +484,18 @@ function atualizarResumoTurno() {
 }
 
 function escaparHtml(texto) {
+  // .textContent + .innerHTML escapa <, > e & corretamente para uso
+  // como texto/innerHTML - mas NÃO aspas, que só importam quando o
+  // valor é interpolado dentro de um atributo HTML (ex.: value="...").
+  // Escapadas aqui também, como reforço geral - mesmo que o padrão
+  // preferido do projeto seja não interpolar em atributo nenhum
+  // (setar .value via API do DOM em vez disso), essa função pode vir
+  // a ser usada assim por engano no futuro, e sem isso o escape
+  // ficaria incompleto silenciosamente (achado numa avaliação de
+  // segurança - ver commit que corrigiu apontamento_horario.js).
   const div = document.createElement("div");
   div.textContent = texto;
-  return div.innerHTML;
+  return div.innerHTML.replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 }
 
 function montarPayloadFechamento() {
