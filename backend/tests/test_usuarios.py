@@ -473,3 +473,83 @@ def test_alterar_protecao_de_usuario_inexistente_retorna_404(client, db_session)
 
     res = client.patch("/api/v1/usuarios/99999/protegido", json={"protegido": True})
     assert res.status_code == 404
+
+
+# --- Correção: proteção de conta também cobre reset de senha e --------
+# --- alteração de perfil, achado numa avaliação de segurança do -------
+# --- projeto - excluir/desativar já checavam alvo.protegido, mas ------
+# --- essas duas rotas deixavam o mesmo objetivo (impedir um ADMIN de --
+# --- assumir/rebaixar a conta de outro ADMIN protegido) incompleto. ---
+
+
+def test_admin_nao_pode_resetar_senha_de_conta_protegida_de_outro_admin(client, db_session):
+    admin_a = _criar_admin(db_session, email="admin-a@siamp.test")
+    admin_b = _criar_admin(db_session, email="admin-b@siamp.test")
+    db_session.query(Usuario).filter(Usuario.id == admin_b.id).update({"protegido": True})
+    db_session.commit()
+
+    _login(client, admin_a)
+    res = client.patch(f"/api/v1/usuarios/{admin_b.id}/senha", json={"nova_senha": "senhaNova123"})
+    assert res.status_code == 409
+    assert "protegida" in res.json()["detail"].lower()
+
+
+def test_admin_pode_resetar_a_propria_senha_mesmo_se_protegido(client, db_session):
+    # Resetar a PRÓPRIA senha não reduz segurança nenhuma (a pessoa já
+    # está autenticada como ela mesma) - a proteção não deve bloquear
+    # esse caso, mesmo padrão de exceção já usado em excluir/desativar
+    # (que também não impedem uma ação sobre a própria conta por
+    # motivo de proteção, só por outra regra própria - "não pode
+    # excluir/desativar a si mesmo").
+    admin = _criar_admin(db_session)
+    db_session.query(Usuario).filter(Usuario.id == admin.id).update({"protegido": True})
+    db_session.commit()
+
+    _login(client, admin)
+    res = client.patch(f"/api/v1/usuarios/{admin.id}/senha", json={"nova_senha": "senhaNova123"})
+    assert res.status_code == 200
+
+
+def test_admin_nao_pode_alterar_perfil_de_conta_protegida_de_outro_admin(client, db_session):
+    admin_a = _criar_admin(db_session, email="admin-a@siamp.test")
+    admin_b = _criar_admin(db_session, email="admin-b@siamp.test")
+    db_session.query(Usuario).filter(Usuario.id == admin_b.id).update({"protegido": True})
+    db_session.commit()
+
+    _login(client, admin_a)
+    res = client.patch(f"/api/v1/usuarios/{admin_b.id}/perfil", json={"perfil": "OPERADOR"})
+    assert res.status_code == 409
+    assert "protegida" in res.json()["detail"].lower()
+
+    db_session.refresh(admin_b)
+    assert admin_b.perfil == "ADMIN"
+
+
+def test_reenviar_mesmo_perfil_de_conta_protegida_e_permitido(client, db_session):
+    # Só bloqueia se o perfil for de fato MUDAR - reenviar o mesmo
+    # valor que já está lá não tem efeito prático, não devia exigir
+    # desproteger antes.
+    admin_a = _criar_admin(db_session, email="admin-a@siamp.test")
+    admin_b = _criar_admin(db_session, email="admin-b@siamp.test")
+    db_session.query(Usuario).filter(Usuario.id == admin_b.id).update({"protegido": True})
+    db_session.commit()
+
+    _login(client, admin_a)
+    res = client.patch(f"/api/v1/usuarios/{admin_b.id}/perfil", json={"perfil": "ADMIN"})
+    assert res.status_code == 200
+
+
+def test_resetar_senha_de_conta_protegida_funciona_apos_desproteger(client, db_session):
+    admin_a = _criar_admin(db_session, email="admin-a@siamp.test")
+    admin_b = _criar_admin(db_session, email="admin-b@siamp.test")
+    db_session.query(Usuario).filter(Usuario.id == admin_b.id).update({"protegido": True})
+    db_session.commit()
+
+    _login(client, admin_a)
+    assert client.patch(
+        f"/api/v1/usuarios/{admin_b.id}/senha", json={"nova_senha": "senhaNova123"}
+    ).status_code == 409
+
+    client.patch(f"/api/v1/usuarios/{admin_b.id}/protegido", json={"protegido": False})
+    res = client.patch(f"/api/v1/usuarios/{admin_b.id}/senha", json={"nova_senha": "senhaNova123"})
+    assert res.status_code == 200
