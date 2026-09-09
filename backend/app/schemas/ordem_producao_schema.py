@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class OrdemProducaoBase(BaseModel):
@@ -123,8 +123,7 @@ class OrdemProducaoResponse(BaseModel):
     observacoes: str | None
     criado_em: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class OrdemProducaoComparativo(BaseModel):

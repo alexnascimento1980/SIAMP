@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class DestinatarioBase(BaseModel):
@@ -19,5 +19,4 @@ class DestinatarioUpdate(BaseModel):
 class DestinatarioResponse(DestinatarioBase):
     id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
