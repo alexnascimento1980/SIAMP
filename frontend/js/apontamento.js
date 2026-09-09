@@ -603,6 +603,18 @@ async function confirmarFechamento() {
     return alert("Adicione pelo menos um lançamento (produção ou parada) antes de finalizar.");
   }
 
+  // Evita PDF duplicado por duplo clique - a geração do relatório
+  // pode levar alguns segundos, tempo suficiente para alguém clicar
+  // de novo sem perceber que a primeira requisição já está em
+  // andamento. O botão só volta ao normal no fim (sucesso, erro, ou
+  // exceção) - no caminho de sucesso a página normalmente navega
+  // para outro lugar antes disso importar, mas reabilitar sempre é
+  // mais seguro que deixar travado caso isso mude no futuro.
+  const botao = document.getElementById("btnFinalizarTurno");
+  const conteudoOriginal = botao.innerHTML;
+  botao.disabled = true;
+  botao.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Gerando documento...';
+
   let caminho, metodo, tipo;
   if (turnoEditandoId) {
     caminho = `/turnos/lancamento/${turnoEditandoId}`;
@@ -641,6 +653,9 @@ async function confirmarFechamento() {
     if (error.message === "Sessão expirada.") return;
     console.error("Erro na requisição:", error);
     alert("❌ Não foi possível conectar à API.");
+  } finally {
+    botao.disabled = false;
+    botao.innerHTML = conteudoOriginal;
   }
 }
 

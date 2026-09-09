@@ -526,6 +526,15 @@ async function confirmarFechamento() {
     return;
   }
 
+  // Evita PDF duplicado por duplo clique - a geração do relatório
+  // pode levar alguns segundos, tempo suficiente para alguém clicar
+  // de novo sem perceber que a primeira requisição já está em
+  // andamento.
+  const botao = document.getElementById("btnFinalizarTurno");
+  const conteudoOriginal = botao.innerHTML;
+  botao.disabled = true;
+  botao.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Gerando documento...';
+
   let caminho;
   let metodo;
   let tipo; // "correcao" | "fechar_rascunho" | "fechar_direto"
@@ -578,6 +587,9 @@ async function confirmarFechamento() {
     if (error.message === "Sessão expirada.") return;
     console.error("Erro na requisição:", error);
     alert("❌ Não foi possível conectar à API.");
+  } finally {
+    botao.disabled = false;
+    botao.innerHTML = conteudoOriginal;
   }
 }
 
