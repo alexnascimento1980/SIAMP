@@ -256,6 +256,14 @@ function selecionarMaquina(numeroMaquina) {
 function onTipoLancamentoMudou() {
   const tipo = document.querySelector('input[name="tipoLancamento"]:checked').value;
   document.getElementById("camposProducao").classList.toggle("d-none", tipo !== "PRODUCAO");
+  // camposProducaoLinha2 (Ciclo real/Cavidades usadas/Início/Fim)
+  // nunca era escondida - bug real reportado pelo usuário: ao
+  // selecionar Parada Programada ou Falha na Injetora, esses campos
+  // (não usados por esses dois tipos, ver adicionarLancamento())
+  // continuavam visíveis ao lado dos campos corretos (Motivo/Início/
+  // Fim de camposParada), dando a impressão de início/fim duplicados
+  // na tela.
+  document.getElementById("camposProducaoLinha2").classList.toggle("d-none", tipo !== "PRODUCAO");
   document.getElementById("camposParada").classList.toggle("d-none", tipo === "PRODUCAO");
 }
 
