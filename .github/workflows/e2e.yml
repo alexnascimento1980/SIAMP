@@ -61,40 +61,51 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-          # Duas tentativas anteriores erradas, documentadas aqui pra
-          # não repetir: (1) buscar só em /etc/apt/sources.list.d/ por
-          # um trecho de URL específico - não encontrou nada (o log
-          # confirmou depois que o apt-get update interno do Playwright
-          # continuava buscando de dl.google.com, provando que a
-          # remoção não pegou o arquivo certo); (2) repetir a instalação
-          # 3 vezes - também não ajudou, porque os hashes "esperado" e
-          # "recebido" no erro são IDÊNTICOS em todas as tentativas e
-          # em execuções de dias diferentes, o que descarta a hipótese
-          # de mirror momentaneamente inconsistente (isso mudaria ou se
-          # resolveria com o tempo) - é uma incompatibilidade
-          # persistente entre o índice publicado pelo Google e o
-          # arquivo de pacotes servido, não vai se resolver sozinha.
+          # Histórico de tentativas anteriores que não resolveram,
+          # documentado aqui pra não repetir:
+          # 1. Buscar e remover a declaração da fonte apt do Chrome em
+          #    /etc/apt/sources.list.d/ e /etc/apt/sources.list, por
+          #    nome de arquivo e por conteúdo - o diagnóstico impresso
+          #    no log não encontrou nada nesses dois lugares.
+          # 2. Repetir "playwright install --with-deps" 3 vezes - os
+          #    hashes "esperado"/"recebido" do erro são IDÊNTICOS em
+          #    todas as tentativas e entre execuções de dias
+          #    diferentes, descartando "mirror momentaneamente
+          #    inconsistente" (isso mudaria com o tempo).
           #
-          # Diagnóstico impresso no log desta vez - se a remoção abaixo
-          # falhar de novo, o log vai mostrar exatamente onde o
-          # repositório está declarado, em vez de continuar adivinhando.
-          echo "=== Diagnóstico: arquivos de fonte apt relacionados a chrome/google ==="
-          sudo grep -rli "chrome\|dl.google.com" /etc/apt/sources.list.d/ /etc/apt/sources.list 2>/dev/null || echo "(nenhum encontrado por esse critério)"
+          # Pista nova: "Last modification reported" e "Release file
+          # created at" no erro têm ~8h de diferença - não é o padrão
+          # de uma corrida de poucos segundos entre publicação e
+          # réplica em um mirror, é mais consistente com a IMAGEM do
+          # runner já vir com um índice desse pacote pré-baixado e
+          # desatualizado. Abordagem desta vez: limpar o cache de
+          # índices já baixados (não só a declaração da fonte), tolerar
+          # explicitamente a falha SÓ desse repositório específico (os
+          # outros, confirmados nos logs anteriores, sempre atualizam
+          # com sucesso - não são o problema), e instalar as
+          # dependências de SO separadamente do download do navegador,
+          # com um retrocesso em camadas se ainda assim travar em
+          # algum ponto - cada camada imprime onde exatamente parou,
+          # pra não precisar adivinhar de novo numa próxima rodada.
+          echo "=== Limpando cache de índices de pacotes já baixados ==="
+          sudo rm -rf /var/lib/apt/lists/*
 
-          # Remoção mais ampla que da vez passada: por nome de arquivo
-          # (.list ou .sources), por conteúdo dentro de sources.list.d/,
-          # e por linha dentro do arquivo sources.list principal (esse
-          # não pode ser apagado inteiro - tem outras fontes válidas).
-          sudo find /etc/apt/sources.list.d/ -type f -iname "*chrome*" -delete 2>/dev/null || true
-          sudo grep -rl "dl.google.com" /etc/apt/sources.list.d/ 2>/dev/null | xargs -r sudo rm -f || true
-          sudo sed -i '/dl\.google\.com/d' /etc/apt/sources.list 2>/dev/null || true
+          echo "=== apt-get update (tolerando falha do repositório do Chrome - não usado pelo Playwright) ==="
+          sudo apt-get update || echo "apt-get update falhou para pelo menos um repositório (esperado: só o do Chrome) - seguindo mesmo assim, os repositórios realmente necessários confirmam sucesso acima."
 
-          echo "=== Depois da remoção ==="
-          sudo grep -rli "chrome\|dl.google.com" /etc/apt/sources.list.d/ /etc/apt/sources.list 2>/dev/null || echo "(nenhum restante - remoção aparentemente completa)"
-
-          sudo apt-get update
-
-          playwright install --with-deps chromium
+          echo "=== Tentativa 1: playwright install-deps + install separados ==="
+          if playwright install-deps chromium && playwright install chromium; then
+            echo "Sucesso na tentativa 1."
+          else
+            echo "=== Tentativa 1 falhou. Tentativa 2: playwright install --with-deps (combinado) ==="
+            if playwright install --with-deps chromium; then
+              echo "Sucesso na tentativa 2."
+            else
+              echo "=== Tentativa 2 também falhou. Diagnóstico final antes de desistir: ==="
+              sudo find /etc/apt/ -type f -exec grep -l "google" {} \; 2>/dev/null || echo "(nenhum arquivo em /etc/apt/ menciona 'google')"
+              exit 1
+            fi
+          fi
 
       - name: Rodar testes E2E
         working-directory: e2e
