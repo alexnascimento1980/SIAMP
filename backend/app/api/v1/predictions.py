@@ -11,17 +11,21 @@ router = APIRouter(prefix="/predictions", tags=["Inteligência Artificial"])
 
 
 class InferenciaRequest(BaseModel):
-    maquina_id: int = Field(..., example=1)
-    produto_id: int | None = Field(default=None, example=1)
+    maquina_id: int = Field(..., json_schema_extra={"example": 1})
+    produto_id: int | None = Field(default=None, json_schema_extra={"example": 1})
     ciclo_efetivo: float | None = Field(
-        default=None, example=18.5, description="Ciclo real informado, ou padrão da peça/máquina"
+        default=None,
+        json_schema_extra={"example": 18.5},
+        description="Ciclo real informado, ou padrão da peça/máquina",
     )
-    ciclo_padrao_peca: float | None = Field(default=None, example=18.0)
-    cavidades_efetivas: int | None = Field(default=None, example=4)
-    duracao_min: float = Field(..., example=120.0)
-    quantidade: int | None = Field(default=None, example=350)
-    turno_num: int = Field(default=1, example=1)
-    dia_semana: int = Field(default=0, example=2, description="0=segunda ... 6=domingo")
+    ciclo_padrao_peca: float | None = Field(default=None, json_schema_extra={"example": 18.0})
+    cavidades_efetivas: int | None = Field(default=None, json_schema_extra={"example": 4})
+    duracao_min: float = Field(..., json_schema_extra={"example": 120.0})
+    quantidade: int | None = Field(default=None, json_schema_extra={"example": 350})
+    turno_num: int = Field(default=1, json_schema_extra={"example": 1})
+    dia_semana: int = Field(
+        default=0, json_schema_extra={"example": 2}, description="0=segunda ... 6=domingo"
+    )
 
 
 @router.post("/diagnostico-risco")
