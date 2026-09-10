@@ -25,7 +25,7 @@ def registrar_parada(
         motivo=dados.motivo,
         categoria=dados.categoria,
         observacao=dados.observacao,
-        usuario_id=dados.usuario_id or usuario.id,
+        usuario_id=usuario.id,
     )
     db.add(parada)
     db.commit()

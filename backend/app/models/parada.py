@@ -4,6 +4,7 @@ from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.core.timezone import agora_brasilia
 
 
 class Parada(Base):
@@ -33,7 +34,13 @@ class Parada(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        # agora_brasilia() (UTC-3), não datetime.utcnow() - mesma
+        # convenção já usada em todo o resto do projeto (ver
+        # app/core/timezone.py e CLAUDE.local.md sobre esta classe de
+        # bug já ter acontecido antes). Este modelo tinha ficado de
+        # fora dessa convenção, provavelmente por ser um modelo mais
+        # antigo, não usado pelo frontend atual.
+        default=agora_brasilia,
     )
 
     turno = relationship("Turno", back_populates="paradas")
