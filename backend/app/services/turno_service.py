@@ -20,6 +20,11 @@ from app.services.analytics import (
     calcular_kpis_turno,
     resolver_ciclo_cavidades,
 )
+from app.services.apontamento_validacoes import (
+    resolver_maquinas,
+    validar_ordens_producao_existem,
+    validar_produtos_existem,
+)
 from app.services.mailer import enviar_relatorio_email
 from app.services.pdf_generator import gerar_relatorio_dashboard_pdf, gerar_relatorio_turno_pdf
 
@@ -217,61 +222,26 @@ def exportar_registros_csv(
     return saida.getvalue()
 
 
-def _resolver_maquinas(db: Session, dados: FechamentoTurnoCreate) -> dict:
-    """Resolve todos os números de máquina do payload de uma vez, em vez de
-    assumir que numero_maquina == id (primary key)."""
-    numeros_maquina = {reg.numero_maquina for reg in dados.registros}
-    return {
-        maq.numero_maquina: maq
-        for maq in db.query(Maquina).filter(Maquina.numero_maquina.in_(numeros_maquina)).all()
-    }
-
-
-def _validar_produtos(db: Session, dados: FechamentoTurnoCreate) -> None:
-    """Confere que todo produto_id informado existe, para retornar um erro
-    400 claro em vez de uma falha de FK crua vinda do banco."""
-    ids_informados = {reg.produto_id for reg in dados.registros if reg.produto_id is not None}
-    if not ids_informados:
-        return
-
-    ids_existentes = {
-        produto_id
-        for (produto_id,) in db.query(Produto.id).filter(Produto.id.in_(ids_informados)).all()
-    }
-    ids_invalidos = ids_informados - ids_existentes
-    if ids_invalidos:
-        raise ValueError(f"Peça(s) não encontrada(s): {sorted(ids_invalidos)}.")
-
-
-def _validar_ordens_producao(db: Session, dados: FechamentoTurnoCreate) -> None:
-    """Confere que toda ordem_producao_id informada existe, para retornar
-    um erro 400 claro em vez de uma falha de FK crua vinda do banco."""
-    ids_informados = {
-        reg.ordem_producao_id for reg in dados.registros if reg.ordem_producao_id is not None
-    }
-    if not ids_informados:
-        return
-
-    ids_existentes = {
-        ordem_id
-        for (ordem_id,) in db.query(OrdemProducao.id)
-        .filter(OrdemProducao.id.in_(ids_informados))
-        .all()
-    }
-    ids_invalidos = ids_informados - ids_existentes
-    if ids_invalidos:
-        raise ValueError(f"Ordem(ns) de Produção não encontrada(s): {sorted(ids_invalidos)}.")
-
-
 def _criar_registros(db: Session, turno: Turno, dados: FechamentoTurnoCreate) -> None:
-    maquinas_por_numero = _resolver_maquinas(db, dados)
-    _validar_produtos(db, dados)
-    _validar_ordens_producao(db, dados)
+    # Cada modelo de apontamento extrai o próprio conjunto de
+    # números/ids relevantes da sua estrutura de dados antes de chamar
+    # os validadores compartilhados (ver app/services/
+    # apontamento_validacoes.py) - o validador em si não precisa
+    # conhecer o formato de FechamentoTurnoCreate nem de
+    # LancamentoCreate (usado pelo modelo LANCAMENTO).
+    numeros_maquina = {reg.numero_maquina for reg in dados.registros}
+    produto_ids = {reg.produto_id for reg in dados.registros if reg.produto_id is not None}
+    ordem_ids = {reg.ordem_producao_id for reg in dados.registros if reg.ordem_producao_id is not None}
+
+    maquinas_por_numero = resolver_maquinas(db, numeros_maquina)
+    validar_produtos_existem(db, produto_ids)
+    validar_ordens_producao_existem(db, ordem_ids)
 
     for reg in dados.registros:
-        maquina = maquinas_por_numero.get(reg.numero_maquina)
-        if maquina is None:
-            raise ValueError(f"Máquina '{reg.numero_maquina}' não encontrada.")
+        # resolver_maquinas já garante (levantando ValueError antes de
+        # chegar aqui) que todo numero_maquina do payload existe -
+        # maquinas_por_numero[...] direto, sem checar None, é seguro.
+        maquina = maquinas_por_numero[reg.numero_maquina]
 
         registro_db = RegistroHorario(
             turno_id=turno.id,

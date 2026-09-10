@@ -13,49 +13,30 @@ from app.services.analytics import (
     calcular_kpis_turno_lancamento,
     resolver_ciclo_cavidades,
 )
+from app.services.apontamento_validacoes import (
+    resolver_maquinas,
+    validar_ordens_producao_existem,
+    validar_produtos_existem,
+)
 from app.services.turno_service import STATUS_ASSINADO, STATUS_EM_ANDAMENTO, agendar_email_relatorio
 
 MODELO_LANCAMENTO = "LANCAMENTO"
 
 
-def _resolver_maquinas(db: Session, lancamentos: list[LancamentoCreate]) -> dict[str, Maquina]:
-    numeros = {lanc.numero_maquina for lanc in lancamentos}
-    if not numeros:
-        return {}
-    maquinas = db.query(Maquina).filter(Maquina.numero_maquina.in_(numeros)).all()
-    por_numero = {m.numero_maquina: m for m in maquinas}
-    faltando = numeros - por_numero.keys()
-    if faltando:
-        raise ValueError(f"Máquina(s) não encontrada(s): {sorted(faltando)}.")
-    return por_numero
-
-
-def _validar_produtos(db: Session, lancamentos: list[LancamentoCreate]) -> None:
-    ids = {lanc.produto_id for lanc in lancamentos if lanc.produto_id is not None}
-    if not ids:
-        return
-    existentes = {pid for (pid,) in db.query(Produto.id).filter(Produto.id.in_(ids)).all()}
-    faltando = ids - existentes
-    if faltando:
-        raise ValueError(f"Peça(s) não encontrada(s): {sorted(faltando)}.")
-
-
-def _validar_ordens_producao(db: Session, lancamentos: list[LancamentoCreate]) -> None:
-    ids = {lanc.ordem_producao_id for lanc in lancamentos if lanc.ordem_producao_id is not None}
-    if not ids:
-        return
-    existentes = {
-        oid for (oid,) in db.query(OrdemProducao.id).filter(OrdemProducao.id.in_(ids)).all()
-    }
-    faltando = ids - existentes
-    if faltando:
-        raise ValueError(f"Ordem(ns) de Produção não encontrada(s): {sorted(faltando)}.")
-
-
 def _criar_lancamentos(db: Session, turno: Turno, lancamentos: list[LancamentoCreate]) -> None:
-    maquinas_por_numero = _resolver_maquinas(db, lancamentos)
-    _validar_produtos(db, lancamentos)
-    _validar_ordens_producao(db, lancamentos)
+    # Cada modelo de apontamento extrai o próprio conjunto de
+    # números/ids relevantes da sua estrutura de dados antes de chamar
+    # os validadores compartilhados (ver app/services/
+    # apontamento_validacoes.py) - o validador em si não precisa
+    # conhecer o formato de LancamentoCreate nem de
+    # FechamentoTurnoCreate (usado pelo modelo HORARIO).
+    numeros_maquina = {lanc.numero_maquina for lanc in lancamentos}
+    produto_ids = {lanc.produto_id for lanc in lancamentos if lanc.produto_id is not None}
+    ordem_ids = {lanc.ordem_producao_id for lanc in lancamentos if lanc.ordem_producao_id is not None}
+
+    maquinas_por_numero = resolver_maquinas(db, numeros_maquina)
+    validar_produtos_existem(db, produto_ids)
+    validar_ordens_producao_existem(db, ordem_ids)
 
     for lanc in lancamentos:
         maquina = maquinas_por_numero[lanc.numero_maquina]
