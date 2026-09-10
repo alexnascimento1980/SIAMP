@@ -223,6 +223,33 @@ def test_fechamento_com_produto_id_inexistente_e_rejeitado(client, db_session, u
     assert "não encontrada" in res.json()["detail"].lower()
 
 
+def test_fechamento_com_numero_maquina_inexistente_e_rejeitado(client, db_session, usuario_teste):
+    # Não existia cobertura pra esse cenário antes da extração dos
+    # validadores compartilhados (app/services/apontamento_
+    # validacoes.py) - o comportamento final (400, ValueError) já
+    # era o mesmo, só descoberto num ponto diferente da cadeia de
+    # chamada (dentro do loop de _criar_registros, não em
+    # resolver_maquinas). Confirma que a unificação preservou o
+    # resultado esperado pra quem chama a API.
+    _login(client, usuario_teste)
+
+    payload = {
+        "nome_turno": "1º Turno (05:00 - 13:00)",
+        "responsavel_nome": "Líder Teste",
+        "registros": [
+            {
+                "numero_maquina": "99",
+                "hora_referencia": "05:00",
+                "prod_executada": 100,
+            },
+        ],
+    }
+
+    res = client.post("/api/v1/turnos/fechamento", json=payload)
+    assert res.status_code == 400
+    assert "não encontrada" in res.json()["detail"].lower()
+
+
 def test_producao_esperada_por_linha_no_relatorio(client, db_session, usuario_teste):
     _login(client, usuario_teste)
     maquina, peca = _criar_maquina_e_peca(db_session)
