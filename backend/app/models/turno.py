@@ -6,6 +6,22 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 from app.core.timezone import agora_brasilia
 
+# Valores possíveis de Turno.status_assinatura. Ficam aqui (perto do
+# campo que descrevem), não em turno_service.py como antes - várias
+# partes do projeto que não têm nada a ver com o modelo HORARIO
+# especificamente (dashboard_service.py, ordem_producao_service.py,
+# lancamento_service.py) precisavam desses valores e importavam de
+# turno_service.py só por isso, criando uma dependência desnecessária
+# (inclusive contribuindo para um ciclo de import real entre
+# turno_service.py e lancamento_service.py - ver histórico de commits
+# sobre a extração dos validadores compartilhados em
+# apontamento_validacoes.py, parte da mesma limpeza).
+STATUS_ASSINADO = "ASSINADO_DIGITALMENTE"
+# Turno salvo como rascunho, ainda sendo preenchido - permite salvar o
+# progresso ao longo do turno sem disparar PDF/e-mail a cada gravação;
+# só a transição para STATUS_ASSINADO dispara o envio.
+STATUS_EM_ANDAMENTO = "EM_ANDAMENTO"
+
 
 class Turno(Base):
     __tablename__ = "turnos"

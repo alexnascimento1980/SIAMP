@@ -1,23 +1,21 @@
 import csv
 import io
-import re
 from datetime import date, datetime, time
 
 from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.core.timezone import agora_brasilia
-from app.models.destinatario_relatorio import DestinatarioRelatorio
 from app.models.maquina import Maquina
 from app.models.ordem_producao import OrdemProducao
 from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
-from app.models.turno import Turno
+from app.models.turno import STATUS_ASSINADO, STATUS_EM_ANDAMENTO, Turno
 from app.schemas.turno_schema import FechamentoTurnoCreate, RascunhoTurnoCreate
 from app.services.analytics import (
     calcular_capacidade_esperada_registro,
     calcular_kpis_turno,
+    calcular_kpis_turno_lancamento,
     resolver_ciclo_cavidades,
 )
 from app.services.apontamento_validacoes import (
@@ -25,33 +23,8 @@ from app.services.apontamento_validacoes import (
     validar_ordens_producao_existem,
     validar_produtos_existem,
 )
-from app.services.mailer import enviar_relatorio_email
-from app.services.pdf_generator import gerar_relatorio_dashboard_pdf, gerar_relatorio_turno_pdf
-
-STATUS_ASSINADO = "ASSINADO_DIGITALMENTE"
-# Turno salvo como rascunho, ainda sendo preenchido - permite salvar o
-# progresso ao longo do turno sem disparar PDF/e-mail a cada gravação;
-# só a transição para STATUS_ASSINADO (fechar_turno_rascunho) dispara
-# o envio.
-STATUS_EM_ANDAMENTO = "EM_ANDAMENTO"
-
-
-def montar_nome_arquivo_relatorio(nome_turno: str, data_registro: datetime) -> str:
-    """Nome de arquivo amigável para o PDF do relatório - inclui o turno
-    e a data, em vez de só 'relatorio_turno_<id>.pdf' (o id sozinho não
-    diz nada para quem recebe o arquivo por e-mail ou baixa vários de
-    uma vez). Usado tanto no download manual (GET /turnos/{id}/
-    relatorio.pdf) quanto no anexo do e-mail.
-
-    Ex.: "1º Turno (05:00 - 13:00)" + 19/08/2026 -> "relatorio_1-turno_19-08-2026.pdf"
-    """
-    # Corta na primeira parte antes de "(" - o range de horário já fica
-    # implícito pela data e pelo nome do turno, sem precisar repetir os
-    # dois-pontos (que não são válidos em nome de arquivo no Windows).
-    prefixo = nome_turno.split("(")[0].strip()
-    slug = re.sub(r"[^a-z0-9]+", "-", prefixo.lower()).strip("-") or "turno"
-    data_formatada = data_registro.strftime("%d-%m-%Y")
-    return f"relatorio_{slug}_{data_formatada}.pdf"
+from app.services.lancamento_service import montar_registros_pdf_lancamento
+from app.services.relatorio_email_service import agendar_email_relatorio
 
 
 def buscar_registros_para_relatorio(db: Session, turno_id: int) -> list[dict]:
@@ -264,94 +237,6 @@ def _criar_registros(db: Session, turno: Turno, dados: FechamentoTurnoCreate) ->
         db.add(registro_db)
 
 
-def _resolver_destinatarios(db: Session) -> list[str]:
-    """Lista de e-mails que recebem o relatório de fechamento de turno.
-    Prioriza os cadastrados na tela Destinatários (banco de dados); se
-    nenhum estiver ativo lá, cai para REPORT_RECIPIENTS do .env
-    (retrocompatibilidade, para ambientes que ainda não migraram para
-    a tela)."""
-    emails_db = [
-        email
-        for (email,) in db.query(DestinatarioRelatorio.email)
-        .filter(DestinatarioRelatorio.ativo.is_(True))
-        .all()
-    ]
-    return emails_db if emails_db else settings.report_recipients
-
-
-def agendar_email_relatorio(
-    db: Session,
-    turno: Turno,
-    kpis: dict,
-    background_tasks: BackgroundTasks,
-    registros_pdf: list[dict] | None = None,
-) -> bool:
-    """Monta os PDFs (relatório de fechamento + dashboard do turno) e
-    agenda o envio do e-mail em background. Retorna True se o envio
-    foi agendado (algum provedor de e-mail configurado e há pelo menos
-    um destinatário), False se foi pulado.
-
-    registros_pdf: se não informado, monta a partir de
-    buscar_registros_para_relatorio (modelo por hora). Passar
-    explicitamente permite reaproveitar esta função para o modelo de
-    lançamentos livres (ver lancamento_service.py), que monta os
-    registros num formato equivalente."""
-    destinatarios = _resolver_destinatarios(db)
-    # Verifica os dois provedores possíveis (Brevo OU SMTP) - checar só
-    # smtp_user/smtp_pass aqui faria o envio parar silenciosamente se
-    # só o Brevo estivesse configurado (caso de produção no Render).
-    provedor_configurado = bool(settings.brevo_api_key) or bool(
-        settings.smtp_user and settings.smtp_pass
-    )
-    if not (provedor_configurado and destinatarios):
-        return False
-
-    dados_turno = {
-        "nome_turno": turno.nome_turno,
-        "responsavel_nome": turno.responsavel_nome,
-        "observacoes": turno.observacoes,
-    }
-    if registros_pdf is None:
-        registros_pdf = buscar_registros_para_relatorio(db, turno.id)
-    pdf_turno = gerar_relatorio_turno_pdf(dados_turno, kpis, registros_pdf)
-
-    # Import local para evitar ciclo de import: dashboard_service.py
-    # já importa STATUS_ASSINADO deste mesmo módulo.
-    from app.services.dashboard_service import calcular_metricas_acumuladas, montar_producao_por_turno
-
-    metricas_por_periodo = {
-        periodo: calcular_metricas_acumuladas(db, periodo=periodo)
-        for periodo in ("diario", "semanal", "mensal")
-    }
-    producao_por_turno = montar_producao_por_turno(db)
-    pdf_dashboard = gerar_relatorio_dashboard_pdf(
-        dados_turno, kpis, metricas_por_periodo, producao_por_turno
-    )
-
-    assunto = (
-        f"[SIAMP] Fechamento de Turno: {turno.nome_turno} - "
-        f"{turno.data_registro.strftime('%d/%m/%y')}"
-    )
-    corpo = (
-        "<p>Segue em anexo o relatório de produção e o dashboard do "
-        "turno (desempenho comparado ao acumulado diário/semanal/"
-        "mensal).</p>"
-        f"<p>Eficiência calculada: <b>{kpis['eficiencia_oee']}%</b>.</p>"
-    )
-
-    nome_base = montar_nome_arquivo_relatorio(turno.nome_turno, turno.data_registro)
-    nome_dashboard = nome_base.replace(".pdf", "_dashboard.pdf")
-
-    background_tasks.add_task(
-        enviar_relatorio_email,
-        destinatarios,
-        assunto,
-        corpo,
-        [(pdf_turno, nome_base), (pdf_dashboard, nome_dashboard)],
-    )
-    return True
-
-
 def fechar_turno(
     db: Session,
     dados: FechamentoTurnoCreate,
@@ -377,7 +262,8 @@ def fechar_turno(
     db.refresh(novo_turno)
 
     kpis = calcular_kpis_turno(db, novo_turno.id)
-    email_agendado = agendar_email_relatorio(db, novo_turno, kpis, background_tasks)
+    registros_pdf = buscar_registros_para_relatorio(db, novo_turno.id)
+    email_agendado = agendar_email_relatorio(db, novo_turno, kpis, background_tasks, registros_pdf)
 
     return {
         "status": "sucesso",
@@ -475,7 +361,8 @@ def fechar_turno_rascunho(
     db.refresh(turno)
 
     kpis = calcular_kpis_turno(db, turno.id)
-    email_agendado = agendar_email_relatorio(db, turno, kpis, background_tasks)
+    registros_pdf = buscar_registros_para_relatorio(db, turno.id)
+    email_agendado = agendar_email_relatorio(db, turno, kpis, background_tasks, registros_pdf)
 
     return {
         "status": "sucesso",
@@ -549,14 +436,11 @@ def reenviar_email_turno(
         raise ValueError("Turno não encontrado.")
 
     if turno.modelo_apontamento == "LANCAMENTO":
-        from app.services.analytics import calcular_kpis_turno_lancamento
-        from app.services.lancamento_service import montar_registros_pdf_lancamento
-
         kpis = calcular_kpis_turno_lancamento(db, turno.id)
         registros_pdf = montar_registros_pdf_lancamento(db, turno.id)
     else:
         kpis = calcular_kpis_turno(db, turno.id)
-        registros_pdf = None  # agendar_email_relatorio monta via buscar_registros_para_relatorio
+        registros_pdf = buscar_registros_para_relatorio(db, turno.id)
 
     email_agendado = agendar_email_relatorio(db, turno, kpis, background_tasks, registros_pdf)
 

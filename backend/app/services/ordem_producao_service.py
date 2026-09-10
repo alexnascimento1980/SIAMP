@@ -7,14 +7,13 @@ from app.models.maquina import Maquina
 from app.models.ordem_producao import OrdemProducao
 from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
-from app.models.turno import Turno
+from app.models.turno import STATUS_ASSINADO, Turno
 from app.schemas.ordem_producao_schema import (
     OrdemProducaoComparativo,
     OrdemProducaoCreate,
     OrdemProducaoResponse,
     OrdemProducaoUpdate,
 )
-from app.services.turno_service import STATUS_ASSINADO
 
 
 def _resolver_maquina(db: Session, numero_maquina: str | None) -> Maquina | None:
