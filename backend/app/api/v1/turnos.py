@@ -38,13 +38,13 @@ from app.services.lancamento_service import (
     salvar_rascunho_lancamento,
 )
 from app.services.pdf_generator import gerar_relatorio_turno_pdf
+from app.services.relatorio_email_service import montar_nome_arquivo_relatorio
 from app.services.turno_service import (
     buscar_registros_para_relatorio,
     editar_turno,
     exportar_registros_csv,
     fechar_turno,
     fechar_turno_rascunho,
-    montar_nome_arquivo_relatorio,
     reenviar_email_turno,
     salvar_rascunho,
 )

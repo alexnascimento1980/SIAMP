@@ -16,7 +16,7 @@ from app.core.config import settings
 from app.core.timezone import agora_brasilia
 from app.services.mailer import EnvioEmailError, enviar_relatorio_email
 from app.services.pdf_generator import gerar_relatorio_turno_pdf
-from app.services.turno_service import montar_nome_arquivo_relatorio
+from app.services.relatorio_email_service import montar_nome_arquivo_relatorio
 
 
 def _gerar_pdf_de_exemplo() -> bytes:

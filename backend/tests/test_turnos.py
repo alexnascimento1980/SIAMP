@@ -190,7 +190,7 @@ def test_reenviar_email_bem_sucedido_com_smtp_configurado(client, db_session, us
         brevo_api_key="",
         report_recipients=["gerente@empresa.com"],
     )
-    with patch("app.services.turno_service.settings", fake_settings), patch(
+    with patch("app.services.relatorio_email_service.settings", fake_settings), patch(
         "app.services.mailer.settings", fake_settings
     ), patch("smtplib.SMTP") as mock_smtp:
         mock_smtp.return_value.__enter__.return_value = mock_smtp.return_value
@@ -295,12 +295,12 @@ def test_destinatarios_do_banco_tem_prioridade_sobre_env(client, db_session, usu
     from types import SimpleNamespace
 
     # Sem nada cadastrado no banco -> cai para REPORT_RECIPIENTS do .env.
-    import app.services.turno_service as turno_service_mod
+    import app.services.relatorio_email_service as relatorio_email_service_mod
     from app.models.destinatario_relatorio import DestinatarioRelatorio
-    from app.services.turno_service import _resolver_destinatarios
+    from app.services.relatorio_email_service import _resolver_destinatarios
 
     fake_settings = SimpleNamespace(report_recipients=["env@empresa.com"])
-    monkeypatch.setattr(turno_service_mod, "settings", fake_settings)
+    monkeypatch.setattr(relatorio_email_service_mod, "settings", fake_settings)
     assert _resolver_destinatarios(db_session) == ["env@empresa.com"]
 
     # Com destinatários ativos no banco -> usa a lista do banco, ignora o .env.
@@ -314,7 +314,7 @@ def test_destinatarios_do_banco_tem_prioridade_sobre_env(client, db_session, usu
 def test_montar_nome_arquivo_relatorio():
     from datetime import datetime
 
-    from app.services.turno_service import montar_nome_arquivo_relatorio
+    from app.services.relatorio_email_service import montar_nome_arquivo_relatorio
 
     nome = montar_nome_arquivo_relatorio(
         "1º Turno (05:00 - 13:00)", datetime(2026, 8, 19)
@@ -369,7 +369,7 @@ def test_assunto_do_email_inclui_data_dd_mm_aa(client, db_session, usuario_teste
         brevo_api_key="",
         report_recipients=["gerente@empresa.com"],
     )
-    with patch("app.services.turno_service.settings", fake_settings), patch(
+    with patch("app.services.relatorio_email_service.settings", fake_settings), patch(
         "app.services.mailer.settings", fake_settings
     ), patch("smtplib.SMTP") as mock_smtp:
         mock_smtp.return_value.__enter__.return_value = mock_smtp.return_value
@@ -719,7 +719,7 @@ def test_fechamento_agenda_email_so_com_brevo_configurado_sem_smtp(client, db_se
             {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 100},
         ],
     }
-    with patch("app.services.turno_service.settings", fake_settings), patch(
+    with patch("app.services.relatorio_email_service.settings", fake_settings), patch(
         "app.services.mailer.settings", fake_settings
     ), patch("requests.post") as mock_post:
         mock_post.return_value = MagicMock(status_code=201, text="")
