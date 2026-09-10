@@ -9,10 +9,9 @@ from app.models.maquina import Maquina
 from app.models.ordem_producao import OrdemProducao
 from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
-from app.models.turno import Turno
+from app.models.turno import STATUS_ASSINADO, Turno
 from app.services.analytics import calcular_kpis_varios_turnos_generico
 from app.services.ml_engine import prever_risco_parada
-from app.services.turno_service import STATUS_ASSINADO
 
 # Quantas Ordens de Produção mais recentes aparecem no comparativo do
 # dashboard - limite para não sobrecarregar a tela com um histórico

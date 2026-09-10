@@ -6,7 +6,7 @@ from app.models.lancamento import TIPO_PARADA_FALHA, TIPO_PARADA_PROGRAMADA, TIP
 from app.models.maquina import Maquina
 from app.models.ordem_producao import OrdemProducao
 from app.models.produto import Produto
-from app.models.turno import Turno
+from app.models.turno import STATUS_ASSINADO, STATUS_EM_ANDAMENTO, Turno
 from app.schemas.lancamento_schema import LancamentoCreate, TurnoLancamentoCreate, TurnoLancamentoRascunho
 from app.services.analytics import (
     calcular_capacidade_esperada_lancamento,
@@ -18,7 +18,7 @@ from app.services.apontamento_validacoes import (
     validar_ordens_producao_existem,
     validar_produtos_existem,
 )
-from app.services.turno_service import STATUS_ASSINADO, STATUS_EM_ANDAMENTO, agendar_email_relatorio
+from app.services.relatorio_email_service import agendar_email_relatorio
 
 MODELO_LANCAMENTO = "LANCAMENTO"
 
