@@ -37,3 +37,10 @@ e2e/.pytest_cache/
 # CLAUDE.md na raiz, que ficaria versionado normalmente). Ver:
 # https://docs.claude.com/en/docs/claude-code/memory
 CLAUDE.local.md
+
+# Saída do graphify (/graphify) - grafo de conhecimento gerado localmente
+# a partir de todo o código-fonte e docs do projeto (graph.json, HTML,
+# GRAPH_REPORT.md). Não deve ir para o GitHub: é derivado, pesado, e
+# pode reformular informação sensível do repo de um jeito mais fácil
+# de vazar sem querer.
+graphify-out/
