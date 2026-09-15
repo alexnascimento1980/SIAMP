@@ -248,7 +248,24 @@ function atualizarRelogio() {
 }
 
 function atualizarHorariosTurno() {
+  atualizarAvisoTurnoNoturno();
   renderizarTabela();
+}
+
+// Mostra um lembrete quando o 3º Turno é selecionado - esse único
+// turno atravessa a meia-noite (22:00 - 04:00), o que já causou
+// confusão real (turno fechado de madrugada registrado com a data do
+// fechamento em vez da data em que começou). O backend já calcula a
+// data certa sozinho a partir do horário dos registros (não depende
+// do campo Data, que é só uma referência visual pro operador) - esse
+// aviso é só para reduzir a chance de o operador ficar em dúvida ou
+// preencher o campo Data de um jeito que pareça inconsistente com o
+// que vai aparecer no relatório depois.
+function atualizarAvisoTurnoNoturno() {
+  const aviso = document.getElementById("avisoTurnoNoturno");
+  if (!aviso) return;
+  const turnoSelecionado = document.getElementById("selectTurno").value;
+  aviso.classList.toggle("d-none", turnoSelecionado !== "3");
 }
 
 function selecionarMaquina(numeroMaquina) {
