@@ -1,7 +1,10 @@
 
+from datetime import date, datetime
+
 from app.core.security import gerar_hash_senha
 from app.models.maquina import Maquina
 from app.models.produto import Produto
+from app.models.turno import Turno
 from app.models.usuario import Usuario
 
 
@@ -49,6 +52,78 @@ def test_fechamento_com_lancamento_de_producao(client, db_session, usuario_teste
     assert dados["kpis"]["total_produzido"] == 500
     assert dados["status_assinatura"] == "ASSINADO_DIGITALMENTE"
 
+
+
+def test_fechamento_do_3o_turno_de_madrugada_usa_data_do_dia_anterior(client, db_session, usuario_teste, monkeypatch):
+    # Bug real relatado pelo usuário: fechar o 3º Turno (22:00-04:00)
+    # de madrugada gravava a data do dia do FECHAMENTO, não a do dia
+    # em que o turno de fato começou. Ex.: fechado às 04h de 15/09,
+    # devia ficar 14/09 - dia em que o turno começou às 22h.
+    import app.core.timezone as timezone_mod
+
+    monkeypatch.setattr(timezone_mod, "agora_brasilia", lambda: datetime(2026, 9, 15, 4, 0))
+
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)
+
+    payload = {
+        "nome_turno": "3º Turno (22:00 - 04:00)",
+        "responsavel_nome": "Líder Teste",
+        "lancamentos": [
+            {
+                "numero_maquina": maquina.numero_maquina,
+                "tipo": "PRODUCAO",
+                "horario_inicio": "22:00",
+                "horario_fim": "23:59",
+                "produto_id": peca.id,
+                "quantidade": 500,
+            },
+            {
+                "numero_maquina": maquina.numero_maquina,
+                "tipo": "PRODUCAO",
+                "horario_inicio": "00:00",
+                "horario_fim": "04:00",
+                "produto_id": peca.id,
+                "quantidade": 500,
+            },
+        ],
+    }
+    res = client.post("/api/v1/turnos/lancamento", json=payload)
+    assert res.status_code == 201, res.text
+    turno_id = res.json()["turno_id"]
+
+    turno = db_session.query(Turno).filter(Turno.id == turno_id).first()
+    assert turno.data_registro.date() == date(2026, 9, 14)
+
+
+def test_fechamento_do_1o_turno_nao_sofre_ajuste_de_data(client, db_session, usuario_teste, monkeypatch):
+    import app.core.timezone as timezone_mod
+
+    monkeypatch.setattr(timezone_mod, "agora_brasilia", lambda: datetime(2026, 9, 15, 13, 5))
+
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)
+
+    payload = {
+        "nome_turno": "1º Turno",
+        "responsavel_nome": "Líder Teste",
+        "lancamentos": [
+            {
+                "numero_maquina": maquina.numero_maquina,
+                "tipo": "PRODUCAO",
+                "horario_inicio": "05:00",
+                "horario_fim": "13:00",
+                "produto_id": peca.id,
+                "quantidade": 500,
+            },
+        ],
+    }
+    res = client.post("/api/v1/turnos/lancamento", json=payload)
+    assert res.status_code == 201, res.text
+    turno_id = res.json()["turno_id"]
+
+    turno = db_session.query(Turno).filter(Turno.id == turno_id).first()
+    assert turno.data_registro.date() == date(2026, 9, 15)
 
 def test_horario_fim_igual_ao_inicio_e_rejeitado(client, db_session, usuario_teste):
     _login(client, usuario_teste)
