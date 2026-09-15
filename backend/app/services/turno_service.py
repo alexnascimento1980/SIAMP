@@ -5,7 +5,7 @@ from datetime import date, datetime, time
 from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
 
-from app.core.timezone import agora_brasilia
+from app.core.timezone import agora_brasilia, calcular_data_registro_turno
 from app.models.maquina import Maquina
 from app.models.ordem_producao import OrdemProducao
 from app.models.produto import Produto
@@ -251,6 +251,9 @@ def fechar_turno(
         regulador_nome=dados.regulador_nome,
         observacoes=dados.observacoes,
         status_assinatura=STATUS_ASSINADO,
+        data_registro=calcular_data_registro_turno(
+            [time.fromisoformat(reg.hora_referencia) for reg in dados.registros]
+        ),
     )
 
     db.add(novo_turno)
@@ -293,6 +296,9 @@ def salvar_rascunho(
             regulador_nome=dados.regulador_nome,
             observacoes=dados.observacoes,
             status_assinatura=STATUS_EM_ANDAMENTO,
+            data_registro=calcular_data_registro_turno(
+                [time.fromisoformat(reg.hora_referencia) for reg in dados.registros]
+            ),
         )
         db.add(turno)
         db.flush()

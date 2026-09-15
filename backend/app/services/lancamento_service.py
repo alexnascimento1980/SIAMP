@@ -1,7 +1,7 @@
 from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
 
-from app.core.timezone import agora_brasilia
+from app.core.timezone import agora_brasilia, calcular_data_registro_turno
 from app.models.lancamento import TIPO_PARADA_FALHA, TIPO_PARADA_PROGRAMADA, TIPO_PRODUCAO, Lancamento
 from app.models.maquina import Maquina
 from app.models.ordem_producao import OrdemProducao
@@ -167,6 +167,9 @@ def salvar_rascunho_lancamento(
             observacoes=dados.observacoes,
             status_assinatura=STATUS_EM_ANDAMENTO,
             modelo_apontamento=MODELO_LANCAMENTO,
+            data_registro=calcular_data_registro_turno(
+                [lanc.horario_inicio for lanc in dados.lancamentos]
+            ),
         )
         db.add(turno)
         db.flush()
@@ -221,6 +224,9 @@ def fechar_turno_lancamento(
             observacoes=dados.observacoes,
             status_assinatura=STATUS_ASSINADO,
             modelo_apontamento=MODELO_LANCAMENTO,
+            data_registro=calcular_data_registro_turno(
+                [lanc.horario_inicio for lanc in dados.lancamentos]
+            ),
         )
         db.add(turno)
         db.flush()
