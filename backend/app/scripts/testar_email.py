@@ -28,6 +28,7 @@ def _gerar_pdf_de_exemplo() -> bytes:
         "nome_turno": "[EXEMPLO] 1º Turno (05:00 - 13:00)",
         "responsavel_nome": "Nome do Responsável",
         "observacoes": "Exemplo de observação geral digitada pelo responsável no fechamento do turno.",
+        "data_registro": agora_brasilia(),
     }
     kpis = {
         "total_produzido": 850,

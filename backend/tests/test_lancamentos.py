@@ -473,6 +473,46 @@ def test_pdf_inclui_observacoes_gerais_do_turno(client, db_session, usuario_test
     assert tamanho_com_obs > tamanho_sem_obs
 
 
+def test_pdf_relatorio_mostra_a_data_do_turno(client, db_session, usuario_teste):
+    # Pedido do usuário: a data do turno (data_registro, já corrigida
+    # para refletir quando o turno começou, não quando foi fechado -
+    # ver calcular_data_registro_turno) não aparecia em lugar nenhum
+    # dos dois PDFs gerados (relatório de fechamento e dashboard do
+    # turno) - só o horário do turno era mostrado, sem a data.
+    import io
+
+    import pdfplumber
+
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)
+
+    res = client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": peca.id,
+                    "quantidade": 100,
+                }
+            ],
+        },
+    )
+    turno_id = res.json()["turno_id"]
+    data_registro = db_session.query(Turno).filter(Turno.id == turno_id).first().data_registro
+    data_esperada = data_registro.strftime("%d/%m/%Y")
+
+    pdf_bytes = client.get(f"/api/v1/turnos/{turno_id}/relatorio.pdf").content
+    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+        texto = pdf.pages[0].extract_text()
+    assert f"Data: {data_esperada}" in texto
+
+
 def test_pdf_com_observacoes_contendo_caracteres_especiais_nao_quebra(client, db_session, usuario_teste):
     # As Observações Gerais são texto livre digitado pelo operador -
     # sem escapar antes de inserir no componente de PDF (que

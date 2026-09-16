@@ -95,6 +95,7 @@ def agendar_email_relatorio(
         "nome_turno": turno.nome_turno,
         "responsavel_nome": turno.responsavel_nome,
         "observacoes": turno.observacoes,
+        "data_registro": turno.data_registro,
     }
     pdf_turno = gerar_relatorio_turno_pdf(dados_turno, kpis, registros_pdf)
 
