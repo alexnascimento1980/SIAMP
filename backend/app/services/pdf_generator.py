@@ -84,7 +84,13 @@ def gerar_relatorio_turno_pdf(dados_turno: dict, kpis: dict, registros: list[dic
     # Cabeçalho
     titulo_style = ParagraphStyle('Titulo', parent=styles['Heading1'], fontSize=16, leading=20, textColor=colors.HexColor('#1E3A8A'))
     elementos.append(Paragraph("SIAMP - Relatório de Fechamento de Turno", titulo_style))
-    elementos.append(Paragraph(f"<b>Turno:</b> {dados_turno['nome_turno']} | <b>Responsável:</b> {dados_turno['responsavel_nome']}", styles['Normal']))
+    # data_registro é a data em que o turno começou (não a do
+    # fechamento) - já corrigida no backend para turnos que atravessam
+    # a meia-noite (3º turno); .get() por segurança, para não quebrar
+    # se algum chamador antigo não passar essa chave.
+    _data_registro = dados_turno.get("data_registro")
+    _data_formatada = _data_registro.strftime("%d/%m/%Y") if _data_registro else "-"
+    elementos.append(Paragraph(f"<b>Turno:</b> {dados_turno['nome_turno']} | <b>Responsável:</b> {dados_turno['responsavel_nome']} | <b>Data:</b> {_data_formatada}", styles['Normal']))
     elementos.append(Spacer(1, 15))
 
     # Tabela de KPIs Principais (Produção)
@@ -238,8 +244,10 @@ def gerar_relatorio_dashboard_pdf(
     subtitulo_style = ParagraphStyle('Subtitulo', parent=styles['Heading2'], fontSize=12, textColor=colors.HexColor(_AZUL_MARINHO))
 
     elementos.append(Paragraph("SIAMP - Dashboard do Fechamento de Turno", titulo_style))
+    _data_registro = dados_turno.get("data_registro")
+    _data_formatada = _data_registro.strftime("%d/%m/%Y") if _data_registro else "-"
     elementos.append(Paragraph(
-        f"<b>Turno:</b> {dados_turno['nome_turno']} | <b>Responsável:</b> {dados_turno['responsavel_nome']}",
+        f"<b>Turno:</b> {dados_turno['nome_turno']} | <b>Responsável:</b> {dados_turno['responsavel_nome']} | <b>Data:</b> {_data_formatada}",
         styles['Normal'],
     ))
     elementos.append(Spacer(1, 15))
