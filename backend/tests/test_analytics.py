@@ -172,10 +172,14 @@ def test_ciclo_da_peca_prevalece_sobre_ciclo_da_maquina(db_session):
     assert kpis["indice_producao"] == 100.0
 
 
-def test_ciclo_informado_prevalece_sobre_peca_e_maquina(db_session):
-    # Máquina com ciclo 10s e peça com ciclo 5s, mas o operador informou
-    # manualmente 20s para esta hora específica (ex.: molde regulado
-    # diferente naquele momento) -> deve prevalecer sobre os dois.
+def test_ciclo_informado_nao_influencia_o_esperado(db_session):
+    # Decisão do usuário: ciclo informado manualmente pelo operador não
+    # deve mais entrar no cálculo de capacidade esperada - só o
+    # cadastro (peça, com fallback para a máquina) conta, para manter
+    # o "esperado" estável e comparável entre turnos. Máquina com
+    # ciclo 10s e peça com ciclo 5s, operador informou 20s para esta
+    # hora específica -> o esperado usa os 5s da peça, ignorando tanto
+    # o informado quanto o da máquina.
     maquina = _criar_maquina(db_session, nome="informado")
     peca = Produto(codigo="PY", descricao="Peça de teste", ciclo_padrao=5.0, cavidades=2)
     db_session.add(peca)
@@ -193,10 +197,10 @@ def test_ciclo_informado_prevalece_sobre_peca_e_maquina(db_session):
     db_session.add(registro)
     db_session.commit()
 
-    # ciclo 20s, 2 cavidades (da peça) -> capacidade = int(3600/20 * 2) = 360
+    # ciclo 5s, 2 cavidades (da peça, ignorando os 20s informados e os
+    # 10s da máquina) -> capacidade = int(3600/5 * 2) = 1440
     kpis = calcular_kpis_turno(db_session, turno.id)
-    assert kpis["total_esperado"] == 360
-    assert kpis["indice_producao"] == 100.0
+    assert kpis["total_esperado"] == 1440
 
 
 def test_capacidade_zero_quando_ciclo_e_cavidades_ausentes(db_session):

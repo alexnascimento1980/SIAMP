@@ -789,7 +789,12 @@ def test_dashboard_ve_producao_de_turno_lancamento(client, db_session, usuario_t
     assert dados["producao_por_turno"]["produzido"] == [250]
 
 
-def test_ciclo_informado_no_lancamento_prevalece_sobre_peca(client, db_session, usuario_teste):
+def test_ciclo_informado_no_lancamento_nao_influencia_o_esperado(client, db_session, usuario_teste):
+    # Decisão do usuário: ciclo informado manualmente pelo operador não
+    # deve mais entrar no cálculo de "Esperado" - só o cadastro da
+    # peça (com fallback para a máquina) conta, mantendo o "esperado"
+    # estável e comparável entre turnos, independente do que foi
+    # digitado naquele lançamento específico.
     _login(client, usuario_teste)
     maquina, peca = _criar_maquina_e_peca(db_session)
     # Peça tem ciclo_padrao=10.0, cavidades=2 (ver _criar_maquina_e_peca)
@@ -813,8 +818,8 @@ def test_ciclo_informado_no_lancamento_prevalece_sobre_peca(client, db_session, 
         },
     )
     assert res.status_code == 201, res.text
-    # 1h = 3600s / ciclo 20s (informado, não os 10s da peça) * 2 cavidades = 360
-    assert res.json()["kpis"]["total_esperado"] == 360
+    # 1h = 3600s / ciclo 10s (da peça, ignorando os 20s informados) * 2 cavidades = 720
+    assert res.json()["kpis"]["total_esperado"] == 720
 
 
 def test_ciclo_informado_aparece_no_detalhe_do_turno_com_ciclo_padrao_da_peca(client, db_session, usuario_teste):
@@ -1140,9 +1145,11 @@ def test_pdf_linha_de_parada_programada_continua_mostrando_zero(client, db_sessi
 
 
 def test_pdf_mostra_origem_do_ciclo_usado_no_calculo(client, db_session, usuario_teste):
-    # Sem essa informação no relatório, não dá pra saber se um "Esperado"
-    # divergente da produção real vem do ciclo informado pelo operador ou
-    # do cadastro da peça - motivou dúvida real reportada pelo usuário.
+    # O cadastro da peça é sempre o que determina o "Esperado" agora -
+    # o relatório mostra isso como rótulo principal, e o ciclo
+    # informado pelo operador (quando digitado) aparece entre
+    # parênteses só como referência de comparação, deixando claro que
+    # não foi ele que definiu o "Esperado" da linha.
     _login(client, usuario_teste)
     maquina, peca = _criar_maquina_e_peca(db_session)  # ciclo_padrao=10.0, cavidades=2
 
@@ -1168,11 +1175,11 @@ def test_pdf_mostra_origem_do_ciclo_usado_no_calculo(client, db_session, usuario
     from app.services.lancamento_service import montar_registros_pdf_lancamento
 
     linhas = montar_registros_pdf_lancamento(db_session, turno_id)
-    assert "ciclo informado: 8.0s" in linhas[0]["produto_descricao"]
-    assert "ciclo cadastrado" not in linhas[0]["produto_descricao"]
+    assert "ciclo cadastrado: 10.0s" in linhas[0]["produto_descricao"]
+    assert "informado pelo operador: 8.0s" in linhas[0]["produto_descricao"]
 
 
-def test_cavidades_informadas_no_lancamento_prevalece_sobre_peca(client, db_session, usuario_teste):
+def test_cavidades_informadas_no_lancamento_nao_influenciam_o_esperado(client, db_session, usuario_teste):
     _login(client, usuario_teste)
     maquina, peca = _criar_maquina_e_peca(db_session)
     # Peça tem ciclo_padrao=10.0, cavidades=2 (ver _criar_maquina_e_peca)
@@ -1196,13 +1203,19 @@ def test_cavidades_informadas_no_lancamento_prevalece_sobre_peca(client, db_sess
         },
     )
     assert res.status_code == 201, res.text
-    # 1h = 3600s / ciclo 10s (da peça) * 1 cavidade (informada, não as 2 da peça) = 360
-    assert res.json()["kpis"]["total_esperado"] == 360
+    # 1h = 3600s / ciclo 10s (da peça) * 2 cavidades (da peça, ignorando a 1 informada) = 720
+    assert res.json()["kpis"]["total_esperado"] == 720
 
 
-def test_ciclo_e_cavidades_informados_juntos(client, db_session, usuario_teste):
+def test_ciclo_e_cavidades_informados_juntos_nao_influenciam_o_esperado(client, db_session, usuario_teste):
+    # Números escolhidos de propósito para que a fórmula antiga (usando
+    # os valores informados) desse um resultado BEM diferente do novo
+    # (720 vs 360) - evita que o teste passe por acidente caso
+    # ciclo_informado/cavidades_informado voltem a influenciar o
+    # cálculo no futuro por engano.
     _login(client, usuario_teste)
     maquina, peca = _criar_maquina_e_peca(db_session)
+    # Peça tem ciclo_padrao=10.0, cavidades=2 (ver _criar_maquina_e_peca)
 
     res = client.post(
         "/api/v1/turnos/lancamento",
@@ -1217,14 +1230,17 @@ def test_ciclo_e_cavidades_informados_juntos(client, db_session, usuario_teste):
                     "horario_fim": "06:00",
                     "produto_id": peca.id,
                     "quantidade": 100,
-                    "ciclo_informado": 20.0,
-                    "cavidades_informado": 4,
+                    "ciclo_informado": 30.0,
+                    "cavidades_informado": 3,
                 }
             ],
         },
     )
     assert res.status_code == 201, res.text
-    # 1h = 3600s / ciclo 20s (informado) * 4 cavidades (informadas) = 720
+    # Novo: 3600s / ciclo 10s (da peça) * 2 cavidades (da peça) = 720.
+    # Se a fórmula antiga (informados) estivesse em uso, daria
+    # int(3600/30*3) = 360 - bem diferente, então esta asserção falha
+    # com clareza caso o comportamento antigo volte por engano.
     assert res.json()["kpis"]["total_esperado"] == 720
 
 
@@ -1257,7 +1273,7 @@ def test_cavidades_informadas_aparece_no_detalhe_do_turno(client, db_session, us
     assert lanc["cavidades_padrao_peca"] == peca.cavidades
 
 
-def test_pdf_mostra_cavidades_informadas_e_cadastradas(client, db_session, usuario_teste):
+def test_pdf_mostra_cavidades_cadastradas_e_informadas_como_referencia(client, db_session, usuario_teste):
     _login(client, usuario_teste)
     maquina, peca = _criar_maquina_e_peca(db_session)
 
@@ -1291,5 +1307,12 @@ def test_pdf_mostra_cavidades_informadas_e_cadastradas(client, db_session, usuar
     from app.services.lancamento_service import montar_registros_pdf_lancamento
 
     linhas = montar_registros_pdf_lancamento(db_session, turno_id)
-    assert "cavidades informadas: 1" in linhas[0]["produto_descricao"]
+    # As duas linhas usam as 2 cavidades cadastradas da peça no
+    # cálculo (a 1ª tem 1 informada, mas isso não influencia mais o
+    # "Esperado") - a primeira linha mostra a informada como
+    # referência entre parênteses, a segunda não menciona nada
+    # informado (não foi digitado nada nela).
+    assert "cavidades cadastradas: 2" in linhas[0]["produto_descricao"]
+    assert "informadas pelo operador: 1" in linhas[0]["produto_descricao"]
     assert "cavidades cadastradas: 2" in linhas[1]["produto_descricao"]
+    assert "informadas pelo operador" not in linhas[1]["produto_descricao"]

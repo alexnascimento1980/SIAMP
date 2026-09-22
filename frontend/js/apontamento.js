@@ -422,11 +422,15 @@ function calcularEsperadoLancamento(lanc, maquina) {
   const peca = lanc.produto_id
     ? pecasDisponiveis.find((p) => String(p.id) === String(lanc.produto_id))
     : null;
-  // Ciclo e cavidades informados manualmente (campos editáveis,
-  // comparados ao padrão da peça) têm prioridade máxima - mesma
-  // lógica do backend.
-  const ciclo = lanc.ciclo_informado || peca?.ciclo_padrao || maquina?.ciclo_padrao;
-  const cavidades = lanc.cavidades_informado || peca?.cavidades || maquina?.cavidades;
+  // Só o cadastro (peça, com fallback para a máquina) entra na conta -
+  // mesma lógica do backend (ver analytics.calcular_capacidade_
+  // esperada_lancamento). ciclo_informado/cavidades_informado NÃO
+  // influenciam mais o esperado (decisão do usuário: manter o
+  // "esperado" estável e comparável entre turnos, independente do que
+  // foi digitado naquele lançamento específico) - continuam sendo
+  // registrados e mostrados no relatório só como referência.
+  const ciclo = peca?.ciclo_padrao || maquina?.ciclo_padrao;
+  const cavidades = peca?.cavidades || maquina?.cavidades;
   if (!ciclo || !cavidades) return 0;
 
   const [hIni, mIni] = lanc.horario_inicio.split(":").map(Number);
