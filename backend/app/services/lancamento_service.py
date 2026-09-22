@@ -86,24 +86,23 @@ def montar_registros_pdf_lancamento(db: Session, turno_id: int) -> list[dict]:
             # direto para o cadastro incompleto.
             esperado_exibicao = "N/D" if esperado == 0 and (lanc.quantidade or 0) > 0 else esperado
 
-            # Mostra qual ciclo e quais cavidades entraram de fato na
-            # conta (e de onde vieram) - sem isso, não dá pra saber, só
-            # olhando o relatório, se um "Esperado" divergente da
-            # produção real vem de um valor informado impreciso ou do
-            # cadastro da peça desatualizado.
+            # Mostra o ciclo/cavidades do CADASTRO (o que de fato entra
+            # no cálculo de "Esperado" - ver analytics.calcular_
+            # capacidade_esperada_lancamento) e, se o operador também
+            # informou um valor manualmente, mostra como referência
+            # entre parênteses - útil para comparar e identificar
+            # cadastro desatualizado, mas deixando claro que não foi
+            # esse valor que determinou o "Esperado" da linha.
             ciclo_padrao, cavidades_padrao = resolver_ciclo_cavidades(maq, produto)
+            ciclo_texto = f"ciclo cadastrado: {ciclo_padrao}s" if ciclo_padrao else "sem ciclo cadastrado"
             if lanc.ciclo_informado:
-                ciclo_texto = f"ciclo informado: {lanc.ciclo_informado}s"
-            elif ciclo_padrao:
-                ciclo_texto = f"ciclo cadastrado: {ciclo_padrao}s"
-            else:
-                ciclo_texto = "sem ciclo cadastrado"
-            if lanc.cavidades_informado:
-                cavidades_texto = f"cavidades informadas: {lanc.cavidades_informado}"
-            elif cavidades_padrao:
+                ciclo_texto += f" (informado pelo operador: {lanc.ciclo_informado}s)"
+            if cavidades_padrao:
                 cavidades_texto = f"cavidades cadastradas: {cavidades_padrao}"
             else:
                 cavidades_texto = "sem cavidades cadastradas"
+            if lanc.cavidades_informado:
+                cavidades_texto += f" (informadas pelo operador: {lanc.cavidades_informado})"
             descricao_com_ciclo = (
                 f"{produto.descricao} ({ciclo_texto}; {cavidades_texto})"
                 if produto else f"({ciclo_texto}; {cavidades_texto})"

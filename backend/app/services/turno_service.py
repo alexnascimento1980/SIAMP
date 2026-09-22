@@ -52,19 +52,18 @@ def buscar_registros_para_relatorio(db: Session, turno_id: int) -> list[dict]:
         # com folga, "N/D" deixa claro que falta cadastro.
         esperado_exibicao = "N/D" if esperado == 0 and (reg.prod_executada or 0) > 0 else esperado
 
-        # Mostra qual ciclo entrou de fato na conta (e de onde veio) -
-        # mesma transparência do modelo de lançamentos. Só faz sentido
-        # quando realmente houve produção nessa hora - uma linha de
-        # parada pura (prod_executada=0) não tem ciclo para mostrar.
+        # Mostra o ciclo do CADASTRO (o que de fato entra no cálculo de
+        # "Esperado") e, se o operador também informou um valor
+        # manualmente, mostra como referência entre parênteses - mesma
+        # transparência do modelo de lançamentos. Só faz sentido quando
+        # realmente houve produção nessa hora - uma linha de parada
+        # pura (prod_executada=0) não tem ciclo para mostrar.
         descricao_com_ciclo = produto.descricao if produto else None
         if (reg.prod_executada or 0) > 0:
             ciclo_padrao, _cavidades = resolver_ciclo_cavidades(maq, produto)
+            ciclo_texto = f"ciclo cadastrado: {ciclo_padrao}s" if ciclo_padrao else "sem ciclo cadastrado"
             if reg.ciclo_informado:
-                ciclo_texto = f"ciclo informado: {reg.ciclo_informado}s"
-            elif ciclo_padrao:
-                ciclo_texto = f"ciclo cadastrado: {ciclo_padrao}s"
-            else:
-                ciclo_texto = "sem ciclo cadastrado"
+                ciclo_texto += f" (informado pelo operador: {reg.ciclo_informado}s)"
             descricao_com_ciclo = (
                 f"{produto.descricao} ({ciclo_texto})" if produto else f"({ciclo_texto})"
             )

@@ -27,12 +27,13 @@ def calcular_capacidade_esperada_registro(
         if produto.cavidades:
             cavidades = produto.cavidades
 
-    # Ciclo informado manualmente pelo operador (campo editável no
-    # apontamento) tem prioridade máxima - usado quando o ciclo
-    # cadastrado (peça/máquina) não reflete a regulagem real do molde
-    # naquele momento, ou quando nenhum dos dois está cadastrado ainda.
-    if reg.ciclo_informado:
-        ciclo = reg.ciclo_informado
+    # Ciclo informado manualmente pelo operador NÃO entra no cálculo
+    # de capacidade esperada (decisão do usuário) - o "esperado" deve
+    # ser sempre o mesmo valor estável vindo do cadastro (peça, com
+    # fallback para a máquina), servindo de referência consistente
+    # entre turnos. reg.ciclo_informado continua sendo registrado e
+    # exibido no relatório (ver buscar_registros_para_relatorio), só
+    # não influencia mais o esperado.
 
     # Cálculo de produção nominal esperada (3600s / ciclo * cavidades por hora cheia).
     # Guarda contra ciclo/cavidades ausentes (ex.: máquina e peça sem
@@ -216,9 +217,18 @@ def calcular_capacidade_esperada_lancamento(
     """Capacidade teórica esperada de UM lançamento, com base na
     duração real do intervalo (não mais numa hora cheia fixa).
 
+    Usa exclusivamente o ciclo e as cavidades do CADASTRO (peça, com
+    fallback para a máquina) - ciclo_informado/cavidades_informado
+    (digitados manualmente pelo operador) nunca entram nessa conta,
+    por decisão do usuário: o "esperado" deve ser sempre o mesmo
+    valor estável, comparável entre turnos, independente do que foi
+    informado naquele lançamento específico. Os campos informados
+    continuam sendo registrados e exibidos no relatório (ver
+    montar_registros_pdf_lancamento) para comparação/auditoria, só
+    não influenciam mais o cálculo.
+
     PRODUCAO: capacidade que deveria ter sido produzida no tempo do
-    lançamento, com o ciclo/cavidades resolvido (peça > máquina, ou
-    informado manualmente).
+    lançamento, com o ciclo/cavidades do cadastro.
 
     PARADA_FALHA (não programada): mesma fórmula, mas com o ciclo/
     cavidades da MÁQUINA (uma parada não tem peça vinculada - ver
@@ -237,20 +247,6 @@ def calcular_capacidade_esperada_lancamento(
         return 0
 
     ciclo, cavidades = resolver_ciclo_cavidades(maq, produto)
-
-    # Ciclo e cavidades informados manualmente pelo operador (campos
-    # editáveis no apontamento, para comparar com o cadastro da peça)
-    # têm prioridade máxima - mesma lógica já usada no modelo por hora
-    # (RegistroHorario.ciclo_informado). Cavidades informadas cobrem o
-    # caso de uma ou mais cavidades do molde estarem temporariamente
-    # desativadas naquele lançamento. Só existem para PRODUCAO (o
-    # formulário não expõe esses campos para paradas), então ficam
-    # None/sem efeito para PARADA_FALHA - sem problema, o fallback
-    # (ciclo/cavidades da máquina) já cobre esse caso.
-    if lanc.ciclo_informado:
-        ciclo = lanc.ciclo_informado
-    if lanc.cavidades_informado:
-        cavidades = lanc.cavidades_informado
 
     if not ciclo or not cavidades:
         return 0
