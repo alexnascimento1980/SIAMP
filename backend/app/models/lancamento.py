@@ -62,11 +62,12 @@ class Lancamento(Base):
     # do que o cadastro padrão prevê.
     cavidades_informado: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    # Peso do lote de peças descartadas pesado nesse lançamento, em kg
-    # (só para tipo=PRODUCAO, e só quando de fato houve descarte a
-    # pesar - opcional). Junto de Produto.peso_liquido_peca, permite
-    # calcular a quantidade de refugo sem depender de contagem manual:
-    # refugo = peso_bruto_descarte / peso_liquido_peca (ver
+    # Peso do lote de peças descartadas pesado nesse lançamento, em
+    # GRAMAS (só para tipo=PRODUCAO, e só quando de fato houve
+    # descarte a pesar - opcional). Junto de Produto.peso_gramas (peso
+    # de UMA peça, também em gramas), permite calcular a quantidade de
+    # refugo sem depender de contagem manual:
+    # refugo = peso_bruto_descarte / peso_gramas (ver
     # analytics.calcular_refugo_lancamento). Usado no índice de
     # qualidade e no OEE (peças boas = quantidade - refugo).
     peso_bruto_descarte: Mapped[float | None] = mapped_column(Float, nullable=True)

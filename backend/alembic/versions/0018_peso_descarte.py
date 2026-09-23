@@ -1,11 +1,16 @@
 """Adiciona lancamentos_turno.peso_bruto_descarte (peso do lote de
-peças descartadas pesado naquele lançamento específico, em kg) -
+peças descartadas pesado naquele lançamento específico, em GRAMAS) -
 junto do campo peso_gramas já existente em Produto (peso de UMA peça,
-em gramas - já usado no cadastro, reaproveitado aqui em vez de criar
-um segundo campo de peso duplicado), permite calcular a quantidade de
-refugo sem depender de contagem manual peça por peça:
+também em gramas - já usado no cadastro, reaproveitado aqui em vez de
+criar um segundo campo de peso duplicado), permite calcular a
+quantidade de refugo sem depender de contagem manual peça por peça:
 
-    refugo = (peso_bruto_descarte_kg * 1000) / peso_gramas
+    refugo = peso_bruto_descarte / peso_gramas
+
+Os dois lados em gramas, sem conversão de unidade entre eles - peças
+injetadas pequenas podem pesar frações de grama (confirmado pelo
+usuário em produção), tornando plausível um lote de poucos gramas
+mesmo com dezenas de peças descartadas.
 
 Opcional - o descarte só é registrado "quando existir" (pedido do
 usuário), sem quebrar lançamentos que nunca tiveram descarte algum.
