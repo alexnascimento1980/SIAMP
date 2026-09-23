@@ -109,7 +109,11 @@ async function carregarPecas() {
       dicaCavidades.innerText = peca && peca.cavidades
         ? `Cavidades cadastradas na peça: ${peca.cavidades}`
         : "";
+
+      atualizarDicaRefugo();
     });
+
+    document.getElementById("lancPesoDescarte").addEventListener("input", atualizarDicaRefugo);
   } catch (erro) {
     console.error(erro);
     pecasDisponiveis = [];
@@ -294,6 +298,7 @@ function adicionarLancamento() {
     const quantidade = document.getElementById("lancQuantidade").value;
     const ciclo = document.getElementById("lancCiclo").value;
     const cavidades = document.getElementById("lancCavidades").value;
+    const pesoDescarte = document.getElementById("lancPesoDescarte").value;
     const inicio = document.getElementById("lancInicio").value;
     const fim = document.getElementById("lancFim").value;
 
@@ -313,6 +318,7 @@ function adicionarLancamento() {
       quantidade: parseInt(quantidade),
       ciclo_informado: ciclo !== "" ? parseFloat(ciclo) : null,
       cavidades_informado: cavidades !== "" ? parseInt(cavidades) : null,
+      peso_bruto_descarte: pesoDescarte !== "" ? parseFloat(pesoDescarte) : null,
       motivo: null,
     };
 
@@ -321,6 +327,8 @@ function adicionarLancamento() {
     document.getElementById("dicaCicloPadrao").innerText = "";
     document.getElementById("lancCavidades").value = "";
     document.getElementById("dicaCavidadesPadrao").innerText = "";
+    document.getElementById("lancPesoDescarte").value = "";
+    document.getElementById("dicaRefugoEstimado").innerText = "";
     document.getElementById("lancInicio").value = "";
     document.getElementById("lancFim").value = "";
     document.getElementById("lancPecaBusca").value = "";
@@ -340,6 +348,7 @@ function adicionarLancamento() {
       quantidade: null,
       ciclo_informado: null,
       cavidades_informado: null,
+      peso_bruto_descarte: null,
       motivo: document.getElementById("lancMotivo").value.trim() || null,
     };
 
@@ -385,6 +394,8 @@ function editarLancamento(indice) {
     document.getElementById("lancQuantidade").value = lanc.quantidade;
     document.getElementById("lancCiclo").value = lanc.ciclo_informado ?? "";
     document.getElementById("lancCavidades").value = lanc.cavidades_informado ?? "";
+    document.getElementById("lancPesoDescarte").value = lanc.peso_bruto_descarte ?? "";
+    atualizarDicaRefugo();
     document.getElementById("lancInicio").value = lanc.horario_inicio;
     document.getElementById("lancFim").value = lanc.horario_fim;
   } else {
@@ -443,6 +454,41 @@ function calcularEsperadoLancamento(lanc, maquina) {
   if (fimSeg <= inicioSeg) fimSeg += 24 * 3600;
   const duracaoSeg = fimSeg - inicioSeg;
   return Math.round((duracaoSeg / ciclo) * cavidades);
+}
+
+// Estimativa de refugo ao vivo, mesma fórmula do backend (ver
+// analytics.calcular_refugo_lancamento): refugo = (peso do descarte em
+// kg × 1000) ÷ peso de uma peça em gramas (campo já existente no
+// cadastro da peça, "Peso (g)"). Chamada tanto ao trocar de peça
+// quanto ao digitar o peso do descarte, para o número atualizar em
+// tempo real nos dois casos.
+function atualizarDicaRefugo() {
+  const dica = document.getElementById("dicaRefugoEstimado");
+  if (!dica) return;
+
+  const pecaId = document.getElementById("lancPeca").value;
+  const peca = pecasDisponiveis.find((p) => String(p.id) === String(pecaId));
+  const pesoDescarteStr = document.getElementById("lancPesoDescarte").value;
+  const pesoDescarte = parseFloat(pesoDescarteStr);
+
+  if (!pesoDescarteStr || Number.isNaN(pesoDescarte) || pesoDescarte <= 0) {
+    // Sem peso de descarte digitado ainda - não é o caso comum (a
+    // maioria dos lançamentos não tem descarte nenhum), então não
+    // alarma por antecipação; só mostra o peso cadastrado como
+    // referência, se houver.
+    dica.innerText = peca && peca.peso_gramas
+      ? `Peso cadastrado na peça: ${peca.peso_gramas}g`
+      : "";
+    return;
+  }
+
+  if (!peca || !peca.peso_gramas) {
+    dica.innerText = "Peça sem peso cadastrado - não é possível estimar o refugo (cadastre o peso em Peças).";
+    return;
+  }
+
+  const refugoEstimado = Math.round((pesoDescarte * 1000) / peca.peso_gramas);
+  dica.innerText = `Refugo estimado: ${refugoEstimado} peça(s) (${pesoDescarte}kg ÷ ${peca.peso_gramas}g/peça)`;
 }
 
 function renderizarListaLancamentos() {
