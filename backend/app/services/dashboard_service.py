@@ -98,6 +98,8 @@ def calcular_metricas_acumuladas(
             "total_turnos_encerrados": 0,
             "total_pecas_produzidas": 0,
             "oee_medio_estimado": 0.0,
+            "indice_qualidade_medio": 100.0,
+            "total_refugo_periodo": 0,
             "producao_por_maquina": [],
         }
 
@@ -122,6 +124,17 @@ def calcular_metricas_acumuladas(
         if kpis_por_turno
         else 0.0
     )
+    # Mesma lógica do OEE médio, para o índice de qualidade (peças
+    # boas / total inspecionado, pedido do usuário - ver
+    # analytics._kpis_a_partir_de_lancamentos). total_refugo_periodo é
+    # a soma absoluta (não uma média), útil para dimensionar o volume
+    # de descarte do período, não só a proporção.
+    indice_qualidade_medio = (
+        round(sum(k["indice_qualidade"] for k in kpis_por_turno.values()) / len(kpis_por_turno), 2)
+        if kpis_por_turno
+        else 100.0
+    )
+    total_refugo_periodo = sum(k["total_refugo"] for k in kpis_por_turno.values())
 
     # CASE WHEN dentro do SUM (não um filtro na condição do JOIN) é
     # necessário para preservar máquinas sem nenhuma produção no
@@ -170,6 +183,8 @@ def calcular_metricas_acumuladas(
         "total_turnos_encerrados": total_turnos,
         "total_pecas_produzidas": total_pecas,
         "oee_medio_estimado": oee_medio_estimado,
+        "indice_qualidade_medio": indice_qualidade_medio,
+        "total_refugo_periodo": total_refugo_periodo,
         "producao_por_maquina": producao_por_maquina,
     }
 
