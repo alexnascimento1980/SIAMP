@@ -255,6 +255,50 @@ def calcular_capacidade_esperada_lancamento(
     return int((duracao_s / ciclo) * cavidades)
 
 
+def calcular_refugo_lancamento(lanc: Lancamento, produto: Produto | None) -> int | None:
+    """Quantidade de peças de refugo de UM lançamento de produção,
+    estimada a partir do peso do lote descartado, sem depender de
+    contagem manual peça por peça:
+
+        refugo = (peso_bruto_descarte_kg * 1000) / peso_gramas_peca
+
+    peso_bruto_descarte (Lancamento) é informado em kg; peso_gramas
+    (Produto - campo já existente no cadastro da peça, reaproveitado
+    aqui em vez de um segundo campo de peso duplicado) está em
+    gramas - a conversão por 1000 mantém as duas pontas na mesma
+    unidade antes de dividir.
+
+    Retorna None (não 0) quando o cálculo não é possível - lançamento
+    sem peso de descarte informado (a imensa maioria: descarte só é
+    registrado "quando existir", não é obrigatório em todo
+    lançamento), ou peça sem peso cadastrado. None sinaliza "não há
+    informação de qualidade aqui" para quem agrega (ver
+    _kpis_a_partir_de_lancamentos), distinto de "zero refugo" (que
+    seria uma afirmação positiva de que a produção toda saiu boa).
+
+    round(), não int() - o peso é uma medição física sujeita a
+    variação (balança, umidade residual do material etc.), então o
+    resultado da divisão raramente cai num número inteiro exato;
+    arredondar para o mais próximo é mais fiel à contagem real do que
+    truncar sempre para baixo.
+
+    Limitado a no máximo lanc.quantidade - uma estimativa por peso
+    pode, por erro de pesagem ou peso cadastrado desatualizado,
+    superar a própria quantidade produzida; nesse caso, refugo maior
+    que o produzido não faz sentido físico, e o excesso provavelmente
+    indica o peso cadastrado desatualizado (merece revisão do
+    cadastro, mas não deve gerar peças boas negativas no relatório).
+    """
+    if lanc.tipo != TIPO_PRODUCAO or not lanc.peso_bruto_descarte:
+        return None
+    peso_peca_gramas = produto.peso_gramas if produto else None
+    if not peso_peca_gramas:
+        return None
+
+    refugo = round((lanc.peso_bruto_descarte * 1000) / peso_peca_gramas)
+    return min(refugo, lanc.quantidade or 0)
+
+
 def _kpis_a_partir_de_lancamentos(
     lancamentos: list[tuple[Lancamento, Maquina, Produto | None]],
 ) -> dict:
@@ -266,6 +310,14 @@ def _kpis_a_partir_de_lancamentos(
     como capacidade esperada perdida, reduzindo o índice; parada
     programada não conta, para não penalizar o turno por algo
     planejado (troca de molde, manutenção preventiva, refeição etc.).
+
+    Índice de Qualidade: proporção de peças boas sobre o total
+    inspecionado (boas + refugo), estimado por peso quando o descarte
+    foi pesado (ver calcular_refugo_lancamento) - mesma convenção do
+    modelo por hora: um lançamento sem descarte pesado simplesmente
+    não entra na conta (nem como bom, nem como refugo), e o turno
+    inteiro sem nenhum descarte pesado assume 100%, para não penalizar
+    quem ainda não usa esse recurso.
     """
     total_produzido = 0
     total_esperado = 0
@@ -273,10 +325,20 @@ def _kpis_a_partir_de_lancamentos(
     minutos_parados_programados = 0
     minutos_parados_nao_programados = 0
 
+    total_pecas_boas = 0
+    total_refugo = 0
+    houve_apontamento_qualidade = False
+
     for lanc, maq, produto in lancamentos:
         if lanc.tipo == TIPO_PRODUCAO:
             total_produzido += lanc.quantidade or 0
             total_esperado += calcular_capacidade_esperada_lancamento(lanc, maq, produto)
+
+            refugo_lanc = calcular_refugo_lancamento(lanc, produto)
+            if refugo_lanc is not None:
+                houve_apontamento_qualidade = True
+                total_refugo += refugo_lanc
+                total_pecas_boas += (lanc.quantidade or 0) - refugo_lanc
         elif lanc.tipo == TIPO_PARADA_FALHA:
             # Não soma produzido (nada foi produzido durante a falha) -
             # só esperado, para que o tempo perdido reduza o índice
@@ -293,10 +355,10 @@ def _kpis_a_partir_de_lancamentos(
     # equivalente em _kpis_a_partir_de_registros): acima disso indica ciclo
     # padrão desatualizado, não desempenho real acima do teórico.
     indice_producao = min(total_produzido / total_esperado, 1.0) if total_esperado > 0 else 0.0
-    # O modelo de lançamento não tem apontamento de peças boas/refugo -
-    # qualidade sempre 100% (mesmo fallback do modelo por hora quando
-    # não há apontamento de qualidade).
-    indice_qualidade = 1.0
+    if houve_apontamento_qualidade and (total_pecas_boas + total_refugo) > 0:
+        indice_qualidade = total_pecas_boas / (total_pecas_boas + total_refugo)
+    else:
+        indice_qualidade = 1.0
     eficiencia_oee = round(indice_producao * indice_qualidade * 100, 2)
 
     return {
@@ -305,8 +367,8 @@ def _kpis_a_partir_de_lancamentos(
         "minutos_parados": minutos_parados,
         "minutos_parados_programados": minutos_parados_programados,
         "minutos_parados_nao_programados": minutos_parados_nao_programados,
-        "total_pecas_boas": 0,
-        "total_refugo": 0,
+        "total_pecas_boas": total_pecas_boas,
+        "total_refugo": total_refugo,
         "indice_producao": round(indice_producao * 100, 2),
         "indice_qualidade": round(indice_qualidade * 100, 2),
         "eficiencia_oee": eficiencia_oee,

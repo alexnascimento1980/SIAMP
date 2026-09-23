@@ -11,6 +11,7 @@ from app.schemas.lancamento_schema import LancamentoCreate, TurnoLancamentoCreat
 from app.services.analytics import (
     calcular_capacidade_esperada_lancamento,
     calcular_kpis_turno_lancamento,
+    calcular_refugo_lancamento,
     resolver_ciclo_cavidades,
 )
 from app.services.apontamento_validacoes import (
@@ -52,6 +53,7 @@ def _criar_lancamentos(db: Session, turno: Turno, lancamentos: list[LancamentoCr
                 quantidade=lanc.quantidade,
                 ciclo_informado=lanc.ciclo_informado,
                 cavidades_informado=lanc.cavidades_informado,
+                peso_bruto_descarte=lanc.peso_bruto_descarte,
                 motivo=lanc.motivo,
             )
         )
@@ -107,6 +109,18 @@ def montar_registros_pdf_lancamento(db: Session, turno_id: int) -> list[dict]:
                 f"{produto.descricao} ({ciclo_texto}; {cavidades_texto})"
                 if produto else f"({ciclo_texto}; {cavidades_texto})"
             )
+
+            # Mostra a conta do refugo por extenso quando houve descarte
+            # pesado nesse lançamento - transparência (mesmo motivo do
+            # ciclo/cavidades acima), já que o valor é uma estimativa
+            # derivada do peso, não uma contagem direta.
+            refugo_calc = calcular_refugo_lancamento(lanc, produto)
+            if refugo_calc is not None:
+                peso_peca_g = produto.peso_gramas if produto else None
+                descricao_com_ciclo += (
+                    f" | refugo: {refugo_calc}pçs "
+                    f"({lanc.peso_bruto_descarte}kg ÷ {peso_peca_g}g/peça)"
+                )
 
             resultado.append({
                 "hora_referencia": f"{inicio_str}-{fim_str}",

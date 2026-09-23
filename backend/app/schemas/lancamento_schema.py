@@ -16,6 +16,7 @@ class LancamentoCreate(BaseModel):
     quantidade: int | None = Field(default=None, ge=0)
     ciclo_informado: float | None = Field(default=None, gt=0)
     cavidades_informado: int | None = Field(default=None, gt=0)
+    peso_bruto_descarte: float | None = Field(default=None, gt=0)
     motivo: str | None = Field(default=None, max_length=2000)
 
     @model_validator(mode="after")
@@ -53,6 +54,9 @@ class LancamentoDetail(BaseModel):
     ciclo_padrao_peca: float | None = None
     cavidades_informado: int | None = None
     cavidades_padrao_peca: int | None = None
+    peso_bruto_descarte: float | None = None
+    peso_peca_gramas: float | None = None
+    refugo_calculado: int | None = None
     motivo: str | None = None
     producao_esperada: int | None = None
 
