@@ -93,6 +93,10 @@ async function carregarDashboard(periodo = "total", dataInicio = null, dataFim =
       dados.kpis.oee_medio_estimado + "%";
     document.getElementById("kpiTurnos").innerText =
       dados.kpis.total_turnos_encerrados;
+    document.getElementById("kpiIndiceQualidade").innerText =
+      dados.kpis.indice_qualidade_medio + "%";
+    document.getElementById("kpiRefugo").innerText =
+      dados.kpis.total_refugo_periodo.toLocaleString("pt-BR");
 
     // Atualiza Card de IA
     document.getElementById("iaMensagem").innerText = dados.insight_ml.mensagem;

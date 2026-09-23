@@ -63,6 +63,8 @@ def obter_metricas_dashboard(
             "total_turnos_encerrados": metricas["total_turnos_encerrados"],
             "total_pecas_produzidas": metricas["total_pecas_produzidas"],
             "oee_medio_estimado": metricas["oee_medio_estimado"],
+            "indice_qualidade_medio": metricas["indice_qualidade_medio"],
+            "total_refugo_periodo": metricas["total_refugo_periodo"],
         },
         "grafico_producao": {
             "labels": [f"Injetora {m['numero_maquina']}" for m in metricas["producao_por_maquina"]],
