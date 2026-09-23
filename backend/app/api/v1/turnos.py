@@ -30,6 +30,7 @@ from app.services.analytics import (
     calcular_capacidade_esperada_lancamento,
     calcular_kpis_turno,
     calcular_kpis_varios_turnos_generico,
+    calcular_refugo_lancamento,
 )
 from app.services.lancamento_service import (
     editar_turno_lancamento,
@@ -359,6 +360,9 @@ def obter_turno(
                 ciclo_padrao_peca=produto.ciclo_padrao if produto else None,
                 cavidades_informado=lanc.cavidades_informado,
                 cavidades_padrao_peca=produto.cavidades if produto else None,
+                peso_bruto_descarte=lanc.peso_bruto_descarte,
+                peso_peca_gramas=produto.peso_gramas if produto else None,
+                refugo_calculado=calcular_refugo_lancamento(lanc, produto),
                 motivo=lanc.motivo,
                 producao_esperada=calcular_capacidade_esperada_lancamento(lanc, maq, produto),
             )

@@ -44,22 +44,32 @@ class Lancamento(Base):
     quantidade: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Ciclo (segundos) informado manualmente pelo operador para este
-    # lançamento - tem prioridade sobre o ciclo da peça/máquina no
-    # cálculo de capacidade esperada (ver
-    # app/services/analytics.py:calcular_capacidade_esperada_lancamento).
-    # Útil para o líder de turno comparar o ciclo real observado na
-    # injetora com o ciclo médio padrão cadastrado na peça, e para
-    # casos em que o ciclo real difere do cadastrado (molde regulado
-    # diferente naquele momento).
+    # lançamento - registrado só para referência/comparação com o
+    # ciclo cadastrado na peça, NÃO entra no cálculo de capacidade
+    # esperada (ver app/services/analytics.py:calcular_capacidade_
+    # esperada_lancamento - decisão do usuário: o esperado deve usar
+    # sempre o cadastro, para ficar estável e comparável entre
+    # turnos). Útil para o líder de turno comparar o ciclo real
+    # observado na injetora com o ciclo médio padrão cadastrado na
+    # peça, e identificar cadastro desatualizado.
     ciclo_informado: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     # Cavidades realmente utilizadas nesse lançamento - mesma ideia do
-    # ciclo_informado, mas para o número de cavidades do molde. Tem
-    # prioridade sobre as cavidades cadastradas na peça/máquina. Útil
-    # quando uma ou mais cavidades do molde estão temporariamente
-    # desativadas (manutenção, tamponamento) e a produção real por
-    # ciclo é menor do que o cadastro padrão prevê.
+    # ciclo_informado (só para referência/comparação, não entra no
+    # cálculo de capacidade esperada). Útil quando uma ou mais
+    # cavidades do molde estão temporariamente desativadas
+    # (manutenção, tamponamento) e a produção real por ciclo é menor
+    # do que o cadastro padrão prevê.
     cavidades_informado: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Peso do lote de peças descartadas pesado nesse lançamento, em kg
+    # (só para tipo=PRODUCAO, e só quando de fato houve descarte a
+    # pesar - opcional). Junto de Produto.peso_liquido_peca, permite
+    # calcular a quantidade de refugo sem depender de contagem manual:
+    # refugo = peso_bruto_descarte / peso_liquido_peca (ver
+    # analytics.calcular_refugo_lancamento). Usado no índice de
+    # qualidade e no OEE (peças boas = quantidade - refugo).
+    peso_bruto_descarte: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     # Detalhe livre - motivo da falha (tipo=PARADA_FALHA) ou
     # observação da parada programada (tipo=PARADA_PROGRAMADA). Único

@@ -15,6 +15,12 @@ class Produto(Base):
     descricao: Mapped[str] = mapped_column(String(200), nullable=False)
     ciclo_padrao: Mapped[float | None] = mapped_column(Float, nullable=True)
     cavidades: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Peso de UMA peça, em GRAMAS - campo pré-existente, já usado no
+    # cadastro ("Peso (g)"). Reaproveitado como o "peso líquido da
+    # peça" da fórmula de refugo (peso_bruto_descarte, em kg, dividido
+    # por este campo convertido para kg - ver analytics.
+    # calcular_refugo_lancamento), em vez de criar um segundo campo de
+    # peso duplicado na mesma peça.
     peso_gramas: Mapped[float | None] = mapped_column(Float, nullable=True)
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
