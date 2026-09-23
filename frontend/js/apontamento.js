@@ -1,4 +1,14 @@
-// Estado: lancamentosState[numero_maquina] = [ {tipo, horario_inicio, horario_fim, produto_id, ordem_producao_id, quantidade, motivo}, ... ]
+// Estado: lancamentosState[numero_maquina] = [ {tipo, horario_inicio, horario_fim, produto_id, ordem_producao_id, quantidade, ciclo_informado, cavidades_informado, peso_bruto_descarte, motivo}, ... ]
+// IMPORTANTE: todo campo que um lançamento pode carregar precisa
+// aparecer TANTO aqui quanto no carregamento de um turno existente
+// para edição (carregarLancamentoParaEdicao/buscar por id, adiante
+// nesse arquivo) - um campo esquecido em só um dos dois lugares
+// desaparece silenciosamente ao reeditar um turno já fechado (bug
+// real, relatado pelo usuário: cavidades_informado e
+// peso_bruto_descarte foram adicionados ao payload de envio, mas
+// ficaram de fora da lista explícita de campos ao CARREGAR um turno
+// existente para edição, então reeditar qualquer lançamento de um
+// turno com descarte apagava o refugo do turno inteiro).
 let lancamentosState = {};
 let maquinasDisponiveis = [];
 let pecasDisponiveis = [];
@@ -633,6 +643,8 @@ async function carregarTurnoParaEdicao(turnoId) {
         ordem_producao_id: lanc.ordem_producao_id,
         quantidade: lanc.quantidade,
         ciclo_informado: lanc.ciclo_informado,
+        cavidades_informado: lanc.cavidades_informado,
+        peso_bruto_descarte: lanc.peso_bruto_descarte,
         motivo: lanc.motivo,
       });
     });
