@@ -314,13 +314,18 @@ def _kpis_a_partir_de_lancamentos(
     programada não conta, para não penalizar o turno por algo
     planejado (troca de molde, manutenção preventiva, refeição etc.).
 
-    Índice de Qualidade: proporção de peças boas sobre o total
-    inspecionado (boas + refugo), estimado por peso quando o descarte
-    foi pesado (ver calcular_refugo_lancamento) - mesma convenção do
-    modelo por hora: um lançamento sem descarte pesado simplesmente
-    não entra na conta (nem como bom, nem como refugo), e o turno
-    inteiro sem nenhum descarte pesado assume 100%, para não penalizar
-    quem ainda não usa esse recurso.
+    Peças Boas / Refugo / Índice de Qualidade cobrem o TURNO INTEIRO,
+    não só os lançamentos com descarte pesado: total_refugo soma o
+    refugo estimado por peso (ver calcular_refugo_lancamento) de
+    QUALQUER lançamento que tenha essa informação - de uma injetora
+    só, de várias, tanto faz -, e total_pecas_boas é sempre
+    total_produzido - total_refugo, do turno inteiro. Um lançamento
+    sem descarte pesado simplesmente contribui 0 para o refugo (não é
+    excluído da conta) - errado corrigido depois de relatado pelo
+    usuário: a versão anterior só somava a produção das injetoras que
+    TINHAM descarte pesado nesse turno específico ao total de peças
+    boas, fazendo o número mostrado no relatório refletir só uma
+    fração da produção real do turno, não o turno inteiro.
     """
     total_produzido = 0
     total_esperado = 0
@@ -328,9 +333,7 @@ def _kpis_a_partir_de_lancamentos(
     minutos_parados_programados = 0
     minutos_parados_nao_programados = 0
 
-    total_pecas_boas = 0
     total_refugo = 0
-    houve_apontamento_qualidade = False
 
     for lanc, maq, produto in lancamentos:
         if lanc.tipo == TIPO_PRODUCAO:
@@ -339,9 +342,7 @@ def _kpis_a_partir_de_lancamentos(
 
             refugo_lanc = calcular_refugo_lancamento(lanc, produto)
             if refugo_lanc is not None:
-                houve_apontamento_qualidade = True
                 total_refugo += refugo_lanc
-                total_pecas_boas += (lanc.quantidade or 0) - refugo_lanc
         elif lanc.tipo == TIPO_PARADA_FALHA:
             # Não soma produzido (nada foi produzido durante a falha) -
             # só esperado, para que o tempo perdido reduza o índice
@@ -353,15 +354,17 @@ def _kpis_a_partir_de_lancamentos(
         else:
             minutos_parados_programados += round(_duracao_segundos(lanc) / 60)
 
+    total_pecas_boas = total_produzido - total_refugo
+
     minutos_parados = minutos_parados_programados + minutos_parados_nao_programados
     # Limitado a 100% - mesma convenção do modelo por hora (ver comentário
     # equivalente em _kpis_a_partir_de_registros): acima disso indica ciclo
     # padrão desatualizado, não desempenho real acima do teórico.
     indice_producao = min(total_produzido / total_esperado, 1.0) if total_esperado > 0 else 0.0
-    if houve_apontamento_qualidade and (total_pecas_boas + total_refugo) > 0:
-        indice_qualidade = total_pecas_boas / (total_pecas_boas + total_refugo)
-    else:
-        indice_qualidade = 1.0
+    # total_refugo = 0 (turno sem nenhum descarte pesado, ou sem
+    # nenhuma produção ainda) dá índice 100% automaticamente, sem
+    # precisar de um caso especial separado.
+    indice_qualidade = total_pecas_boas / total_produzido if total_produzido > 0 else 1.0
     eficiencia_oee = round(indice_producao * indice_qualidade * 100, 2)
 
     return {

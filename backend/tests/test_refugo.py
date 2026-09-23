@@ -278,3 +278,60 @@ def test_dashboard_sem_nenhum_turno_assume_qualidade_100(client, usuario_teste):
     kpis = res.json()["kpis"]
     assert kpis["indice_qualidade_medio"] == 100.0
     assert kpis["total_refugo_periodo"] == 0
+
+
+def test_pecas_boas_conta_o_turno_inteiro_nao_so_a_injetora_com_descarte(client, db_session, usuario_teste):
+    # Bug real relatado pelo usuário: com várias injetoras produzindo
+    # no mesmo turno e só UMA delas com descarte pesado, "Peças Boas"
+    # no relatório mostrava só a produção daquela injetora específica
+    # (produção - refugo), como se as outras não tivessem produzido
+    # nada - a correção soma o refugo de qualquer lançamento que tenha
+    # essa informação, mas "Peças Boas" sempre reflete o turno inteiro
+    # (total_produzido - total_refugo), nunca só uma fração dele.
+    _login(client, usuario_teste)
+    maquina1, peca_com_descarte = _criar_maquina_e_peca_com_peso(db_session, peso_gramas=0.0921)
+    maquina2 = Maquina(numero_maquina="2", descricao="Injetora 2", ativo=True)
+    peca_sem_descarte = Produto(
+        codigo="PL-SEM-DESCARTE", descricao="Peça sem descarte pesado nesse turno",
+        ciclo_padrao=20.0, cavidades=4,
+    )
+    db_session.add_all([maquina2, peca_sem_descarte])
+    db_session.commit()
+    db_session.refresh(maquina2)
+    db_session.refresh(peca_sem_descarte)
+
+    res = client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Rafael",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina1.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "13:00",
+                    "produto_id": peca_com_descarte.id,
+                    "quantidade": 2476,
+                    "peso_bruto_descarte": 10.53,  # -> 114 peças de refugo
+                },
+                {
+                    "numero_maquina": maquina2.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "13:00",
+                    "produto_id": peca_sem_descarte.id,
+                    "quantidade": 23944,  # sem nenhum descarte informado nessa linha
+                },
+            ],
+        },
+    )
+    assert res.status_code == 201, res.text
+    kpis = res.json()["kpis"]
+    # 10.53 / 0.0921 = 114.3 -> arredonda para 114
+    assert kpis["total_refugo"] == 114
+    # Peças boas do TURNO INTEIRO: 2476 + 23944 - 114 = 26306 (não
+    # 2476 - 114 = 2362, que seria só a injetora com descarte)
+    assert kpis["total_pecas_boas"] == 26306
+    assert kpis["total_produzido"] == 26420
+    assert kpis["total_pecas_boas"] + kpis["total_refugo"] == kpis["total_produzido"]
