@@ -260,13 +260,16 @@ def calcular_refugo_lancamento(lanc: Lancamento, produto: Produto | None) -> int
     estimada a partir do peso do lote descartado, sem depender de
     contagem manual peça por peça:
 
-        refugo = (peso_bruto_descarte_kg * 1000) / peso_gramas_peca
+        refugo = peso_bruto_descarte / peso_gramas_peca
 
-    peso_bruto_descarte (Lancamento) é informado em kg; peso_gramas
-    (Produto - campo já existente no cadastro da peça, reaproveitado
-    aqui em vez de um segundo campo de peso duplicado) está em
-    gramas - a conversão por 1000 mantém as duas pontas na mesma
-    unidade antes de dividir.
+    Os dois lados em GRAMAS - peso_bruto_descarte (Lancamento, peso do
+    lote descartado) e peso_gramas (Produto, peso de UMA peça - campo
+    já existente no cadastro, reaproveitado aqui em vez de um segundo
+    campo de peso duplicado). Sem conversão de unidade entre os dois:
+    peças injetadas pequenas podem pesar frações de grama (confirmado
+    pelo usuário - ex.: uma peça real pesando 0,0921g), tornando
+    plausível um lote de poucos gramas mesmo com dezenas de peças
+    descartadas.
 
     Retorna None (não 0) quando o cálculo não é possível - lançamento
     sem peso de descarte informado (a imensa maioria: descarte só é
@@ -295,7 +298,7 @@ def calcular_refugo_lancamento(lanc: Lancamento, produto: Produto | None) -> int
     if not peso_peca_gramas:
         return None
 
-    refugo = round((lanc.peso_bruto_descarte * 1000) / peso_peca_gramas)
+    refugo = round(lanc.peso_bruto_descarte / peso_peca_gramas)
     return min(refugo, lanc.quantidade or 0)
 
 

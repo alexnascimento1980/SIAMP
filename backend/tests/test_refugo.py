@@ -2,11 +2,15 @@
 (exemplo real: folha de papel "DESCARTES DE PEÇAS MÁQUINA Nº 03" com
 peso líquido da peça e peso bruto do lote descartado). Fórmula:
 
-    refugo = (peso_bruto_descarte_kg * 1000) / peso_gramas_peca
+    refugo = peso_bruto_descarte / peso_gramas_peca
 
-peso_bruto_descarte (por lançamento, kg) é novo; peso_gramas (peça,
-gramas) é um campo já existente no cadastro, reaproveitado aqui em vez
-de criar um segundo campo de peso duplicado na mesma peça."""
+Os dois lados em GRAMAS, sem conversão de unidade entre eles - peças
+injetadas pequenas podem pesar frações de grama (confirmado pelo
+usuário em produção: uma peça real, CAPOT DV, pesa 0,0921g - menos de
+1 grama), tornando plausível um lote de poucos gramas mesmo com
+dezenas de peças descartadas. peso_gramas (peça) é um campo já
+existente no cadastro, reaproveitado aqui em vez de criar um segundo
+campo de peso duplicado."""
 from datetime import time
 
 from app.core.security import gerar_hash_senha
@@ -25,7 +29,7 @@ def _login(client, usuario):
     assert res.status_code == 200
 
 
-def _criar_maquina_e_peca_com_peso(db_session, peso_gramas=92.2):
+def _criar_maquina_e_peca_com_peso(db_session, peso_gramas=0.0921):
     maquina = Maquina(numero_maquina="1", descricao="Injetora 1", ativo=True)
     peca = Produto(
         codigo="PL-REFUGO", descricao="Peça com peso cadastrado",
@@ -67,21 +71,21 @@ def test_sem_peca_nenhuma_retorna_none():
     assert calcular_refugo_lancamento(lanc, None) is None
 
 
-def test_calculo_exato_do_exemplo_real():
-    # Folha real: CAPOT DV, peso líquido 0,0922 kg = 92,2g por peça,
-    # peso bruto do descarte pesado no lançamento: 1,845 kg = 1845g.
-    # 1845 / 92.2 = 20.01... -> arredonda para 20.
-    peca = Produto(codigo="CAPOT-DV", descricao="Capot DV", peso_gramas=92.2)
-    lanc = _lancamento_producao(peso_bruto_descarte=1.845, quantidade=1960)
+def test_calculo_com_peca_real_confirmada_pelo_usuario():
+    # CAPOT DV pesa 0,0921g de verdade (confirmado pelo usuário em
+    # produção - achado ao tentar cadastrar esse peso e esbarrar na
+    # validação antiga, que só aceitava >= 0,1). Lote de 20 peças
+    # descartadas pesaria, na prática, 20 x 0.0921 = 1.842g.
+    peca = Produto(codigo="CAPOT-DV", descricao="Capot DV", peso_gramas=0.0921)
+    lanc = _lancamento_producao(peso_bruto_descarte=1.842, quantidade=1960)
     assert calcular_refugo_lancamento(lanc, peca) == 20
 
 
 def test_arredonda_para_o_mais_proximo_nao_trunca():
-    # peso_bruto_descarte=10kg=10000g, peça de 2600g cada:
-    # 10000 / 2600 = 3.846... - int() (truncamento) daria 3, round()
+    # 10 / 2.6 = 3.846... - int() (truncamento) daria 3, round()
     # (usado de propósito, ver docstring de calcular_refugo_lancamento)
     # dá 4, mais fiel a uma estimativa física por peso.
-    peca = Produto(codigo="P1", descricao="Peça", peso_gramas=2600.0)
+    peca = Produto(codigo="P1", descricao="Peça", peso_gramas=2.6)
     lanc = _lancamento_producao(peso_bruto_descarte=10.0, quantidade=100)
     assert calcular_refugo_lancamento(lanc, peca) == 4
 
@@ -90,7 +94,7 @@ def test_refugo_nao_ultrapassa_a_quantidade_produzida():
     # Peso bruto exagerado (erro de pesagem, ou peso cadastrado
     # desatualizado) não deve gerar refugo maior que o produzido -
     # capado em quantidade, para não dar peças boas negativas.
-    peca = Produto(codigo="P1", descricao="Peça", peso_gramas=10.0)
+    peca = Produto(codigo="P1", descricao="Peça", peso_gramas=0.01)
     lanc = _lancamento_producao(peso_bruto_descarte=100.0, quantidade=50)
     assert calcular_refugo_lancamento(lanc, peca) == 50
 
@@ -114,7 +118,7 @@ def test_fechamento_com_descarte_calcula_qualidade_e_oee(client, db_session):
     db_session.add(admin)
     db_session.commit()
     _login(client, admin)
-    maquina, peca = _criar_maquina_e_peca_com_peso(db_session, peso_gramas=92.2)
+    maquina, peca = _criar_maquina_e_peca_com_peso(db_session, peso_gramas=0.0921)
 
     res = client.post(
         "/api/v1/turnos/lancamento",
@@ -129,14 +133,14 @@ def test_fechamento_com_descarte_calcula_qualidade_e_oee(client, db_session):
                     "horario_fim": "04:00",
                     "produto_id": peca.id,
                     "quantidade": 1960,
-                    "peso_bruto_descarte": 1.845,
+                    "peso_bruto_descarte": 1.842,
                 },
             ],
         },
     )
     assert res.status_code == 201, res.text
     kpis = res.json()["kpis"]
-    # (1.845 * 1000) / 92.2 = 20 (arredondado)
+    # 1.842 / 0.0921 = 20 (arredondado)
     assert kpis["total_refugo"] == 20
     assert kpis["total_pecas_boas"] == 1960 - 20
     assert kpis["indice_qualidade"] == round((1960 - 20) / 1960 * 100, 2)
@@ -178,7 +182,7 @@ def test_fechamento_sem_nenhum_descarte_mantem_qualidade_em_100(client, db_sessi
 
 def test_detalhe_do_turno_mostra_refugo_calculado(client, db_session, usuario_teste):
     _login(client, usuario_teste)
-    maquina, peca = _criar_maquina_e_peca_com_peso(db_session, peso_gramas=92.2)
+    maquina, peca = _criar_maquina_e_peca_com_peso(db_session, peso_gramas=0.0921)
 
     turno_id = client.post(
         "/api/v1/turnos/lancamento",
@@ -193,7 +197,7 @@ def test_detalhe_do_turno_mostra_refugo_calculado(client, db_session, usuario_te
                     "horario_fim": "06:00",
                     "produto_id": peca.id,
                     "quantidade": 1960,
-                    "peso_bruto_descarte": 1.845,
+                    "peso_bruto_descarte": 1.842,
                 },
             ],
         },
@@ -201,14 +205,14 @@ def test_detalhe_do_turno_mostra_refugo_calculado(client, db_session, usuario_te
 
     detalhe = client.get(f"/api/v1/turnos/{turno_id}").json()
     lanc = detalhe["lancamentos"][0]
-    assert lanc["peso_bruto_descarte"] == 1.845
-    assert lanc["peso_peca_gramas"] == 92.2
+    assert lanc["peso_bruto_descarte"] == 1.842
+    assert lanc["peso_peca_gramas"] == 0.0921
     assert lanc["refugo_calculado"] == 20
 
 
 def test_pdf_mostra_a_conta_do_refugo_por_extenso(client, db_session, usuario_teste):
     _login(client, usuario_teste)
-    maquina, peca = _criar_maquina_e_peca_com_peso(db_session, peso_gramas=92.2)
+    maquina, peca = _criar_maquina_e_peca_com_peso(db_session, peso_gramas=0.0921)
 
     turno_id = client.post(
         "/api/v1/turnos/lancamento",
@@ -223,7 +227,7 @@ def test_pdf_mostra_a_conta_do_refugo_por_extenso(client, db_session, usuario_te
                     "horario_fim": "06:00",
                     "produto_id": peca.id,
                     "quantidade": 1960,
-                    "peso_bruto_descarte": 1.845,
+                    "peso_bruto_descarte": 1.842,
                 },
             ],
         },
@@ -233,13 +237,13 @@ def test_pdf_mostra_a_conta_do_refugo_por_extenso(client, db_session, usuario_te
 
     linhas = montar_registros_pdf_lancamento(db_session, turno_id)
     assert "refugo: 20pçs" in linhas[0]["produto_descricao"]
-    assert "1.845kg" in linhas[0]["produto_descricao"]
-    assert "92.2g/peça" in linhas[0]["produto_descricao"]
+    assert "1.842g" in linhas[0]["produto_descricao"]
+    assert "0.0921g/peça" in linhas[0]["produto_descricao"]
 
 
 def test_dashboard_agrega_indice_de_qualidade_e_refugo_do_periodo(client, db_session, usuario_teste):
     _login(client, usuario_teste)
-    maquina, peca = _criar_maquina_e_peca_com_peso(db_session, peso_gramas=92.2)
+    maquina, peca = _criar_maquina_e_peca_com_peso(db_session, peso_gramas=0.0921)
 
     client.post(
         "/api/v1/turnos/lancamento",
@@ -254,7 +258,7 @@ def test_dashboard_agrega_indice_de_qualidade_e_refugo_do_periodo(client, db_ses
                     "horario_fim": "06:00",
                     "produto_id": peca.id,
                     "quantidade": 1960,
-                    "peso_bruto_descarte": 1.845,
+                    "peso_bruto_descarte": 1.842,
                 },
             ],
         },

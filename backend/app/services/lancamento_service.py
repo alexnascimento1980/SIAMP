@@ -119,7 +119,7 @@ def montar_registros_pdf_lancamento(db: Session, turno_id: int) -> list[dict]:
                 peso_peca_g = produto.peso_gramas if produto else None
                 descricao_com_ciclo += (
                     f" | refugo: {refugo_calc}pçs "
-                    f"({lanc.peso_bruto_descarte}kg ÷ {peso_peca_g}g/peça)"
+                    f"({lanc.peso_bruto_descarte}g ÷ {peso_peca_g}g/peça)"
                 )
 
             resultado.append({

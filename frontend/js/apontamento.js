@@ -457,11 +457,12 @@ function calcularEsperadoLancamento(lanc, maquina) {
 }
 
 // Estimativa de refugo ao vivo, mesma fórmula do backend (ver
-// analytics.calcular_refugo_lancamento): refugo = (peso do descarte em
-// kg × 1000) ÷ peso de uma peça em gramas (campo já existente no
-// cadastro da peça, "Peso (g)"). Chamada tanto ao trocar de peça
-// quanto ao digitar o peso do descarte, para o número atualizar em
-// tempo real nos dois casos.
+// analytics.calcular_refugo_lancamento): refugo = peso do descarte em
+// gramas ÷ peso de uma peça em gramas (campo já existente no cadastro
+// da peça, "Peso (g)") - os dois lados na mesma unidade, sem
+// conversão (peças pequenas podem pesar frações de grama). Chamada
+// tanto ao trocar de peça quanto ao digitar o peso do descarte, para
+// o número atualizar em tempo real nos dois casos.
 function atualizarDicaRefugo() {
   const dica = document.getElementById("dicaRefugoEstimado");
   if (!dica) return;
@@ -487,8 +488,8 @@ function atualizarDicaRefugo() {
     return;
   }
 
-  const refugoEstimado = Math.round((pesoDescarte * 1000) / peca.peso_gramas);
-  dica.innerText = `Refugo estimado: ${refugoEstimado} peça(s) (${pesoDescarte}kg ÷ ${peca.peso_gramas}g/peça)`;
+  const refugoEstimado = Math.round(pesoDescarte / peca.peso_gramas);
+  dica.innerText = `Refugo estimado: ${refugoEstimado} peça(s) (${pesoDescarte}g ÷ ${peca.peso_gramas}g/peça)`;
 }
 
 function renderizarListaLancamentos() {
