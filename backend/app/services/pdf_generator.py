@@ -145,7 +145,7 @@ def gerar_relatorio_turno_pdf(dados_turno: dict, kpis: dict, registros: list[dic
     # Detalhe por hora/máquina: qual peça foi produzida e o tipo de parada
     # (quando houve), para o relatório deixar isso explícito.
     if registros:
-        cabecalho_detalhe = ["Hora", "Máquina", "OP", "Peça", "Produção", "Esperado", "Parada"]
+        cabecalho_detalhe = ["Hora", "Máquina", "OP", "Peça", "Produção", "Esperado", "Refugo", "Parada"]
         linhas_detalhe = [cabecalho_detalhe]
         # Células de texto mais longo (peça + ciclo usado, motivo de
         # parada) usam Paragraph em vez de string simples - string pura
@@ -158,13 +158,15 @@ def gerar_relatorio_turno_pdf(dados_turno: dict, kpis: dict, registros: list[dic
                 parada_txt += " (programada)" if reg.get("parada_programada") else " (não programada)"
             else:
                 parada_txt = "-"
+            refugo_val = reg.get("refugo")
             linhas_detalhe.append([
                 reg["hora_referencia"],
                 reg["numero_maquina"],
-                reg.get("numero_op") or "-",
+                Paragraph(reg.get("numero_op") or "-", estilo_celula),
                 Paragraph(reg.get("produto_descricao") or "-", estilo_celula),
                 str(reg["prod_executada"]),
                 str(reg.get("producao_esperada", "-")),
+                str(refugo_val) if refugo_val is not None else "-",
                 Paragraph(parada_txt, estilo_celula),
             ])
 
@@ -174,14 +176,14 @@ def gerar_relatorio_turno_pdf(dados_turno: dict, kpis: dict, registros: list[dic
             # "22:00-05:00") - por isso mais larga que as demais colunas
             # estreitas eram originalmente dimensionadas só para o
             # formato antigo.
-            linhas_detalhe, colWidths=[68, 42, 48, 148, 48, 48, 103], repeatRows=1
+            linhas_detalhe, colWidths=[64, 36, 48, 122, 40, 40, 38, 91], repeatRows=1
         )
         tabela_detalhe.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F3F4F6')),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, -1), 8),
             ('ALIGN', (0, 0), (0, -1), 'CENTER'),
-            ('ALIGN', (4, 0), (5, -1), 'CENTER'),
+            ('ALIGN', (4, 0), (6, -1), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
             ('TOPPADDING', (0, 0), (-1, -1), 4),
@@ -211,6 +213,65 @@ def gerar_relatorio_turno_pdf(dados_turno: dict, kpis: dict, registros: list[dic
     alerta_style = ParagraphStyle('Alerta', parent=styles['Normal'], textColor=colors.HexColor('#B91C1C') if kpis['eficiencia_oee'] < 75 else colors.HexColor('#15803D'))
     elementos.append(Paragraph(f"<b>Diagnóstico de Inteligência:</b> {kpis['alerta_ia']}", alerta_style))
     
+    doc.build(elementos)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def gerar_relatorio_op_pdf(comparativo: dict) -> bytes:
+    """Relatório simples de UMA Ordem de Produção - meta x produção
+    real x refugo. Pedido do usuário: dar a quem não tem mais acesso à
+    página completa de Ordens de Produção (Supervisor, depois da
+    mudança de permissão) uma forma de baixar e visualizar o progresso
+    de uma OP, sem precisar da tela de gerenciamento (criar/editar/
+    excluir, restrita a ADMIN).
+
+    comparativo é o mesmo dict retornado por ordem_producao_service.
+    calcular_comparativo (via .model_dump()) - meta, produzido, refugo,
+    percentual, prazo.
+    """
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
+    styles = getSampleStyleSheet()
+    elementos = []
+
+    titulo_style = ParagraphStyle('Titulo', parent=styles['Heading1'], fontSize=16, leading=20, textColor=colors.HexColor('#1E3A8A'))
+    elementos.append(Paragraph("SIAMP - Relatório de Ordem de Produção", titulo_style))
+    elementos.append(Paragraph(
+        f"<b>OP:</b> {comparativo['numero_op']} | "
+        f"<b>Período:</b> {comparativo['periodo_inicio'].strftime('%d/%m/%Y')} a "
+        f"{comparativo['periodo_fim'].strftime('%d/%m/%Y')} | "
+        f"<b>Prazo:</b> {'Dentro do prazo' if comparativo['dentro_do_prazo'] else 'Fora do prazo'}",
+        styles['Normal'],
+    ))
+    elementos.append(Spacer(1, 15))
+
+    produzido = comparativo["quantidade_produzida"]
+    refugo = comparativo["quantidade_refugo"]
+    tabela = Table(
+        [
+            ["Meta", "Produzido", "Refugo", "% Atingido"],
+            [
+                f"{comparativo['quantidade_meta']:,}".replace(",", "."),
+                f"{produzido:,}".replace(",", "."),
+                f"{refugo:,}".replace(",", "."),
+                f"{comparativo['percentual_atingido']}%",
+            ],
+        ],
+        colWidths=[120, 120, 120, 120],
+    )
+    tabela.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F3F4F6')),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+    ]))
+    elementos.append(tabela)
+
     doc.build(elementos)
     buffer.seek(0)
     return buffer.getvalue()

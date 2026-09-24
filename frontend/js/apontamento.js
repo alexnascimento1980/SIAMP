@@ -27,10 +27,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (perfil === "ADMIN") {
     document.getElementById("linkUsuarios").classList.remove("d-none");
     document.getElementById("linkDestinatarios").classList.remove("d-none");
+    document.getElementById("linkPecas").classList.remove("d-none");
+    document.getElementById("linkOrdensProducao").classList.remove("d-none");
   }
   if (perfil === "ADMIN" || perfil === "SUPERVISOR") {
     document.getElementById("linkMaquinas").classList.remove("d-none");
-    document.getElementById("linkPecas").classList.remove("d-none");
   }
 
   const params = new URLSearchParams(window.location.search);
@@ -118,6 +119,11 @@ async function carregarPecas() {
       const dicaCavidades = document.getElementById("dicaCavidadesPadrao");
       dicaCavidades.innerText = peca && peca.cavidades
         ? `Cavidades cadastradas na peça: ${peca.cavidades}`
+        : "";
+
+      const dicaPeso = document.getElementById("dicaPesoPeca");
+      dicaPeso.innerText = peca && peca.peso_gramas
+        ? `Peso cadastrado na peça: ${peca.peso_gramas}g`
         : "";
 
       atualizarDicaRefugo();
@@ -338,6 +344,7 @@ function adicionarLancamento() {
     document.getElementById("lancCavidades").value = "";
     document.getElementById("dicaCavidadesPadrao").innerText = "";
     document.getElementById("lancPesoDescarte").value = "";
+    document.getElementById("dicaPesoPeca").innerText = "";
     document.getElementById("dicaRefugoEstimado").innerText = "";
     document.getElementById("lancInicio").value = "";
     document.getElementById("lancFim").value = "";
@@ -399,6 +406,9 @@ function editarLancamento(indice) {
       : "";
     document.getElementById("dicaCavidadesPadrao").innerText = peca && peca.cavidades
       ? `Cavidades cadastradas na peça: ${peca.cavidades}`
+      : "";
+    document.getElementById("dicaPesoPeca").innerText = peca && peca.peso_gramas
+      ? `Peso cadastrado na peça: ${peca.peso_gramas}g`
       : "";
     document.getElementById("lancOp").value = lanc.ordem_producao_id || "";
     document.getElementById("lancQuantidade").value = lanc.quantidade;
@@ -474,6 +484,11 @@ function calcularEsperadoLancamento(lanc, maquina) {
 // tanto ao trocar de peça quanto ao digitar o peso do descarte, para
 // o número atualizar em tempo real nos dois casos.
 function atualizarDicaRefugo() {
+  // O peso cadastrado na peça já é mostrado assim que ela é
+  // selecionada, num aviso fixo próprio (dicaPesoPeca, ao lado das
+  // dicas equivalentes de ciclo/cavidades) - esta função cuida só da
+  // ESTIMATIVA de refugo, calculada a partir do que foi digitado
+  // aqui.
   const dica = document.getElementById("dicaRefugoEstimado");
   if (!dica) return;
 
@@ -485,11 +500,8 @@ function atualizarDicaRefugo() {
   if (!pesoDescarteStr || Number.isNaN(pesoDescarte) || pesoDescarte <= 0) {
     // Sem peso de descarte digitado ainda - não é o caso comum (a
     // maioria dos lançamentos não tem descarte nenhum), então não
-    // alarma por antecipação; só mostra o peso cadastrado como
-    // referência, se houver.
-    dica.innerText = peca && peca.peso_gramas
-      ? `Peso cadastrado na peça: ${peca.peso_gramas}g`
-      : "";
+    // alarma por antecipação.
+    dica.innerText = "";
     return;
   }
 

@@ -33,7 +33,7 @@ def listar_produtos(
 def criar_produto(
     dados: ProdutoCreate,
     db: Session = Depends(get_db),
-    usuario_atual: Usuario = Depends(exigir_perfil("ADMIN", "SUPERVISOR")),
+    usuario_atual: Usuario = Depends(exigir_perfil("ADMIN")),
 ):
     ja_existe = db.query(Produto).filter(Produto.codigo == dados.codigo).first()
     if ja_existe:
@@ -54,7 +54,7 @@ def atualizar_produto(
     produto_id: int,
     dados: ProdutoUpdate,
     db: Session = Depends(get_db),
-    usuario_atual: Usuario = Depends(exigir_perfil("ADMIN", "SUPERVISOR")),
+    usuario_atual: Usuario = Depends(exigir_perfil("ADMIN")),
 ):
     produto = db.query(Produto).filter(Produto.id == produto_id).first()
     if produto is None:

@@ -10,9 +10,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   if (sessao.perfil === "ADMIN" || sessao.perfil === "SUPERVISOR") {
     document.getElementById("cardMaquinas").classList.remove("d-none");
-    document.getElementById("cardPecas").classList.remove("d-none");
   }
   if (sessao.perfil === "ADMIN") {
+    document.getElementById("cardPecas").classList.remove("d-none");
+    document.getElementById("cardOrdensProducao").classList.remove("d-none");
     document.getElementById("cardUsuarios").classList.remove("d-none");
     document.getElementById("cardDestinatarios").classList.remove("d-none");
   }

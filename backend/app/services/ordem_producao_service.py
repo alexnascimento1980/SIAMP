@@ -14,6 +14,7 @@ from app.schemas.ordem_producao_schema import (
     OrdemProducaoResponse,
     OrdemProducaoUpdate,
 )
+from app.services.analytics import calcular_refugo_lancamento
 
 
 def _resolver_maquina(db: Session, numero_maquina: str | None) -> Maquina | None:
@@ -192,6 +193,36 @@ def calcular_comparativo(db: Session, ordem_id: int) -> OrdemProducaoComparativo
     )
     quantidade_produzida = int(total_horario or 0) + int(total_lancamento or 0)
 
+    # Refugo: RegistroHorario.refugo é um campo direto, soma via SQL
+    # normalmente. Lancamento não tem refugo como campo - é estimado
+    # por peso (peso_bruto_descarte ÷ Produto.peso_gramas, ver
+    # analytics.calcular_refugo_lancamento), uma divisão por linha que
+    # não dá para fazer só com SQL agregado - busca os lançamentos com
+    # a peça associada e soma em Python.
+    refugo_horario = (
+        db.query(func.coalesce(func.sum(RegistroHorario.refugo), 0))
+        .join(Turno, RegistroHorario.turno_id == Turno.id)
+        .filter(RegistroHorario.ordem_producao_id == ordem.id)
+        .filter(Turno.status_assinatura == STATUS_ASSINADO)
+        .filter(Turno.marcado_teste.is_(False))
+        .scalar()
+    )
+    lancamentos_com_peca = (
+        db.query(Lancamento, Produto)
+        .join(Turno, Lancamento.turno_id == Turno.id)
+        .outerjoin(Produto, Lancamento.produto_id == Produto.id)
+        .filter(Lancamento.ordem_producao_id == ordem.id)
+        .filter(Lancamento.tipo == "PRODUCAO")
+        .filter(Turno.status_assinatura == STATUS_ASSINADO)
+        .filter(Turno.marcado_teste.is_(False))
+        .all()
+    )
+    refugo_lancamento = sum(
+        calcular_refugo_lancamento(lanc, produto) or 0
+        for lanc, produto in lancamentos_com_peca
+    )
+    quantidade_refugo = int(refugo_horario or 0) + refugo_lancamento
+
     percentual = (
         round((quantidade_produzida / ordem.quantidade_a_produzir) * 100, 1)
         if ordem.quantidade_a_produzir
@@ -203,6 +234,7 @@ def calcular_comparativo(db: Session, ordem_id: int) -> OrdemProducaoComparativo
         numero_op=ordem.numero_op,
         quantidade_meta=ordem.quantidade_a_produzir,
         quantidade_produzida=quantidade_produzida,
+        quantidade_refugo=quantidade_refugo,
         percentual_atingido=percentual,
         periodo_inicio=ordem.periodo_inicio,
         periodo_fim=ordem.periodo_fim,

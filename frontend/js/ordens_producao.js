@@ -1,5 +1,4 @@
 let opsCarregadas = [];
-let podeGerenciar = false;
 let pecasCatalogo = [];
 let maquinasCatalogo = [];
 
@@ -7,12 +6,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   const sessao = await exigirSessao();
   if (!sessao) return;
 
-  podeGerenciar = sessao.perfil === "ADMIN" || sessao.perfil === "SUPERVISOR";
-  if (!podeGerenciar) {
-    document.querySelector(".card.shadow-sm.mb-3").style.display = "none";
-  } else {
-    await carregarCatalogos();
+  if (sessao.perfil !== "ADMIN") {
+    alert("Apenas administradores podem acessar esta página.");
+    window.location.href = "home.html";
+    return;
   }
+  await carregarCatalogos();
 
   document.getElementById("formNovaOp").addEventListener("submit", onSalvarOp);
   document
@@ -122,16 +121,14 @@ function renderizarLista(ops, comparativos) {
       `
       : `<div class="small text-secondary fst-italic">Sem máquina vinculada - comparativo indisponível.</div>`;
 
-    const botoesGerenciar = podeGerenciar
-      ? `
+    const botoesGerenciar = `
         <button class="btn btn-sm btn-outline-secondary" onclick="editarOp(${op.id})" title="Editar">
           <i class="bi bi-pencil-square"></i>
         </button>
         <button class="btn btn-sm btn-outline-danger" onclick="excluirOp(${op.id})" title="Remover">
           <i class="bi bi-trash"></i>
         </button>
-      `
-      : "";
+      `;
 
     item.innerHTML = `
       <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
