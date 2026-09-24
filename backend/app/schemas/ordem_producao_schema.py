@@ -134,6 +134,7 @@ class OrdemProducaoComparativo(BaseModel):
     numero_op: str
     quantidade_meta: int
     quantidade_produzida: int
+    quantidade_refugo: int
     percentual_atingido: float
     periodo_inicio: date
     periodo_fim: date

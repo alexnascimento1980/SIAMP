@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import exigir_perfil, get_current_user
@@ -26,6 +27,7 @@ from app.services.ordem_producao_service import (
     criar_ordem_producao,
     montar_response_ordem,
 )
+from app.services.pdf_generator import gerar_relatorio_op_pdf
 
 router = APIRouter(prefix="/ordens-producao", tags=["Ordens de Produção"])
 
@@ -77,11 +79,38 @@ def obter_comparativo(
         ) from exc
 
 
+@router.get("/{ordem_id}/relatorio.pdf")
+def baixar_relatorio_op(
+    ordem_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+):
+    """PDF de UMA OP (meta x real x refugo) - aberto a qualquer perfil
+    autenticado, propositalmente: quem não tem mais acesso à página
+    completa de gerenciamento (Supervisor e Operador, ver permissões
+    de escrita acima, restritas a ADMIN) ainda precisa conseguir
+    acompanhar e baixar o progresso de uma OP."""
+    try:
+        comparativo = calcular_comparativo(db, ordem_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+
+    pdf_bytes = gerar_relatorio_op_pdf(comparativo.model_dump())
+    nome_arquivo = f"relatorio_op_{comparativo.numero_op}.pdf"
+    return StreamingResponse(
+        iter([pdf_bytes]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{nome_arquivo}"'},
+    )
+
+
 @router.post("/", response_model=OrdemProducaoResponse, status_code=status.HTTP_201_CREATED)
 def criar_ordem(
     dados: OrdemProducaoCreate,
     db: Session = Depends(get_db),
-    usuario: Usuario = Depends(exigir_perfil("ADMIN", "SUPERVISOR")),
+    usuario: Usuario = Depends(exigir_perfil("ADMIN")),
 ):
     try:
         return criar_ordem_producao(db, dados, usuario.id)
@@ -99,7 +128,7 @@ def editar_ordem(
     ordem_id: int,
     dados: OrdemProducaoUpdate,
     db: Session = Depends(get_db),
-    usuario: Usuario = Depends(exigir_perfil("ADMIN", "SUPERVISOR")),
+    usuario: Usuario = Depends(exigir_perfil("ADMIN")),
 ):
     try:
         return atualizar_ordem_producao(db, ordem_id, dados)
@@ -116,7 +145,7 @@ def editar_ordem(
 def remover_ordem(
     ordem_id: int,
     db: Session = Depends(get_db),
-    usuario: Usuario = Depends(exigir_perfil("ADMIN", "SUPERVISOR")),
+    usuario: Usuario = Depends(exigir_perfil("ADMIN")),
 ):
     ordem = db.query(OrdemProducao).filter(OrdemProducao.id == ordem_id).first()
     if ordem is None:
@@ -132,7 +161,7 @@ def remover_ordem(
 async def importar_ordens_producao_endpoint(
     arquivo: UploadFile = File(...),
     db: Session = Depends(get_db),
-    usuario: Usuario = Depends(exigir_perfil("ADMIN", "SUPERVISOR")),
+    usuario: Usuario = Depends(exigir_perfil("ADMIN")),
 ):
     """
     Importa Ordens de Produção em lote, de um arquivo .csv ou .xml.
@@ -177,7 +206,7 @@ async def importar_ordens_producao_endpoint(
 async def extrair_documento_op_endpoint(
     arquivo: UploadFile = File(...),
     db: Session = Depends(get_db),
-    usuario: Usuario = Depends(exigir_perfil("ADMIN", "SUPERVISOR")),
+    usuario: Usuario = Depends(exigir_perfil("ADMIN")),
 ):
     """Extrai os dados de uma Ordem de Produção a partir de um PDF ou
     foto do documento (mesmo layout da importação em lote - sistema

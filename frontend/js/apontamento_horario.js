@@ -43,10 +43,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (perfil === "ADMIN") {
     document.getElementById("linkUsuarios").classList.remove("d-none");
     document.getElementById("linkDestinatarios").classList.remove("d-none");
+    document.getElementById("linkPecas").classList.remove("d-none");
+    document.getElementById("linkOrdensProducao").classList.remove("d-none");
   }
   if (perfil === "ADMIN" || perfil === "SUPERVISOR") {
     document.getElementById("linkMaquinas").classList.remove("d-none");
-    document.getElementById("linkPecas").classList.remove("d-none");
   }
 
   const params = new URLSearchParams(window.location.search);

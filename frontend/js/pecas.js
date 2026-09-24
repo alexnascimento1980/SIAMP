@@ -6,8 +6,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   const sessao = await exigirSessao();
   if (!sessao) return;
 
-  if (sessao.perfil !== "ADMIN" && sessao.perfil !== "SUPERVISOR") {
-    alert("Apenas administradores e supervisores podem acessar esta página.");
+  if (sessao.perfil !== "ADMIN") {
+    alert("Apenas administradores podem acessar esta página.");
     window.location.href = "home.html";
     return;
   }
