@@ -335,3 +335,162 @@ def test_pecas_boas_conta_o_turno_inteiro_nao_so_a_injetora_com_descarte(client,
     assert kpis["total_pecas_boas"] == 26306
     assert kpis["total_produzido"] == 26420
     assert kpis["total_pecas_boas"] + kpis["total_refugo"] == kpis["total_produzido"]
+
+
+# --- Coluna de Refugo no PDF de fechamento de turno, e relatório de OP ---
+
+
+def test_pdf_de_turno_mostra_coluna_de_refugo(client, db_session, usuario_teste):
+    # Pedido do usuário: uma coluna dedicada de "Refugo" na tabela de
+    # detalhe do relatório, não só embutido no texto da peça.
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca_com_peso(db_session, peso_gramas=0.0921)
+
+    res = client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": peca.id,
+                    "quantidade": 1960,
+                    "peso_bruto_descarte": 1.842,
+                },
+            ],
+        },
+    )
+    turno_id = res.json()["turno_id"]
+
+    pdf_bytes = client.get(f"/api/v1/turnos/{turno_id}/relatorio.pdf").content
+    import io as io_module
+
+    import pdfplumber
+
+    with pdfplumber.open(io_module.BytesIO(pdf_bytes)) as pdf:
+        texto = pdf.pages[0].extract_text()
+    assert "Refugo" in texto  # cabeçalho da coluna nova
+    assert "20" in texto  # valor da linha (1.842 / 0.0921 = 20)
+
+
+def test_relatorio_op_pdf_mostra_meta_real_refugo(client, db_session, usuario_teste):
+    from datetime import date
+
+    from app.models.ordem_producao import OrdemProducao
+
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca_com_peso(db_session, peso_gramas=0.0921)
+
+    op = OrdemProducao(
+        numero_op="OP-REFUGO-1", produto_id=peca.id, produto_codigo=peca.codigo,
+        produto_descricao=peca.descricao, quantidade_a_produzir=5000,
+        periodo_inicio=date(2026, 1, 1), periodo_fim=date(2026, 12, 31),
+        maquina_id=maquina.id,
+    )
+    db_session.add(op)
+    db_session.commit()
+    db_session.refresh(op)
+
+    client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": peca.id,
+                    "ordem_producao_id": op.id,
+                    "quantidade": 1960,
+                    "peso_bruto_descarte": 1.842,
+                },
+            ],
+        },
+    )
+
+    res = client.get(f"/api/v1/ordens-producao/{op.id}/relatorio.pdf")
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "application/pdf"
+
+    import io as io_module
+
+    import pdfplumber
+
+    with pdfplumber.open(io_module.BytesIO(res.content)) as pdf:
+        texto = pdf.pages[0].extract_text()
+    assert "OP-REFUGO-1" in texto
+    assert "5.000" in texto  # meta
+    assert "1.960" in texto  # produzido
+    assert "20" in texto  # refugo
+
+
+def test_relatorio_op_pdf_acessivel_a_supervisor_e_operador(client, db_session, usuario_teste):
+    from datetime import date
+
+    from app.models.ordem_producao import OrdemProducao
+
+    peca = _criar_maquina_e_peca_com_peso(db_session)[1]
+    op = OrdemProducao(
+        numero_op="OP-ACESSO-1", produto_id=peca.id, produto_codigo=peca.codigo,
+        produto_descricao=peca.descricao, quantidade_a_produzir=100,
+        periodo_inicio=date(2026, 1, 1), periodo_fim=date(2026, 12, 31),
+    )
+    db_session.add(op)
+    db_session.commit()
+    db_session.refresh(op)
+
+    _login(client, usuario_teste)  # OPERADOR
+    assert client.get(f"/api/v1/ordens-producao/{op.id}/relatorio.pdf").status_code == 200
+
+
+def test_dashboard_comparativo_op_inclui_refugo(client, db_session, usuario_teste):
+    from datetime import date
+
+    from app.models.ordem_producao import OrdemProducao
+
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca_com_peso(db_session, peso_gramas=0.0921)
+
+    op = OrdemProducao(
+        numero_op="OP-DASH-1", produto_id=peca.id, produto_codigo=peca.codigo,
+        produto_descricao=peca.descricao, quantidade_a_produzir=5000,
+        periodo_inicio=date(2026, 1, 1), periodo_fim=date(2026, 12, 31),
+    )
+    db_session.add(op)
+    db_session.commit()
+    db_session.refresh(op)
+
+    client.post(
+        "/api/v1/turnos/lancamento",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "lancamentos": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "tipo": "PRODUCAO",
+                    "horario_inicio": "05:00",
+                    "horario_fim": "06:00",
+                    "produto_id": peca.id,
+                    "ordem_producao_id": op.id,
+                    "quantidade": 1960,
+                    "peso_bruto_descarte": 1.842,
+                },
+            ],
+        },
+    )
+
+    res = client.get("/api/v1/dashboard/metricas-gerais?periodo=total")
+    assert res.status_code == 200
+    comparativo = next(
+        c for c in res.json()["comparativo_ordens_producao"] if c["numero_op"] == "OP-DASH-1"
+    )
+    assert comparativo["quantidade_refugo"] == 20
+    assert comparativo["id"] == op.id

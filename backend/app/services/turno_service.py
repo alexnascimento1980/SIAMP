@@ -75,6 +75,7 @@ def buscar_registros_para_relatorio(db: Session, turno_id: int) -> list[dict]:
             "numero_op": ordem.numero_op if ordem else None,
             "prod_executada": reg.prod_executada,
             "producao_esperada": esperado_exibicao,
+            "refugo": reg.refugo,
             "inicio_parada": reg.inicio_parada.strftime("%H:%M") if reg.inicio_parada else None,
             "retomada": reg.retomada.strftime("%H:%M") if reg.retomada else None,
             "parada_programada": reg.parada_programada,
