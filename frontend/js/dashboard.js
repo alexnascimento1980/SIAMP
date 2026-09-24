@@ -267,10 +267,56 @@ function renderizarComparativoOps(comparativos) {
       </div>
       <div class="text-secondary small mt-1">
         ${op.quantidade_produzida.toLocaleString("pt-BR")} / ${op.quantidade_meta.toLocaleString("pt-BR")} pçs
+        ${op.quantidade_refugo > 0 ? `<span class="text-danger">(refugo: ${op.quantidade_refugo.toLocaleString("pt-BR")} pçs)</span>` : ""}
       </div>
+      <button
+        type="button"
+        class="btn btn-sm btn-link p-0 mt-1"
+        onclick="baixarRelatorioOp(${op.id}, this)"
+      >
+        <i class="bi bi-file-earmark-pdf me-1"></i>Baixar PDF
+      </button>
     `;
     container.appendChild(item);
   });
+}
+
+// Mesmo padrão já usado em historico.js (baixarRelatorio) para o PDF
+// de fechamento de turno - pedido do usuário: dar a quem não tem mais
+// acesso à página completa de Ordens de Produção (Supervisor, depois
+// da restrição a ADMIN) uma forma de baixar o relatório de uma OP
+// direto daqui do dashboard.
+async function baixarRelatorioOp(opId, botao) {
+  const textoOriginal = botao.innerHTML;
+  botao.disabled = true;
+  botao.innerHTML = `<span class="spinner-border spinner-border-sm"></span>`;
+
+  try {
+    const res = await chamarApi(`/ordens-producao/${opId}/relatorio.pdf`);
+    if (!res.ok) throw new Error("Não foi possível gerar o relatório.");
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = extrairNomeArquivo(res) || `relatorio_op_${opId}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (erro) {
+    alert(erro.message);
+  } finally {
+    botao.disabled = false;
+    botao.innerHTML = textoOriginal;
+  }
+}
+
+function extrairNomeArquivo(res) {
+  const cabecalho = res.headers.get("Content-Disposition");
+  if (!cabecalho) return null;
+  const match = cabecalho.match(/filename="?([^"]+)"?/);
+  return match ? match[1] : null;
 }
 
 function escaparHtml(texto) {

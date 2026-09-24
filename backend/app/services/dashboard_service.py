@@ -10,7 +10,7 @@ from app.models.ordem_producao import OrdemProducao
 from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
 from app.models.turno import STATUS_ASSINADO, Turno
-from app.services.analytics import calcular_kpis_varios_turnos_generico
+from app.services.analytics import calcular_kpis_varios_turnos_generico, calcular_refugo_lancamento
 from app.services.ml_engine import prever_risco_parada
 
 # Quantas Ordens de Produção mais recentes aparecem no comparativo do
@@ -268,15 +268,56 @@ def montar_comparativo_ordens_producao(db: Session) -> list[dict]:
     ):
         producao_por_ordem[oid] = producao_por_ordem.get(oid, 0) + int(total or 0)
 
+    # Refugo por OP: RegistroHorario.refugo é campo direto, soma
+    # agregada normal. Lancamento não tem refugo como campo - é
+    # estimado por peso por linha (peso_bruto_descarte ÷ Produto.
+    # peso_gramas, ver analytics.calcular_refugo_lancamento), então
+    # busca os lançamentos com a peça associada, agrupados por OP em
+    # Python (não dá para fazer com SQL agregado puro, é uma divisão
+    # por linha antes de somar).
+    refugo_por_ordem: dict[int, int] = {}
+    for oid, total in (
+        db.query(
+            RegistroHorario.ordem_producao_id,
+            func.coalesce(func.sum(RegistroHorario.refugo), 0),
+        )
+        .join(Turno, RegistroHorario.turno_id == Turno.id)
+        .filter(RegistroHorario.ordem_producao_id.in_(ids_ordens))
+        .filter(Turno.status_assinatura == STATUS_ASSINADO)
+        .filter(Turno.marcado_teste.is_(False))
+        .group_by(RegistroHorario.ordem_producao_id)
+        .all()
+    ):
+        refugo_por_ordem[oid] = refugo_por_ordem.get(oid, 0) + int(total or 0)
+
+    lancamentos_com_peca = (
+        db.query(Lancamento, Produto)
+        .join(Turno, Lancamento.turno_id == Turno.id)
+        .outerjoin(Produto, Lancamento.produto_id == Produto.id)
+        .filter(Lancamento.ordem_producao_id.in_(ids_ordens))
+        .filter(Lancamento.tipo == "PRODUCAO")
+        .filter(Turno.status_assinatura == STATUS_ASSINADO)
+        .filter(Turno.marcado_teste.is_(False))
+        .all()
+    )
+    for lanc, produto in lancamentos_com_peca:
+        refugo_lanc = calcular_refugo_lancamento(lanc, produto)
+        if refugo_lanc:
+            refugo_por_ordem[lanc.ordem_producao_id] = (
+                refugo_por_ordem.get(lanc.ordem_producao_id, 0) + refugo_lanc
+            )
+
     resultado = []
     for o in ordens:
         produzido = producao_por_ordem.get(o.id, 0)
         percentual = round(produzido / o.quantidade_a_produzir * 100, 1) if o.quantidade_a_produzir else 0.0
         resultado.append({
+            "id": o.id,
             "numero_op": o.numero_op,
             "produto_descricao": o.produto_descricao,
             "quantidade_meta": o.quantidade_a_produzir,
             "quantidade_produzida": produzido,
+            "quantidade_refugo": refugo_por_ordem.get(o.id, 0),
             "percentual_atingido": percentual,
         })
     return resultado
