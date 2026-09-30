@@ -94,7 +94,12 @@ def test_extrair_documento_arquivo_vazio_e_rejeitado(client, db_session):
     assert res.status_code == 400
 
 
-def test_extrair_documento_pdf_corrompido_retorna_erro_claro(client, db_session):
+def test_extrair_documento_conteudo_nao_bate_com_extensao_retorna_erro_claro(client, db_session):
+    # Conteúdo que não é um PDF de verdade (sem a assinatura binária
+    # %PDF) é barrado pela checagem de conteúdo real (ver _conteudo_
+    # bate_com_extensao) antes de sequer tentar abrir com pdfplumber -
+    # 400, não 422 (que seria um PDF genuíno que o parser não consegue
+    # ler, cenário diferente).
     admin = _criar_admin(db_session)
     _login(client, admin)
 
@@ -102,7 +107,35 @@ def test_extrair_documento_pdf_corrompido_retorna_erro_claro(client, db_session)
         "/api/v1/ordens-producao/extrair-documento",
         files={"arquivo": ("ordem.pdf", b"isso nao e um pdf de verdade", "application/pdf")},
     )
+    assert res.status_code == 400
+
+
+def test_extrair_documento_pdf_com_assinatura_valida_mas_corrompido_retorna_422(client, db_session):
+    # Diferente do teste acima: começa com a assinatura binária real
+    # de um PDF (passa pela checagem de conteúdo), mas o restante é
+    # lixo - pdfplumber falha ao abrir, retornando 422 (erro de
+    # processamento), não 400 (erro de validação de entrada).
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+
+    conteudo = b"%PDF-1.4\nconteudo corrompido, nao e um pdf valido"
+    res = client.post(
+        "/api/v1/ordens-producao/extrair-documento",
+        files={"arquivo": ("ordem.pdf", conteudo, "application/pdf")},
+    )
     assert res.status_code == 422
+
+
+def test_extrair_documento_arquivo_maior_que_limite_e_rejeitado(client, db_session):
+    admin = _criar_admin(db_session)
+    _login(client, admin)
+
+    conteudo_grande = b"%PDF-1.4\n" + b"a" * (16 * 1024 * 1024)  # 16 MB > limite de 15 MB
+    res = client.post(
+        "/api/v1/ordens-producao/extrair-documento",
+        files={"arquivo": ("ordem.pdf", conteudo_grande, "application/pdf")},
+    )
+    assert res.status_code == 413
 
 
 def test_extrair_documento_operador_nao_pode(client, db_session, usuario_teste):

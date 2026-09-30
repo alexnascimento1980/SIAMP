@@ -31,6 +31,63 @@ from app.services.pdf_generator import gerar_relatorio_op_pdf
 
 router = APIRouter(prefix="/ordens-producao", tags=["Ordens de Produção"])
 
+# Limite de tamanho para os dois uploads desta rota (CSV/XML de
+# importação em lote, PDF/JPG/PNG de extração automática) - sem isso,
+# o conteúdo inteiro é lido para a memória antes de qualquer validação
+# (ver _ler_upload_limitado), então um arquivo muito grande (ou vários
+# simultâneos) pode esgotar a memória do servidor. 15 MB é generoso
+# para qualquer uso legítimo desses dois fluxos (um CSV de milhares de
+# linhas, ou a foto de um documento em alta resolução).
+_TAMANHO_MAXIMO_UPLOAD = 15 * 1024 * 1024
+
+# Assinatura binária (magic bytes) de cada formato aceito - a extensão
+# do nome do arquivo sozinha não garante nada sobre o conteúdo real
+# (um arquivo malicioso renomeado para .pdf passaria pela checagem de
+# extensão sem problema). Usado só na rota de extração (PDF/imagem);
+# CSV/XML não têm uma assinatura binária confiável (são texto puro) -
+# nesses casos, o próprio parser (csv nativo / defusedxml) já rejeita
+# com segurança um conteúdo que não corresponda ao formato esperado.
+_ASSINATURAS_BINARIAS = {
+    ".pdf": (b"%PDF",),
+    ".jpg": (b"\xff\xd8\xff",),
+    ".jpeg": (b"\xff\xd8\xff",),
+    ".png": (b"\x89PNG\r\n\x1a\n",),
+}
+
+
+async def _ler_upload_limitado(arquivo: UploadFile) -> bytes:
+    """Lê o conteúdo de um UploadFile em pedaços, rejeitando (413) antes
+    de acumular mais de _TAMANHO_MAXIMO_UPLOAD bytes em memória - ler
+    tudo de uma vez com .read() só descobre que o arquivo é grande
+    demais depois de já ter gastado a memória inteira."""
+    pedacos = []
+    total = 0
+    while True:
+        pedaco = await arquivo.read(1024 * 1024)
+        if not pedaco:
+            break
+        total += len(pedaco)
+        if total > _TAMANHO_MAXIMO_UPLOAD:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=f"Arquivo maior que o limite permitido "
+                f"({_TAMANHO_MAXIMO_UPLOAD // (1024 * 1024)} MB).",
+            )
+        pedacos.append(pedaco)
+    return b"".join(pedacos)
+
+
+def _conteudo_bate_com_extensao(conteudo: bytes, nome_arquivo: str) -> bool:
+    """Confirma que os primeiros bytes do arquivo batem com a
+    assinatura binária esperada para a extensão informada - a extensão
+    sozinha (checada antes de chamar esta função) não garante nada
+    sobre o conteúdo real."""
+    extensao = "." + nome_arquivo.rsplit(".", 1)[-1].lower()
+    assinaturas = _ASSINATURAS_BINARIAS.get(extensao)
+    if not assinaturas:
+        return True  # extensão sem assinatura conhecida - não bloqueia aqui
+    return any(conteudo.startswith(assinatura) for assinatura in assinaturas)
+
 
 @router.get("/", response_model=list[OrdemProducaoResponse])
 def listar_ordens_producao(
@@ -179,7 +236,7 @@ async def importar_ordens_producao_endpoint(
             detail="Envie um arquivo .csv ou .xml.",
         )
 
-    conteudo = await arquivo.read()
+    conteudo = await _ler_upload_limitado(arquivo)
     if not conteudo:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -223,14 +280,22 @@ async def extrair_documento_op_endpoint(
             detail="Envie um arquivo .pdf, .jpg ou .png.",
         )
 
-    conteudo = await arquivo.read()
+    conteudo = await _ler_upload_limitado(arquivo)
     if not conteudo:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Arquivo vazio.")
+
+    if not _conteudo_bate_com_extensao(conteudo, arquivo.filename):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="O conteúdo do arquivo não corresponde a um PDF/JPG/PNG válido "
+            "(a extensão do nome do arquivo não é suficiente - o próprio conteúdo "
+            "é verificado).",
+        )
 
     try:
         campos = extrair_dados_ordem_producao(conteudo, arquivo.filename)
     except ExtracaoDocumentoError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
