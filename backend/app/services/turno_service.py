@@ -83,6 +83,23 @@ def buscar_registros_para_relatorio(db: Session, turno_id: int) -> list[dict]:
     return resultado
 
 
+def _sanitizar_campo_csv(valor) -> str:
+    """Neutraliza injeção de fórmula em CSV (CWE-1236): se o valor
+    começar com um caractere que o Excel/LibreOffice interpretam como
+    início de fórmula (=, +, -, @, tab, carriage return), prefixa com
+    aspas simples - força o programa a tratar como texto puro, sem
+    mudar o que aparece na célula para quem só está lendo. Campos de
+    texto livre digitados pelo operador (motivo de parada, nome do
+    turno, líder, regulador) vão direto pro CSV; sem isso, alguém
+    digitando algo começando com um desses caracteres - por acidente
+    ou não - poderia disparar execução de fórmula/comando para quem
+    abrir o arquivo exportado no Excel depois."""
+    texto = str(valor) if valor is not None else ""
+    if texto and texto[0] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + texto
+    return texto
+
+
 def exportar_registros_csv(
     db: Session,
     data_inicio: date | None = None,
@@ -148,16 +165,16 @@ def exportar_registros_csv(
         capacidade = calcular_capacidade_esperada_registro(reg, maq, produto)
         escritor.writerow([
             turno.data_registro.strftime("%d/%m/%Y"),
-            turno.nome_turno,
-            turno.responsavel_nome,
-            turno.regulador_nome or "",
+            _sanitizar_campo_csv(turno.nome_turno),
+            _sanitizar_campo_csv(turno.responsavel_nome),
+            _sanitizar_campo_csv(turno.regulador_nome or ""),
             "HORARIO",
             maq.numero_maquina,
             "HORA",
             reg.hora_referencia.strftime("%H:%M"),
             "",
             produto.codigo if produto else "",
-            produto.descricao if produto else "",
+            _sanitizar_campo_csv(produto.descricao if produto else ""),
             ordem.numero_op if ordem else "",
             reg.prod_executada,
             round(capacidade["capacidade_ajustada"]),
@@ -165,23 +182,23 @@ def exportar_registros_csv(
             "Sim" if reg.parada_programada else "Não",
             reg.contador_parada if reg.contador_parada is not None else "",
             reg.contador_retomada if reg.contador_retomada is not None else "",
-            reg.motivo_parada or "",
+            _sanitizar_campo_csv(reg.motivo_parada or ""),
         ])
 
     for lanc, turno, maq, produto, ordem in lancamentos:
         esperado = calcular_capacidade_esperada_lancamento(lanc, maq, produto)
         escritor.writerow([
             turno.data_registro.strftime("%d/%m/%Y"),
-            turno.nome_turno,
-            turno.responsavel_nome,
-            turno.regulador_nome or "",
+            _sanitizar_campo_csv(turno.nome_turno),
+            _sanitizar_campo_csv(turno.responsavel_nome),
+            _sanitizar_campo_csv(turno.regulador_nome or ""),
             "LANCAMENTO",
             maq.numero_maquina,
             lanc.tipo,
             lanc.horario_inicio.strftime("%H:%M"),
             lanc.horario_fim.strftime("%H:%M"),
             produto.codigo if produto else "",
-            produto.descricao if produto else "",
+            _sanitizar_campo_csv(produto.descricao if produto else ""),
             ordem.numero_op if ordem else "",
             lanc.quantidade if lanc.quantidade is not None else "",
             esperado,
@@ -189,7 +206,7 @@ def exportar_registros_csv(
             "Sim" if lanc.tipo == "PARADA_PROGRAMADA" else "Não",
             "",
             "",
-            lanc.motivo or "",
+            _sanitizar_campo_csv(lanc.motivo or ""),
         ])
 
     return saida.getvalue()

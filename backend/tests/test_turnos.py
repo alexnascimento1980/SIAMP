@@ -679,6 +679,39 @@ def test_exportar_csv_contem_registros_de_turnos_fechados(client, db_session, us
     assert "100" in linhas[1]
 
 
+def test_exportar_csv_neutraliza_injecao_de_formula(client, db_session, usuario_teste):
+    # CWE-1236: campo de texto livre (líder) começando com "=" não
+    # deve ir cru pro CSV - se alguém abrir o arquivo no Excel depois,
+    # isso seria interpretado como início de fórmula. Prefixado com
+    # aspas simples, vira texto puro.
+    _login(client, usuario_teste)
+    maquina, peca = _criar_maquina_e_peca(db_session)
+
+    client.post(
+        "/api/v1/turnos/fechamento",
+        json={
+            "nome_turno": "1º Turno (05:00 - 13:00)",
+            "responsavel_nome": '=HYPERLINK("http://evil.example","clique")',
+            "regulador_nome": "Regulador Teste",
+            "registros": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "hora_referencia": "05:00",
+                    "prod_executada": 100,
+                    "produto_id": peca.id,
+                }
+            ],
+        },
+    )
+
+    res = client.get("/api/v1/turnos/exportar/csv")
+    conteudo = res.content.decode("utf-8-sig")
+    assert "'=HYPERLINK" in conteudo
+    # Confirma que NÃO aparece crua (sem o prefixo) em nenhuma linha -
+    # só a versão neutralizada.
+    assert conteudo.count("=HYPERLINK") == conteudo.count("'=HYPERLINK")
+
+
 def test_exportar_csv_nao_inclui_rascunho_em_andamento(client, db_session, usuario_teste):
     _login(client, usuario_teste)
     maquina, _peca = _criar_maquina_e_peca(db_session)
