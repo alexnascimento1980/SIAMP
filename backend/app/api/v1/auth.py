@@ -12,6 +12,13 @@ from app.schemas.auth_schema import TokenResponse, UsuarioLogadoResponse
 
 router = APIRouter(prefix="/auth", tags=["Autenticação"])
 
+# Hash bcrypt fixo, pré-computado, não ligado a nenhum usuário real -
+# usado só como alvo de comparação em /login quando o e-mail informado
+# não existe, para gastar aproximadamente o mesmo tempo de CPU que uma
+# tentativa com e-mail válido e senha errada (ver comentário em
+# login() - mitiga enumeração de e-mail por tempo de resposta).
+_HASH_FALSO_PARA_TIMING = "$2b$12$oMj.DNOAk/Z7exFXwA1o1eLdEICHgMdft.2R4eUjBK/RS/cwBE5sy"
+
 
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("5/minute")
@@ -35,7 +42,20 @@ def login(
     """
     usuario = db.query(Usuario).filter(Usuario.email == form_data.username).first()
 
-    if usuario is None or not verificar_senha(form_data.password, usuario.senha_hash):
+    # Sempre roda a verificação de senha, mesmo quando o e-mail não
+    # existe - com curto-circuito (usuario is None or not verificar_senha(...))
+    # a chamada ao bcrypt (deliberadamente lenta) só acontecia quando o
+    # e-mail existia, tornando a resposta mensuravelmente mais rápida
+    # para e-mails inexistentes; isso permite enumerar quais e-mails
+    # têm conta só pelo tempo de resposta, mesmo com a mensagem de erro
+    # sendo idêntica nos dois casos. Usa um hash bcrypt fixo (não
+    # ligado a usuário nenhum) como alvo da verificação quando o
+    # usuário não existe, para gastar aproximadamente o mesmo tempo de
+    # CPU nos dois caminhos.
+    hash_para_comparar = usuario.senha_hash if usuario else _HASH_FALSO_PARA_TIMING
+    senha_valida = verificar_senha(form_data.password, hash_para_comparar)
+
+    if usuario is None or not senha_valida:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="E-mail ou senha inválidos.",

@@ -88,3 +88,32 @@ def test_login_bloqueia_apos_5_tentativas_por_minuto(client, usuario_teste):
         data={"username": usuario_teste.email, "password": "senha-errada"},
     )
     assert res.status_code == 429
+
+
+def test_login_com_email_inexistente_ainda_verifica_senha(client, monkeypatch):
+    # Mitigação de timing attack: com curto-circuito (usuario is None or
+    # not verificar_senha(...)), a verificação bcrypt (deliberadamente
+    # lenta) só rodava quando o e-mail existia, tornando a resposta
+    # mensuravelmente mais rápida para e-mails inexistentes - dava para
+    # enumerar quais e-mails têm conta só pelo tempo de resposta. Este
+    # teste confirma que verificar_senha roda nos dois casos (chamada
+    # runs = bcrypt de fato executado), não o tempo em si (tempo de
+    # execução não é confiável o bastante para um assert determinístico).
+    import app.api.v1.auth as auth_module
+
+    chamadas = []
+    original = auth_module.verificar_senha
+
+    def espiao(senha_texto, senha_hash):
+        chamadas.append(senha_hash)
+        return original(senha_texto, senha_hash)
+
+    monkeypatch.setattr(auth_module, "verificar_senha", espiao)
+
+    res = client.post(
+        "/api/v1/auth/login",
+        data={"username": "nao-existe@siamp.test", "password": "qualquer-coisa"},
+    )
+    assert res.status_code == 401
+    assert len(chamadas) == 1
+    assert chamadas[0] == auth_module._HASH_FALSO_PARA_TIMING
