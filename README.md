@@ -92,19 +92,20 @@ Plataforma para digitalização e automação do processo de fechamento de turno
 - **Hub de navegação:** depois do login, a tela **Início** reúne um card de acesso rápido para cada tela do sistema, já filtrados pelo perfil de quem está logado.
 - **Apontamento por lançamento livre:** em vez de uma grade fixa por hora, cada apontamento é um lançamento com horário de início/fim livre dentro do turno — produção (peça, Ordem de Produção, quantidade) ou parada (programada ou falha na injetora), quantos forem necessários por injetora. Início/fim já vêm preenchidos com o horário padrão do turno selecionado (editável), mas exigem digitação manual a partir do segundo lançamento de cada injetora — nenhum lançamento além do primeiro pode ocupar o turno inteiro. O cálculo de produção esperada usa a duração real de cada lançamento (`duração/ciclo × cavidades`), não mais uma hora cheia fixa — funciona nativamente com o 3º turno, que atravessa a meia-noite. Cada lançamento pode ser **editado depois de adicionado** (corrige erro de digitação sem precisar apagar e relançar do zero). *Turnos criados antes dessa mudança continuam no modelo antigo (por hora), preservados para consulta e correção.*
 - **Horário dos turnos:** 1º Turno 05:00–13:00, 2º Turno 14:00–21:00, 3º Turno 22:00–04:00 (atravessa a meia-noite) — com um intervalo de 1h entre cada turno e o seguinte (13:00–14:00, 21:00–22:00, 04:00–05:00), reservado de propósito para manutenção e troca de molde/matéria-prima entre um turno e outro (confirmado com a empresa — não é uma lacuna a corrigir). Ao selecionar o 3º Turno na tela de apontamento, um aviso lembra o operador de conferir se a data corresponde ao dia em que o turno começou, não ao dia do fechamento (relevante ao fechar de madrugada) — a data gravada no banco já é calculada corretamente pelo backend independente desse aviso, que existe só para reduzir a confusão de quem preenche.
-- **Ciclo e cavidades reais informados x cadastro da peça:** opcionalmente, o operador digita o ciclo real observado e/ou o número de cavidades realmente usadas na injetora durante o lançamento (ex.: uma cavidade do molde temporariamente tamponada) — a tela mostra os valores informados lado a lado com o cadastro da peça, destacando em vermelho quando divergem. Os dois têm prioridade no cálculo de produção esperada quando informados, e o relatório de fechamento mostra explicitamente qual foi usado em cada linha (`ciclo informado: 18.5s; cavidades informadas: 3`, por exemplo) — ajuda a diagnosticar se uma divergência entre produção real e esperada vem do valor informado ou do cadastro desatualizado.
+- **Ciclo e cavidades reais informados x cadastro da peça:** opcionalmente, o operador digita o ciclo real observado e/ou o número de cavidades realmente usadas na injetora durante o lançamento (ex.: uma cavidade do molde temporariamente tamponada) — a tela mostra os valores informados lado a lado com o cadastro da peça, destacando em vermelho quando divergem. **O cálculo de produção esperada usa sempre o cadastro da peça**, nunca esses valores informados (decisão deliberada — mantém o "esperado" estável e comparável entre turnos); o relatório de fechamento mostra os dois lado a lado (`ciclo cadastrado: 18.5s (informado pelo operador: 20.0s)`, por exemplo) só para comparação — ajuda a identificar cadastro desatualizado.
+- **Refugo por peso de descarte, sem contagem manual:** ao fechar o turno, o operador pode informar o peso bruto do lote de peças descartadas de qualquer lançamento (campo opcional, "quando existir") — o sistema estima a quantidade de refugo dividindo esse peso pelo peso de uma peça (cadastrado em Peças, campo "Peso (g)"), com um aviso bem visível para digitar o peso do descarte em **gramas**, e uma estimativa em tempo real na própria tela enquanto o operador digita. O refugo entra de verdade no Índice de Qualidade e no OEE do turno (antes disso, o modelo de lançamentos sempre assumia 100% de qualidade, por falta de dado) — "Peças Boas" no relatório sempre reflete o turno inteiro, mesmo quando só uma das injetoras teve descarte pesado naquele turno. O relatório de fechamento mostra a conta por extenso por lançamento (`refugo: 20pçs (1.842g ÷ 0.0921g/peça)`) e uma coluna dedicada na tabela de detalhe; o Dashboard soma o refugo por Ordem de Produção (`Meta x Real x Refugo`).
 - **Cálculo de OEE limitado a 100%, e sensível a parada não programada:** o índice de produção nunca passa de 100%, seguindo a convenção usual do indicador — quando o ciclo real da injetora é mais rápido que o cadastrado, isso geralmente indica que o cadastro da peça está desatualizado, não desempenho acima do teórico. Quando uma peça não tem ciclo/cavidades cadastrados, o relatório mostra **N/D** em vez de um "0" enganoso, apontando direto para o cadastro incompleto. Uma falha na injetora reduz corretamente o índice de produção e o OEE (a duração da falha conta como capacidade esperada perdida, mesmo sem produção correspondente) — parada programada continua sem penalizar o turno, por representar tempo de manutenção planejado.
 - **Salvar o progresso do turno (rascunho):** o responsável não precisa mais esperar o fim do turno para conferir os números — dá para salvar o que já foi apontado a qualquer momento (sem disparar PDF/e-mail), continuar depois de fechar o navegador, e só finalizar de verdade quando o turno realmente encerrar.
 - **Marcar turno como teste:** turnos criados só para teste (ex.: durante implantação, treinamento) podem ser marcados em lote no Histórico — saem do dashboard, dos indicadores acumulados e da exportação CSV, mas continuam visíveis no Histórico e podem ser desmarcados a qualquer momento (reversível). Exclusão definitiva também é possível, restrita a ADMIN — apaga os lançamentos do turno junto, sem afetar Ordens de Produção que o turno tenha referenciado.
-- **Injetoras e Peças configuráveis:** administradores e supervisores cadastram/editam máquinas e o catálogo de peças (código, ciclo médio, cavidades — obrigatórios e editáveis) pela própria interface — nada fixo no código. Peças têm um campo de busca por código/descrição, pensado para catálogos grandes.
+- **Injetoras configuráveis, catálogo de Peças com controle mais restrito:** administradores e supervisores cadastram/editam máquinas pela própria interface — nada fixo no código. O catálogo de peças (código, ciclo médio, cavidades, peso — ver seção de Refugo abaixo) é gerenciado só por ADMIN, depois de um pedido do PCP/coordenação de produção; Operador e Supervisor continuam selecionando peças já cadastradas normalmente em qualquer tela de apontamento, só não podem mais criar/editar/excluir peças diretamente. Peças têm um campo de busca por código/descrição, pensado para catálogos grandes.
 - **Ordens de Produção:** cadastro manual, **importação em lote via CSV/XML**, ou **extração automática a partir de um PDF ou foto** do documento — reconhecimento de padrão (sem IA, sem custo por documento) calibrado contra o layout real usado pela empresa, funcionando tanto com PDF digitalizado (via OCR local, Tesseract) quanto com PDF gerado digitalmente (extração direta do texto, ainda mais confiável). Sempre pré-preenche o formulário manual para revisão humana antes de salvar — nunca cadastra a OP sozinho. Nos três caminhos, peça e máquina são resolvidas pelo código já cadastrado, com aviso claro quando o código não é encontrado. Comparativo automático de meta x produção real, correto mesmo quando a mesma OP é produzida em mais de uma injetora ao mesmo tempo.
 - **Gestão de usuários:** administradores cadastram novos usuários (operador, supervisor ou admin), ativam/desativam contas, **alteram o perfil de acesso** de qualquer usuário existente, **resetam a senha** de um usuário sem precisar da senha atual (a senha em si nunca é recuperável — é guardada só como hash), e **excluem definitivamente** contas de teste ou de colaboradores desligados. A exclusão não apaga turnos, Ordens de Produção ou paradas que o usuário tenha registrado — eles continuam no histórico, só perdem a referência de quem foi. Qualquer conta pode ser marcada como **protegida** contra ação acidental de outro admin (um clique num ícone de escudo) — excluir, desativar, resetar a senha e alterar o perfil de uma conta protegida ficam bloqueados até a proteção ser removida deliberadamente antes (resetar a própria senha e reenviar o próprio perfil continuam permitidos mesmo com a conta protegida, por não ter efeito de segurança nenhum).
 - **Destinatários de relatório configuráveis:** quem recebe o e-mail de fechamento de turno é cadastrado pela tela **Destinatários** (ADMIN) — não depende mais de editar variável de ambiente e reiniciar o servidor.
 - **Fechamento de turno com cálculo automático de OEE:** índice de produção e qualidade combinados automaticamente; parada programada (troca de molde, manutenção preventiva etc.) não penaliza o cálculo — só o que efetivamente parou a linha sem planejamento conta contra a eficiência.
 - **Histórico de Turnos:** listagem dos turnos encerrados (e dos rascunhos em andamento, com indicação clara de status) com produção total, eficiência e status; download do relatório em PDF a qualquer momento, reenvio por e-mail sob demanda, e **exportação em CSV** (uma linha por lançamento/hora apontada) para análise em Excel ou Power BI.
-- **Relatórios em PDF sob demanda:** detalhados por lançamento/máquina, com a peça e a Ordem de Produção atendidas em cada linha — gerados a partir dos dados reais do turno, não dependem de e-mail configurado para existir.
+- **Relatórios em PDF sob demanda:** detalhados por lançamento/máquina, com a peça e a Ordem de Produção atendidas em cada linha (e o refugo de cada lançamento, quando houver) — gerados a partir dos dados reais do turno, não dependem de e-mail configurado para existir. Cada Ordem de Produção também tem seu próprio relatório em PDF (meta x produção real x refugo), baixável direto do Dashboard — pensado especialmente para quem só tem acesso de visualização às OPs (ver tabela de perfis acima).
 - **Envio automático de relatório por e-mail:** ao fechar um turno, **dois PDFs** são enviados em background para os destinatários cadastrados — o relatório de fechamento (detalhado por lançamento) e um dashboard com o desempenho do turno comparado ao acumulado diário/semanal/mensal, com os mesmos gráficos (barras, linha) disponíveis na tela do Dashboard, não só tabelas de números. Funciona via SMTP (bom para desenvolvimento local) ou via API HTTP do Brevo (necessário em hospedagens que bloqueiam portas SMTP no plano gratuito, como o Render — ver `DEPLOY.md`). Validado em produção via ambos os caminhos.
-- **Dashboard Analítico:** OEE médio, produção acumulada por injetora, produção e OEE dos últimos turnos, comparativo de meta x real das Ordens de Produção mais recentes, e um card de **Risco de Próxima Parada** — modelo de Machine Learning (Random Forest, scikit-learn) que estima a probabilidade de a *próxima* produção de uma injetora resultar em parada não programada, combinando o histórico de falha da máquina e da peça com a divergência entre o ciclo real informado e o padrão cadastrado. Diferente de um resumo do que já aconteceu, é uma previsão prospectiva — explica os sinais que levaram ao diagnóstico, e deixa claro quando está usando o modelo treinado ou uma heurística de fallback (enquanto não há modelo treinado disponível). Os números acumulados (produzido, OEE médio, produção por injetora) podem ser filtrados por período — **Hoje / Últimos 7 dias / Últimos 30 dias / Total** — enquanto a tendência por turno e o comparativo de OPs continuam sempre mostrando os mais recentes.
+- **Dashboard Analítico:** OEE médio, índice de qualidade médio e refugo total do período, produção acumulada por injetora, produção e OEE dos últimos turnos, comparativo de meta x real x refugo das Ordens de Produção mais recentes (com botão para baixar o relatório de cada OP em PDF), e um card de **Risco de Próxima Parada** — modelo de Machine Learning (Random Forest, scikit-learn) que estima a probabilidade de a *próxima* produção de uma injetora resultar em parada não programada, combinando o histórico de falha da máquina e da peça com a divergência entre o ciclo real informado e o padrão cadastrado. Diferente de um resumo do que já aconteceu, é uma previsão prospectiva — explica os sinais que levaram ao diagnóstico, e deixa claro quando está usando o modelo treinado ou uma heurística de fallback (enquanto não há modelo treinado disponível). Os números acumulados (produzido, OEE médio, produção por injetora) podem ser filtrados por período — **Hoje / Últimos 7 dias / Últimos 30 dias / Total** — enquanto a tendência por turno e o comparativo de OPs continuam sempre mostrando os mais recentes.
 - **Fuso horário de Brasília:** toda data/hora gravada (fechamento de turno, cadastros) usa o horário de Brasília de forma explícita, independentemente do fuso do servidor onde o sistema está hospedado (bancos gerenciados na nuvem costumam rodar em UTC por padrão).
 - **Identidade visual da SIAMP:** cores e logo da marca aplicadas em todo o sistema.
 - **Pronto para deploy:** guia completo de publicação no Render (hospedagem) com Supabase (banco Postgres) em `DEPLOY.md`.
@@ -281,14 +282,19 @@ causas, na ordem mais provável:
 
 ### Perfis de usuário
 
-| Perfil       | Apontamento / Histórico / Dashboard / Ordens de Produção (visualizar) | Cadastrar Máquinas / Peças / Ordens de Produção | Usuários / Destinatários |
-| ------------ | ----------------------------------------------------------------------- | ------------------------------------------------ | ------------------------- |
-| `OPERADOR`   | ✅                                                                        | ❌                                                 | ❌                         |
-| `SUPERVISOR` | ✅                                                                        | ✅                                                 | ❌                         |
-| `ADMIN`      | ✅                                                                        | ✅                                                 | ✅                         |
+| Perfil       | Apontamento / Histórico / Dashboard / Ordens de Produção e Peças (visualizar) | Cadastrar Máquinas | Cadastrar Peças / Ordens de Produção | Usuários / Destinatários |
+| ------------ | ----------------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------ | ------------------------- |
+| `OPERADOR`   | ✅                                                                        | ❌                                                 | ❌                                     | ❌                         |
+| `SUPERVISOR` | ✅                                                                        | ✅                                                 | ❌                                     | ❌                         |
+| `ADMIN`      | ✅                                                                        | ✅                                                 | ✅                                     | ✅                         |
 
 O frontend esconde os links conforme o perfil, mas a permissão de
-verdade é sempre revalidada pelo backend em cada endpoint.
+verdade é sempre revalidada pelo backend em cada endpoint. Cadastro de
+Peças e Ordens de Produção passou a ser exclusivo de ADMIN depois de
+um pedido direto do PCP/coordenação de produção — a leitura (listar,
+usada pelo dropdown de seleção no apontamento e pelo comparativo no
+Dashboard) continua aberta a todos os perfis de propósito, senão o
+apontamento diário de quem não é ADMIN quebraria.
 
 ### Cadastrando injetoras
 
@@ -299,19 +305,25 @@ que cadastradas.
 
 ### Cadastrando peças
 
-O catálogo de peças (tela **Peças**) guarda código, descrição, ciclo
-médio (segundos) e cavidades — **campos obrigatórios**, é a única
-fonte usada no cálculo de OEE (a máquina não guarda mais esses
-valores, evitando duas fontes de verdade divergentes). O apontamento
-e o cadastro de Ordens de Produção só permitem selecionar peças já
-cadastradas aqui, com um campo de busca por código/descrição para
-catálogos grandes. Código, ciclo e cavidades continuam editáveis
-depois do cadastro (ex.: corrigir um código digitado errado, ou
-ajustar cavidades quando uma delas é fechada temporariamente).
+O catálogo de peças (tela **Peças**, restrita a ADMIN para
+criar/editar/excluir) guarda código, descrição, ciclo médio
+(segundos) e cavidades — **campos obrigatórios**, é a única fonte
+usada no cálculo de OEE (a máquina não guarda mais esses valores,
+evitando duas fontes de verdade divergentes) — e um campo opcional de
+**peso (gramas)** da peça, usado para estimar refugo a partir do peso
+de um lote descartado (ver seção de Refugo nas funcionalidades acima).
+O apontamento e o cadastro de Ordens de Produção continuam permitindo
+que qualquer perfil **selecione** uma peça já cadastrada aqui (com um
+campo de busca por código/descrição para catálogos grandes) — só o
+cadastro/edição em si é restrito a ADMIN. Código, ciclo, cavidades e
+peso continuam editáveis depois do cadastro (ex.: corrigir um código
+digitado errado, ou ajustar cavidades quando uma delas é fechada
+temporariamente).
 
 ### Ordens de Produção
 
-Cadastradas manualmente (tela **Ordens de Produção**) a partir do
+Cadastradas manualmente (tela **Ordens de Produção**, restrita a
+ADMIN — leitura/comparativo continuam abertos a todo mundo) a partir do
 documento emitido pelo ERP da empresa, ou **importadas em lote via
 CSV/XML** — colunas obrigatórias `numero_op`, `produto_codigo`,
 `numero_maquina`, `quantidade_a_produzir`, `periodo_inicio`,
@@ -362,7 +374,7 @@ pip install -r requirements-dev.txt
 pytest -v
 ```
 
-Deve dar **277 testes passando**.
+Deve dar **301 testes passando**.
 
 O mesmo ambiente também roda `ruff check .` (linter) — configurado em
 `backend/pyproject.toml`, com regras escolhidas para este projeto
