@@ -46,12 +46,16 @@ class Turno(Base):
         default="PENDENTE",
         index=True,
     )
-    # HORARIO = grade fixa por hora (modelo original). LANCAMENTO =
-    # lançamentos livres por peça/parada, com início/fim variável
-    # (modelo novo). Turnos já existentes ficam para sempre em
-    # HORARIO - não há conversão automática entre os dois modelos.
-    # A leitura (KPIs, PDF, CSV) verifica este campo para saber qual
-    # tabela de apontamento usar (RegistroHorario ou Lancamento).
+    # HORARIO = grade fixa por hora (modelo original, aposentado: só
+    # existe em turnos antigos, que continuam legíveis e corrigíveis).
+    # LANCAMENTO = lançamentos livres por peça/parada, com início/fim
+    # variável - único modelo em que se criam turnos novos. Não há
+    # conversão automática entre os dois modelos. A leitura (KPIs,
+    # PDF, CSV) verifica este campo para saber qual tabela de
+    # apontamento usar (RegistroHorario ou Lancamento). O default
+    # abaixo ("HORARIO") só vale para linhas antigas/testes que não
+    # informam o campo; o serviço de lançamentos sempre grava
+    # LANCAMENTO explicitamente.
     modelo_apontamento: Mapped[str] = mapped_column(
         String(20),
         nullable=False,

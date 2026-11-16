@@ -7,7 +7,7 @@ os dados.
 agendar_email_relatorio() não sabe nada sobre HORARIO nem LANCAMENTO -
 recebe kpis/registros_pdf já prontos, no formato que
 gerar_relatorio_turno_pdf() espera, e cabe a quem chama (turno_service.
-fechar_turno/fechar_turno_rascunho para HORARIO,
+reenviar_email_turno para turnos antigos HORARIO,
 lancamento_service.fechar_turno_lancamento para LANCAMENTO) montar
 esses dois argumentos a partir do próprio modelo antes de chamar.
 Antes, registros_pdf tinha um valor padrão que buscava os dados do

@@ -20,7 +20,6 @@ from app.schemas.lancamento_schema import (
 )
 from app.schemas.turno_schema import (
     FechamentoTurnoCreate,
-    RascunhoTurnoCreate,
     RegistroHorarioDetail,
     TurnoDetail,
     TurnoListItem,
@@ -44,10 +43,7 @@ from app.services.turno_service import (
     buscar_registros_para_relatorio,
     editar_turno,
     exportar_registros_csv,
-    fechar_turno,
-    fechar_turno_rascunho,
     reenviar_email_turno,
-    salvar_rascunho,
 )
 
 router = APIRouter(prefix="/turnos", tags=["Turnos"])
@@ -155,101 +151,14 @@ def marcar_turnos_como_teste(
     return {"atualizados": len(turnos), "marcado_teste": dados.marcado_teste}
 
 
-@router.post("/fechamento", status_code=status.HTTP_201_CREATED)
-def criar_fechamento_turno(
-    dados: FechamentoTurnoCreate,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
-    usuario: Usuario = Depends(get_current_user),
-):
-    """
-    Fecha um turno, persiste seus registros, calcula os KPIs e agenda
-    o envio do relatório em background.
-    """
-    try:
-        return fechar_turno(
-            db=db,
-            dados=dados,
-            background_tasks=background_tasks,
-            usuario_id=usuario.id,
-        )
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        ) from exc
-    except Exception as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Erro interno ao processar o fechamento do turno.",
-        ) from exc
-
-
-@router.post("/rascunho", status_code=status.HTTP_201_CREATED)
-def criar_rascunho(
-    dados: RascunhoTurnoCreate,
-    db: Session = Depends(get_db),
-    usuario: Usuario = Depends(get_current_user),
-):
-    """Cria um novo turno em andamento (rascunho), sem disparar PDF/
-    e-mail. Pode ser salvo já no início do turno, com zero registros."""
-    resultado = salvar_rascunho(db, dados, turno_id=None, usuario_id=usuario.id)
-    return resultado
-
-
-@router.patch("/rascunho/{turno_id}")
-def atualizar_rascunho(
-    turno_id: int,
-    dados: RascunhoTurnoCreate,
-    db: Session = Depends(get_db),
-    usuario: Usuario = Depends(get_current_user),
-):
-    """Atualiza o progresso de um rascunho já criado. Rejeita se o
-    turno já tiver sido fechado (nesse caso, a correção precisa passar
-    pela tela de Histórico, restrita a ADMIN/SUPERVISOR). Só o autor,
-    SUPERVISOR ou ADMIN podem atualizar o rascunho."""
-    _exigir_pode_alterar_rascunho(db, turno_id, usuario)
-    try:
-        return salvar_rascunho(db, dados, turno_id=turno_id)
-    except ValueError as exc:
-        status_code = (
-            status.HTTP_404_NOT_FOUND
-            if "não encontrado" in str(exc)
-            else status.HTTP_409_CONFLICT
-        )
-        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-
-
-@router.post("/{turno_id}/fechar")
-def fechar_rascunho(
-    turno_id: int,
-    dados: FechamentoTurnoCreate,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
-    usuario: Usuario = Depends(get_current_user),
-):
-    """Fecha definitivamente um turno que vinha sendo salvo como
-    rascunho - só agora o PDF/e-mail são disparados. Só o autor,
-    SUPERVISOR ou ADMIN podem fechar o rascunho."""
-    _exigir_pode_alterar_rascunho(db, turno_id, usuario)
-    try:
-        return fechar_turno_rascunho(
-            db=db, turno_id=turno_id, dados=dados, background_tasks=background_tasks
-        )
-    except ValueError as exc:
-        status_code = (
-            status.HTTP_404_NOT_FOUND
-            if "não encontrado" in str(exc)
-            else status.HTTP_400_BAD_REQUEST
-        )
-        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
-
-
 # ======================================================================
-# Modelo novo: lançamentos livres (produção/parada com início-fim
-# variável por peça/OP, não mais grade fixa por hora). Ver
-# Turno.modelo_apontamento.
+# Apontamento por lançamentos livres (produção/parada com início-fim
+# variável por peça/OP). É o único modelo em que se criam turnos novos:
+# a grade fixa por hora (Turno.modelo_apontamento == "HORARIO") foi
+# aposentada para escrita - os turnos antigos continuam legíveis
+# (Histórico, PDF, CSV, KPIs) e corrigíveis por ADMIN/SUPERVISOR
+# (PATCH /turnos/{id}), mas não há mais rota para abrir ou fechar um
+# turno novo por hora.
 # ======================================================================
 
 
@@ -473,9 +382,11 @@ def corrigir_turno(
     usuario: Usuario = Depends(exigir_perfil("ADMIN", "SUPERVISOR")),
 ):
     """
-    Corrige um turno já encerrado (ex.: erro de digitação em produção ou
-    horário). Restrito a ADMIN/SUPERVISOR. Substitui todos os registros
-    do turno pelos informados e registra quem editou.
+    Corrige um turno antigo, do modelo por hora, já encerrado (ex.:
+    erro de digitação em produção ou horário). Restrito a ADMIN/
+    SUPERVISOR. Substitui todos os registros do turno pelos informados
+    e registra quem editou. Turnos do modelo de lançamentos são
+    corrigidos por PATCH /turnos/lancamento/{id}.
     """
     try:
         return editar_turno(

@@ -5,13 +5,13 @@ from datetime import date, datetime, time
 from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
 
-from app.core.timezone import agora_brasilia, calcular_data_registro_turno
+from app.core.timezone import agora_brasilia
 from app.models.maquina import Maquina
 from app.models.ordem_producao import OrdemProducao
 from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
 from app.models.turno import STATUS_ASSINADO, STATUS_EM_ANDAMENTO, Turno
-from app.schemas.turno_schema import FechamentoTurnoCreate, RascunhoTurnoCreate
+from app.schemas.turno_schema import FechamentoTurnoCreate
 from app.services.analytics import (
     calcular_capacidade_esperada_registro,
     calcular_kpis_turno,
@@ -254,153 +254,6 @@ def _criar_registros(db: Session, turno: Turno, dados: FechamentoTurnoCreate) ->
         db.add(registro_db)
 
 
-def fechar_turno(
-    db: Session,
-    dados: FechamentoTurnoCreate,
-    background_tasks: BackgroundTasks,
-    usuario_id: int | None = None,
-) -> dict:
-    if not dados.registros:
-        raise ValueError("O fechamento do turno deve possuir pelo menos um registro.")
-
-    novo_turno = Turno(
-        nome_turno=dados.nome_turno,
-        responsavel_nome=dados.responsavel_nome,
-        regulador_nome=dados.regulador_nome,
-        observacoes=dados.observacoes,
-        status_assinatura=STATUS_ASSINADO,
-        criado_por_id=usuario_id,
-        data_registro=calcular_data_registro_turno(
-            [time.fromisoformat(reg.hora_referencia) for reg in dados.registros]
-        ),
-    )
-
-    db.add(novo_turno)
-    db.flush()
-
-    _criar_registros(db, novo_turno, dados)
-
-    db.commit()
-    db.refresh(novo_turno)
-
-    kpis = calcular_kpis_turno(db, novo_turno.id)
-    registros_pdf = buscar_registros_para_relatorio(db, novo_turno.id)
-    email_agendado = agendar_email_relatorio(db, novo_turno, kpis, background_tasks, registros_pdf)
-
-    return {
-        "status": "sucesso",
-        "mensagem": "Turno encerrado com sucesso.",
-        "turno_id": novo_turno.id,
-        "status_assinatura": STATUS_ASSINADO,
-        "relatorio_email_agendado": email_agendado,
-        "kpis": kpis,
-    }
-
-
-def salvar_rascunho(
-    db: Session,
-    dados: RascunhoTurnoCreate,
-    turno_id: int | None,
-    usuario_id: int | None = None,
-) -> dict:
-    """Salva (cria ou atualiza) o progresso de um turno ainda em
-    andamento, sem disparar PDF/e-mail - permite ao operador ir
-    gravando o apontamento ao longo do turno, não só no fechamento.
-    Liberado para qualquer usuário logado (é o trabalho da própria
-    pessoa, diferente de corrigir um turno já fechado, que exige
-    ADMIN/SUPERVISOR - ver editar_turno)."""
-    if turno_id is None:
-        turno = Turno(
-            nome_turno=dados.nome_turno,
-            responsavel_nome=dados.responsavel_nome,
-            regulador_nome=dados.regulador_nome,
-            observacoes=dados.observacoes,
-            status_assinatura=STATUS_EM_ANDAMENTO,
-            criado_por_id=usuario_id,
-            data_registro=calcular_data_registro_turno(
-                [time.fromisoformat(reg.hora_referencia) for reg in dados.registros]
-            ),
-        )
-        db.add(turno)
-        db.flush()
-    else:
-        turno = db.query(Turno).filter(Turno.id == turno_id).first()
-        if turno is None:
-            raise ValueError("Turno não encontrado.")
-        if turno.status_assinatura != STATUS_EM_ANDAMENTO:
-            raise ValueError(
-                "Este turno já foi fechado - use a tela de Histórico para "
-                "corrigi-lo, em vez de salvar como rascunho."
-            )
-        turno.nome_turno = dados.nome_turno
-        turno.responsavel_nome = dados.responsavel_nome
-        turno.regulador_nome = dados.regulador_nome
-        turno.observacoes = dados.observacoes
-        db.query(RegistroHorario).filter(RegistroHorario.turno_id == turno_id).delete()
-        db.flush()
-
-    if dados.registros:
-        _criar_registros(db, turno, dados)
-
-    db.commit()
-    db.refresh(turno)
-
-    return {
-        "status": "sucesso",
-        "mensagem": "Rascunho salvo.",
-        "turno_id": turno.id,
-        "status_assinatura": STATUS_EM_ANDAMENTO,
-    }
-
-
-def fechar_turno_rascunho(
-    db: Session,
-    turno_id: int,
-    dados: FechamentoTurnoCreate,
-    background_tasks: BackgroundTasks,
-) -> dict:
-    """Fecha definitivamente um turno que vinha sendo salvo como
-    rascunho: grava os registros finais, muda o status para
-    ASSINADO_DIGITALMENTE e - só agora - agenda o PDF/e-mail. Depois
-    dessa chamada, o turno passa a seguir as mesmas regras de um turno
-    fechado direto (correção só via ADMIN/SUPERVISOR)."""
-    if not dados.registros:
-        raise ValueError("O fechamento do turno deve possuir pelo menos um registro.")
-
-    turno = db.query(Turno).filter(Turno.id == turno_id).first()
-    if turno is None:
-        raise ValueError("Turno não encontrado.")
-    if turno.status_assinatura == STATUS_ASSINADO:
-        raise ValueError("Este turno já está fechado.")
-
-    turno.nome_turno = dados.nome_turno
-    turno.responsavel_nome = dados.responsavel_nome
-    turno.regulador_nome = dados.regulador_nome
-    turno.observacoes = dados.observacoes
-    turno.status_assinatura = STATUS_ASSINADO
-
-    db.query(RegistroHorario).filter(RegistroHorario.turno_id == turno_id).delete()
-    db.flush()
-
-    _criar_registros(db, turno, dados)
-
-    db.commit()
-    db.refresh(turno)
-
-    kpis = calcular_kpis_turno(db, turno.id)
-    registros_pdf = buscar_registros_para_relatorio(db, turno.id)
-    email_agendado = agendar_email_relatorio(db, turno, kpis, background_tasks, registros_pdf)
-
-    return {
-        "status": "sucesso",
-        "mensagem": "Turno encerrado com sucesso.",
-        "turno_id": turno.id,
-        "status_assinatura": STATUS_ASSINADO,
-        "relatorio_email_agendado": email_agendado,
-        "kpis": kpis,
-    }
-
-
 def editar_turno(
     db: Session,
     turno_id: int,
@@ -419,6 +272,17 @@ def editar_turno(
     turno = db.query(Turno).filter(Turno.id == turno_id).first()
     if turno is None:
         raise ValueError("Turno não encontrado.")
+    if turno.modelo_apontamento == "LANCAMENTO":
+        raise ValueError(
+            "Este turno usa o apontamento por lançamentos - corrija-o pela "
+            "tela de apontamento (PATCH /turnos/lancamento/{id})."
+        )
+    if turno.status_assinatura == STATUS_EM_ANDAMENTO:
+        raise ValueError(
+            "Rascunhos do apontamento por hora não podem mais ser continuados "
+            "nem corrigidos. Um administrador pode excluí-lo, e o turno deve "
+            "ser refeito no apontamento atual."
+        )
 
     turno.nome_turno = dados.nome_turno
     turno.responsavel_nome = dados.responsavel_nome

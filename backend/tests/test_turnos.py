@@ -1,10 +1,16 @@
 from datetime import date, datetime
 
+import pytest
+from helpers_horario import criar_turno_horario
+from pydantic import ValidationError
+
 from app.core.security import gerar_hash_senha
 from app.models.maquina import Maquina
 from app.models.produto import Produto
 from app.models.turno import Turno
 from app.models.usuario import Usuario
+from app.schemas.turno_schema import FechamentoTurnoCreate
+from app.services.analytics import calcular_kpis_turno
 
 
 def _criar_admin(db_session, email="admin-turnos@siamp.test"):
@@ -45,6 +51,26 @@ def _criar_maquina_e_peca(db_session):
     return maquina, peca
 
 
+def _corrigir_como_admin(client, db_session, payload):
+    """Cria um turno antigo (por hora) qualquer e tenta corrigi-lo com
+    o payload dado - única rota que ainda grava registros por hora, e
+    por isso a que exercita os validadores de máquina/peça/OP."""
+    base = Maquina(numero_maquina="BASE", descricao="Máquina base", ativo=True)
+    db_session.add(base)
+    db_session.commit()
+    turno = criar_turno_horario(
+        db_session,
+        {
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Teste",
+            "registros": [{"numero_maquina": "BASE", "hora_referencia": "05:00", "prod_executada": 1}],
+        },
+    )
+    admin = _criar_admin(db_session, "admin-corrigir@siamp.test")
+    _login(client, admin)
+    return client.patch(f"/api/v1/turnos/{turno.id}", json=payload)
+
+
 def test_fechamento_com_peca_e_parada_programada(client, db_session, usuario_teste):
     _login(client, usuario_teste)
     maquina, peca = _criar_maquina_e_peca(db_session)
@@ -72,18 +98,16 @@ def test_fechamento_com_peca_e_parada_programada(client, db_session, usuario_tes
         ],
     }
 
-    res = client.post("/api/v1/turnos/fechamento", json=payload)
-    assert res.status_code == 201, res.text
-    corpo = res.json()
-    turno_id = corpo["turno_id"]
+    turno_id = criar_turno_horario(db_session, payload).id
+    kpis = calcular_kpis_turno(db_session, turno_id)
 
     # 05:00 -> capacidade cheia da peça (ciclo 5s, 2 cavidades) = 1440.
     # 06:00 -> 30 min de parada programada -> capacidade ajustada = 720.
     # total_esperado = 1440 + 720 = 2160; produzido = 1440 + 720 = 2160.
-    assert corpo["kpis"]["total_esperado"] == 2160
-    assert corpo["kpis"]["eficiencia_oee"] == 100.0
-    assert corpo["kpis"]["minutos_parados_programados"] == 30
-    assert corpo["kpis"]["minutos_parados_nao_programados"] == 0
+    assert kpis["total_esperado"] == 2160
+    assert kpis["eficiencia_oee"] == 100.0
+    assert kpis["minutos_parados_programados"] == 30
+    assert kpis["minutos_parados_nao_programados"] == 0
 
     detalhe = client.get(f"/api/v1/turnos/{turno_id}").json()
     reg_com_parada = next(
@@ -131,9 +155,7 @@ def test_fechamento_do_3o_turno_horario_de_madrugada_usa_data_anterior(client, d
         ],
     }
 
-    res = client.post("/api/v1/turnos/fechamento", json=payload)
-    assert res.status_code == 201, res.text
-    turno_id = res.json()["turno_id"]
+    turno_id = criar_turno_horario(db_session, payload).id
 
     turno = db_session.query(Turno).filter(Turno.id == turno_id).first()
     assert turno.data_registro.date() == date(2026, 9, 14)
@@ -155,8 +177,8 @@ def test_parada_programada_sem_inicio_e_rejeitada(client, db_session, usuario_te
         ],
     }
 
-    res = client.post("/api/v1/turnos/fechamento", json=payload)
-    assert res.status_code == 422
+    with pytest.raises(ValidationError):
+        FechamentoTurnoCreate(**payload)
 
 
 def test_reenviar_email_operador_nao_pode(client, db_session, usuario_teste):
@@ -170,7 +192,7 @@ def test_reenviar_email_operador_nao_pode(client, db_session, usuario_teste):
             {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 100},
         ],
     }
-    turno_id = client.post("/api/v1/turnos/fechamento", json=payload).json()["turno_id"]
+    turno_id = criar_turno_horario(db_session, payload).id
 
     res = client.post(f"/api/v1/turnos/{turno_id}/reenviar-email")
     assert res.status_code == 403
@@ -189,7 +211,7 @@ def test_reenviar_email_sem_smtp_configurado_retorna_409(client, db_session, usu
             {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 100},
         ],
     }
-    turno_id = client.post("/api/v1/turnos/fechamento", json=payload).json()["turno_id"]
+    turno_id = criar_turno_horario(db_session, payload).id
 
     _login(client, admin)
     # Ambiente de teste roda sem SMTP configurado (ver conftest.py).
@@ -217,7 +239,7 @@ def test_reenviar_email_bem_sucedido_com_smtp_configurado(client, db_session, us
             {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 100},
         ],
     }
-    turno_id = client.post("/api/v1/turnos/fechamento", json=payload).json()["turno_id"]
+    turno_id = criar_turno_horario(db_session, payload).id
     _login(client, admin)
 
     from types import SimpleNamespace
@@ -260,7 +282,7 @@ def test_fechamento_com_produto_id_inexistente_e_rejeitado(client, db_session, u
         ],
     }
 
-    res = client.post("/api/v1/turnos/fechamento", json=payload)
+    res = _corrigir_como_admin(client, db_session, payload)
     assert res.status_code == 400
     assert "não encontrada" in res.json()["detail"].lower()
 
@@ -287,7 +309,7 @@ def test_fechamento_com_numero_maquina_inexistente_e_rejeitado(client, db_sessio
         ],
     }
 
-    res = client.post("/api/v1/turnos/fechamento", json=payload)
+    res = _corrigir_como_admin(client, db_session, payload)
     assert res.status_code == 400
     assert "não encontrada" in res.json()["detail"].lower()
 
@@ -318,9 +340,7 @@ def test_producao_esperada_por_linha_no_relatorio(client, db_session, usuario_te
         ],
     }
 
-    res = client.post("/api/v1/turnos/fechamento", json=payload)
-    assert res.status_code == 201, res.text
-    turno_id = res.json()["turno_id"]
+    turno_id = criar_turno_horario(db_session, payload).id
 
     from app.services.turno_service import buscar_registros_para_relatorio
 
@@ -375,7 +395,7 @@ def test_relatorio_pdf_e_email_tem_nome_de_arquivo_com_turno_e_data(client, db_s
             {"numero_maquina": maquina.numero_maquina, "hora_referencia": "13:00", "prod_executada": 100},
         ],
     }
-    turno_id = client.post("/api/v1/turnos/fechamento", json=payload).json()["turno_id"]
+    turno_id = criar_turno_horario(db_session, payload).id
 
     res = client.get(f"/api/v1/turnos/{turno_id}/relatorio.pdf")
     assert res.status_code == 200
@@ -396,7 +416,7 @@ def test_assunto_do_email_inclui_data_dd_mm_aa(client, db_session, usuario_teste
             {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 100},
         ],
     }
-    turno_id = client.post("/api/v1/turnos/fechamento", json=payload).json()["turno_id"]
+    turno_id = criar_turno_horario(db_session, payload).id
     _login(client, admin)
 
     from types import SimpleNamespace
@@ -457,9 +477,7 @@ def test_fechamento_com_ordem_producao_aparece_no_detalhe_e_pdf(client, db_sessi
             },
         ],
     }
-    res = client.post("/api/v1/turnos/fechamento", json=payload)
-    assert res.status_code == 201, res.text
-    turno_id = res.json()["turno_id"]
+    turno_id = criar_turno_horario(db_session, payload).id
 
     detalhe = client.get(f"/api/v1/turnos/{turno_id}").json()
     assert detalhe["registros"][0]["numero_op"] == "2817-2026"
@@ -490,127 +508,102 @@ def test_fechamento_com_ordem_producao_inexistente_e_rejeitado(client, db_sessio
             },
         ],
     }
-    res = client.post("/api/v1/turnos/fechamento", json=payload)
+    res = _corrigir_como_admin(client, db_session, payload)
     assert res.status_code == 400
     assert "ordem" in res.json()["detail"].lower()
 
 
-def test_salvar_rascunho_cria_turno_em_andamento_sem_enviar_email(client, db_session, usuario_teste):
+def test_rotas_de_criacao_do_modelo_por_hora_foram_removidas(client, db_session, usuario_teste):
     _login(client, usuario_teste)
-    maquina, _peca = _criar_maquina_e_peca(db_session)
+    corpo = {"nome_turno": "1º Turno", "responsavel_nome": "Líder Teste", "registros": []}
 
-    payload = {
-        "nome_turno": "1º Turno (05:00 - 13:00)",
-        "responsavel_nome": "Líder Teste",
-        "registros": [
-            {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 100},
-        ],
-    }
-    res = client.post("/api/v1/turnos/rascunho", json=payload)
-    assert res.status_code == 201, res.text
-    assert res.json()["status_assinatura"] == "EM_ANDAMENTO"
-    turno_id = res.json()["turno_id"]
-
-    detalhe = client.get(f"/api/v1/turnos/{turno_id}").json()
-    assert detalhe["status_assinatura"] == "EM_ANDAMENTO"
-    assert len(detalhe["registros"]) == 1
+    assert client.post("/api/v1/turnos/fechamento", json=corpo).status_code in (404, 405)
+    assert client.post("/api/v1/turnos/rascunho", json=corpo).status_code in (404, 405)
+    assert client.patch("/api/v1/turnos/rascunho/1", json=corpo).status_code in (404, 405)
+    assert client.post("/api/v1/turnos/1/fechar", json=corpo).status_code in (404, 405)
 
 
-def test_salvar_rascunho_sem_nenhum_registro_e_permitido(client, db_session, usuario_teste):
-    _login(client, usuario_teste)
-    payload = {"nome_turno": "1º Turno", "responsavel_nome": "Líder Teste", "registros": []}
-    res = client.post("/api/v1/turnos/rascunho", json=payload)
-    assert res.status_code == 201, res.text
-
-
-def test_atualizar_rascunho_substitui_registros(client, db_session, usuario_teste):
-    _login(client, usuario_teste)
-    maquina, _peca = _criar_maquina_e_peca(db_session)
-
-    turno_id = client.post(
-        "/api/v1/turnos/rascunho",
-        json={
-            "nome_turno": "1º Turno",
-            "responsavel_nome": "Líder Teste",
-            "registros": [{"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 50}],
-        },
-    ).json()["turno_id"]
-
-    res = client.patch(
-        f"/api/v1/turnos/rascunho/{turno_id}",
-        json={
+def test_corrigir_turno_antigo_fechado_continua_funcionando(client, db_session):
+    maquina, peca = _criar_maquina_e_peca(db_session)
+    turno = criar_turno_horario(
+        db_session,
+        {
             "nome_turno": "1º Turno",
             "responsavel_nome": "Líder Teste",
             "registros": [
-                {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 50},
-                {"numero_maquina": maquina.numero_maquina, "hora_referencia": "06:00", "prod_executada": 60},
+                {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 50}
+            ],
+        },
+    )
+    admin = _criar_admin(db_session, "admin-corrige-legado@siamp.test")
+    _login(client, admin)
+
+    res = client.patch(
+        f"/api/v1/turnos/{turno.id}",
+        json={
+            "nome_turno": "1º Turno",
+            "responsavel_nome": "Líder Corrigido",
+            "registros": [
+                {
+                    "numero_maquina": maquina.numero_maquina,
+                    "hora_referencia": "05:00",
+                    "prod_executada": 70,
+                    "produto_id": peca.id,
+                }
             ],
         },
     )
     assert res.status_code == 200, res.text
+    detalhe = client.get(f"/api/v1/turnos/{turno.id}").json()
+    assert detalhe["responsavel_nome"] == "Líder Corrigido"
+    assert detalhe["registros"][0]["prod_executada"] == 70
+    assert detalhe["editado_por_nome"] == admin.nome
 
-    detalhe = client.get(f"/api/v1/turnos/{turno_id}").json()
-    assert len(detalhe["registros"]) == 2
 
-
-def test_fechar_rascunho_dispara_email_e_muda_status(client, db_session, usuario_teste):
-    _login(client, usuario_teste)
+def test_rascunho_antigo_por_hora_nao_pode_mais_ser_corrigido(client, db_session):
     maquina, _peca = _criar_maquina_e_peca(db_session)
+    payload = {
+        "nome_turno": "1º Turno",
+        "responsavel_nome": "Líder Teste",
+        "registros": [
+            {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 50}
+        ],
+    }
+    turno = criar_turno_horario(db_session, payload, em_andamento=True)
+    _login(client, _criar_admin(db_session, "admin-rasc-antigo@siamp.test"))
 
-    turno_id = client.post(
-        "/api/v1/turnos/rascunho",
-        json={
-            "nome_turno": "1º Turno",
-            "responsavel_nome": "Líder Teste",
-            "registros": [{"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 50}],
-        },
-    ).json()["turno_id"]
+    res = client.patch(f"/api/v1/turnos/{turno.id}", json=payload)
+    assert res.status_code == 400
+    assert "rascunho" in res.json()["detail"].lower()
 
-    res = client.post(
-        f"/api/v1/turnos/{turno_id}/fechar",
+    # Excluir continua possível (ADMIN) - é a saída para esse rascunho.
+    assert client.delete(f"/api/v1/turnos/{turno.id}").status_code == 204
+
+
+def test_corrigir_turno_por_hora_em_turno_de_lancamento_e_rejeitado(client, db_session):
+    maquina, _peca = _criar_maquina_e_peca(db_session)
+    turno = Turno(
+        nome_turno="2º Turno",
+        responsavel_nome="Líder Teste",
+        status_assinatura="ASSINADO_DIGITALMENTE",
+        modelo_apontamento="LANCAMENTO",
+    )
+    db_session.add(turno)
+    db_session.commit()
+    _login(client, _criar_admin(db_session, "admin-modelo@siamp.test"))
+
+    res = client.patch(
+        f"/api/v1/turnos/{turno.id}",
         json={
-            "nome_turno": "1º Turno (05:00 - 13:00)",
+            "nome_turno": "2º Turno",
             "responsavel_nome": "Líder Teste",
-            "registros": [{"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 50}],
+            "registros": [
+                {"numero_maquina": maquina.numero_maquina, "hora_referencia": "13:00", "prod_executada": 5}
+            ],
         },
     )
-    assert res.status_code == 200, res.text
-    assert res.json()["status_assinatura"] == "ASSINADO_DIGITALMENTE"
-    assert "relatorio_email_agendado" in res.json()
-
-    detalhe = client.get(f"/api/v1/turnos/{turno_id}").json()
-    assert detalhe["status_assinatura"] == "ASSINADO_DIGITALMENTE"
-
-
-def test_fechar_rascunho_ja_fechado_e_rejeitado(client, db_session, usuario_teste):
-    _login(client, usuario_teste)
-    maquina, _peca = _criar_maquina_e_peca(db_session)
-
-    payload = {
-        "nome_turno": "1º Turno",
-        "responsavel_nome": "Líder Teste",
-        "registros": [{"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 50}],
-    }
-    turno_id = client.post("/api/v1/turnos/fechamento", json=payload).json()["turno_id"]
-
-    res = client.post(f"/api/v1/turnos/{turno_id}/fechar", json=payload)
     assert res.status_code == 400
-    assert "já está fechado" in res.json()["detail"]
-
-
-def test_atualizar_rascunho_de_turno_ja_fechado_e_rejeitado(client, db_session, usuario_teste):
-    _login(client, usuario_teste)
-    maquina, _peca = _criar_maquina_e_peca(db_session)
-
-    payload = {
-        "nome_turno": "1º Turno",
-        "responsavel_nome": "Líder Teste",
-        "registros": [{"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 50}],
-    }
-    turno_id = client.post("/api/v1/turnos/fechamento", json=payload).json()["turno_id"]
-
-    res = client.patch(f"/api/v1/turnos/rascunho/{turno_id}", json=payload)
-    assert res.status_code == 409
+    assert "lançamentos" in res.json()["detail"].lower()
 
 
 def test_rascunho_em_andamento_nao_aparece_nas_metricas_do_dashboard(client, db_session, usuario_teste):
@@ -618,25 +611,19 @@ def test_rascunho_em_andamento_nao_aparece_nas_metricas_do_dashboard(client, db_
     maquina, _peca = _criar_maquina_e_peca(db_session)
 
     # Rascunho em andamento: não deve contar.
-    client.post(
-        "/api/v1/turnos/rascunho",
-        json={
+    criar_turno_horario(db_session, {
             "nome_turno": "1º Turno",
             "responsavel_nome": "Líder Teste",
             "registros": [
                 {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 999}
             ],
-        },
-    )
+        }, em_andamento=True)
     # Turno fechado de verdade: deve contar.
-    client.post(
-        "/api/v1/turnos/fechamento",
-        json={
+    criar_turno_horario(db_session, {
             "nome_turno": "2º Turno",
             "responsavel_nome": "Líder Teste",
             "registros": [{"numero_maquina": maquina.numero_maquina, "hora_referencia": "13:00", "prod_executada": 30}],
-        },
-    )
+        })
 
     res = client.get("/api/v1/dashboard/metricas-gerais")
     assert res.status_code == 200
@@ -649,9 +636,7 @@ def test_exportar_csv_contem_registros_de_turnos_fechados(client, db_session, us
     _login(client, usuario_teste)
     maquina, peca = _criar_maquina_e_peca(db_session)
 
-    client.post(
-        "/api/v1/turnos/fechamento",
-        json={
+    criar_turno_horario(db_session, {
             "nome_turno": "1º Turno (05:00 - 13:00)",
             "responsavel_nome": "Líder Teste",
             "regulador_nome": "Regulador Teste",
@@ -663,8 +648,7 @@ def test_exportar_csv_contem_registros_de_turnos_fechados(client, db_session, us
                     "produto_id": peca.id,
                 }
             ],
-        },
-    )
+        })
 
     res = client.get("/api/v1/turnos/exportar/csv")
     assert res.status_code == 200
@@ -687,9 +671,7 @@ def test_exportar_csv_neutraliza_injecao_de_formula(client, db_session, usuario_
     _login(client, usuario_teste)
     maquina, peca = _criar_maquina_e_peca(db_session)
 
-    client.post(
-        "/api/v1/turnos/fechamento",
-        json={
+    criar_turno_horario(db_session, {
             "nome_turno": "1º Turno (05:00 - 13:00)",
             "responsavel_nome": '=HYPERLINK("http://evil.example","clique")',
             "regulador_nome": "Regulador Teste",
@@ -701,8 +683,7 @@ def test_exportar_csv_neutraliza_injecao_de_formula(client, db_session, usuario_
                     "produto_id": peca.id,
                 }
             ],
-        },
-    )
+        })
 
     res = client.get("/api/v1/turnos/exportar/csv")
     conteudo = res.content.decode("utf-8-sig")
@@ -716,16 +697,13 @@ def test_exportar_csv_nao_inclui_rascunho_em_andamento(client, db_session, usuar
     _login(client, usuario_teste)
     maquina, _peca = _criar_maquina_e_peca(db_session)
 
-    client.post(
-        "/api/v1/turnos/rascunho",
-        json={
+    criar_turno_horario(db_session, {
             "nome_turno": "1º Turno",
             "responsavel_nome": "Líder Teste",
             "registros": [
                 {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 777}
             ],
-        },
-    )
+        }, em_andamento=True)
 
     res = client.get("/api/v1/turnos/exportar/csv")
     assert res.status_code == 200
@@ -741,16 +719,13 @@ def test_exportar_csv_filtra_por_periodo(client, db_session, usuario_teste):
     _login(client, usuario_teste)
     maquina, _peca = _criar_maquina_e_peca(db_session)
 
-    client.post(
-        "/api/v1/turnos/fechamento",
-        json={
+    criar_turno_horario(db_session, {
             "nome_turno": "1º Turno",
             "responsavel_nome": "Líder Teste",
             "registros": [
                 {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 42}
             ],
-        },
-    )
+        })
 
     # Usa agora_brasilia() (mesma referência de fuso que o próprio turno
     # recebeu ao ser criado), não date.today() (fuso do servidor, UTC
@@ -770,7 +745,7 @@ def test_exportar_csv_filtra_por_periodo(client, db_session, usuario_teste):
     assert "42" not in conteudo
 
 
-def test_fechamento_agenda_email_so_com_brevo_configurado_sem_smtp(client, db_session, usuario_teste):
+def test_reenvio_agenda_email_so_com_brevo_configurado_sem_smtp(client, db_session, usuario_teste):
     # Regressão: agendar_email_relatorio checava só smtp_user/smtp_pass
     # para decidir se agendava o envio, ignorando o caminho via Brevo -
     # se só BREVO_API_KEY estivesse configurada (caso real de
@@ -778,7 +753,8 @@ def test_fechamento_agenda_email_so_com_brevo_configurado_sem_smtp(client, db_se
     from types import SimpleNamespace
     from unittest.mock import MagicMock, patch
 
-    _login(client, usuario_teste)
+    admin = _criar_admin(db_session, "admin-brevo@siamp.test")
+    _login(client, admin)
     maquina, _peca = _criar_maquina_e_peca(db_session)
 
     fake_settings = SimpleNamespace(
@@ -794,14 +770,14 @@ def test_fechamento_agenda_email_so_com_brevo_configurado_sem_smtp(client, db_se
             {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 100},
         ],
     }
+    turno_id = criar_turno_horario(db_session, payload).id
     with patch("app.services.relatorio_email_service.settings", fake_settings), patch(
         "app.services.mailer.settings", fake_settings
     ), patch("requests.post") as mock_post:
         mock_post.return_value = MagicMock(status_code=201, text="")
-        res = client.post("/api/v1/turnos/fechamento", json=payload)
+        res = client.post(f"/api/v1/turnos/{turno_id}/reenviar-email")
 
-    assert res.status_code == 201, res.text
-    assert res.json()["relatorio_email_agendado"] is True
+    assert res.status_code == 200, res.text
     mock_post.assert_called_once()
 
     # Confere que os DOIS PDFs (relatório de fechamento + dashboard)
@@ -831,9 +807,7 @@ def test_indice_producao_horario_e_limitado_a_100_por_cento(client, db_session, 
     # maquina: cavidades=2 | peca: ciclo_padrao=5.0 (peça não define
     # cavidades, cai no padrão da máquina) -> 1h = 3600/5*2 = 1440 esperado
 
-    res = client.post(
-        "/api/v1/turnos/fechamento",
-        json={
+    turno = criar_turno_horario(db_session, {
             "nome_turno": "1º Turno (05:00 - 13:00)",
             "responsavel_nome": "Líder Teste",
             "registros": [
@@ -844,10 +818,8 @@ def test_indice_producao_horario_e_limitado_a_100_por_cento(client, db_session, 
                     "produto_id": peca.id,
                 },
             ],
-        },
-    )
-    assert res.status_code == 201, res.text
-    kpis = res.json()["kpis"]
+        })
+    kpis = calcular_kpis_turno(db_session, turno.id)
     assert kpis["total_produzido"] == 1600
     assert kpis["indice_producao"] == 100.0
     assert kpis["eficiencia_oee"] == 100.0
@@ -862,9 +834,7 @@ def test_pdf_horario_mostra_nd_quando_producao_sem_ciclo_cadastrado(client, db_s
     db_session.refresh(maquina)
     db_session.refresh(peca_incompleta)
 
-    res = client.post(
-        "/api/v1/turnos/fechamento",
-        json={
+    turno = criar_turno_horario(db_session, {
             "nome_turno": "1º Turno (05:00 - 13:00)",
             "responsavel_nome": "Líder Teste",
             "registros": [
@@ -875,9 +845,8 @@ def test_pdf_horario_mostra_nd_quando_producao_sem_ciclo_cadastrado(client, db_s
                     "produto_id": peca_incompleta.id,
                 },
             ],
-        },
-    )
-    turno_id = res.json()["turno_id"]
+        })
+    turno_id = turno.id
 
     from app.services.turno_service import buscar_registros_para_relatorio
 

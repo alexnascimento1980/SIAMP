@@ -204,36 +204,3 @@ def test_turno_ja_fechado_continua_respondendo_409_nao_403(client, db_session):
         json=_payload_lancamento(maquina, peca),
     )
     assert res.status_code == 409
-
-
-def test_modelo_por_hora_tambem_protege_o_rascunho(client, db_session):
-    autor = _criar_usuario(db_session, "autor@siamp.test", "OPERADOR")
-    intruso = _criar_usuario(db_session, "intruso@siamp.test", "OPERADOR")
-    supervisor = _criar_usuario(db_session, "sup@siamp.test", "SUPERVISOR")
-    maquina, peca = _criar_maquina_e_peca(db_session)
-    corpo = {"nome_turno": "1º Turno", "responsavel_nome": "Líder Teste", "registros": []}
-
-    _login(client, autor)
-    res = client.post("/api/v1/turnos/rascunho", json=corpo)
-    assert res.status_code == 201, res.text
-    turno_id = res.json()["turno_id"]
-    turno = db_session.query(Turno).filter(Turno.id == turno_id).one()
-    assert turno.criado_por_id == autor.id
-
-    _login(client, intruso)
-    assert client.patch(f"/api/v1/turnos/rascunho/{turno_id}", json=corpo).status_code == 403
-    fechamento = {
-        **corpo,
-        "registros": [
-            {
-                "numero_maquina": maquina.numero_maquina,
-                "hora_referencia": "05:00",
-                "prod_executada": 100,
-                "produto_id": peca.id,
-            }
-        ],
-    }
-    assert client.post(f"/api/v1/turnos/{turno_id}/fechar", json=fechamento).status_code == 403
-
-    _login(client, supervisor)
-    assert client.patch(f"/api/v1/turnos/rascunho/{turno_id}", json=corpo).status_code == 200

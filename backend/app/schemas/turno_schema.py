@@ -101,18 +101,6 @@ class FechamentoTurnoCreate(BaseModel):
     registros: list[RegistroHorarioCreate] = Field(..., min_length=1)
 
 
-class RascunhoTurnoCreate(BaseModel):
-    """Mesma forma do fechamento, mas sem exigir pelo menos um
-    registro - um rascunho pode ser salvo assim que o turno é aberto,
-    antes de qualquer apontamento."""
-
-    nome_turno: str = Field(..., min_length=2, max_length=50)
-    responsavel_nome: str = Field(..., min_length=2, max_length=120)
-    regulador_nome: str | None = Field(default=None, max_length=120)
-    observacoes: str | None = Field(default=None, max_length=2000)
-    registros: list[RegistroHorarioCreate] = Field(default_factory=list)
-
-
 class ResumoProducaoResponse(BaseModel):
     turno_id: int
     total_produzido: int
