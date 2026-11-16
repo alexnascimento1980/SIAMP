@@ -81,26 +81,29 @@ function renderizarTurnos(turnos) {
          </td>`
       : "";
 
-    // Turno em andamento: continuar preenchendo (liberado para
-    // qualquer usuário - é o rascunho da própria pessoa). Turno já
-    // fechado: corrigir é restrito a ADMIN/SUPERVISOR.
-    // Turno em andamento: continuar preenchendo (liberado para
-    // qualquer usuário - é o rascunho da própria pessoa). Turno já
-    // fechado: corrigir é restrito a ADMIN/SUPERVISOR. A página certa
-    // (nova, por lançamento, ou antiga, por hora) depende do modelo
-    // com que o turno foi criado - turnos antigos continuam usando a
-    // grade por hora para sempre.
-    const paginaApontamento =
-      t.modelo_apontamento === "LANCAMENTO" ? "apontamento.html" : "apontamento_horario.html";
-    const botaoEditar = emAndamento
-      ? `<a href="${paginaApontamento}?rascunho=${t.id}" class="btn btn-sm btn-outline-warning" title="Continuar preenchendo este turno">
+    // Turno em andamento: continuar preenchendo (apontamento.html,
+    // por lançamentos). Turno já fechado: corrigir é restrito a ADMIN/
+    // SUPERVISOR, na página do modelo com que ele foi criado - turnos
+    // antigos (grade por hora) são corrigidos em apontamento_horario.html,
+    // que só existe para isso. Rascunhos antigos por hora não podem
+    // mais ser continuados (o modelo foi aposentado): ficam só com o
+    // aviso e a exclusão (ADMIN).
+    const modeloAntigo = t.modelo_apontamento !== "LANCAMENTO";
+    let botaoEditar = "";
+    if (emAndamento && modeloAntigo) {
+      botaoEditar = `<span class="btn btn-sm btn-outline-secondary disabled" title="Rascunho do apontamento antigo (por hora): não pode mais ser continuado. Peça a um administrador para excluí-lo e refaça o turno no apontamento atual.">
+           <i class="bi bi-slash-circle"></i>
+         </span>`;
+    } else if (emAndamento) {
+      botaoEditar = `<a href="apontamento.html?rascunho=${t.id}" class="btn btn-sm btn-outline-warning" title="Continuar preenchendo este turno">
            <i class="bi bi-pencil-square"></i>
-         </a>`
-      : podeEditar
-        ? `<a href="${paginaApontamento}?editar=${t.id}" class="btn btn-sm btn-outline-secondary" title="Corrigir este turno">
-             <i class="bi bi-pencil-square"></i>
-           </a>`
-        : "";
+         </a>`;
+    } else if (podeEditar) {
+      const paginaCorrecao = modeloAntigo ? "apontamento_horario.html" : "apontamento.html";
+      botaoEditar = `<a href="${paginaCorrecao}?editar=${t.id}" class="btn btn-sm btn-outline-secondary" title="Corrigir este turno">
+           <i class="bi bi-pencil-square"></i>
+         </a>`;
+    }
     // Reenvio de e-mail só faz sentido para turno já fechado (é o
     // único caso em que um e-mail original já foi enviado).
     const botaoReenviarEmail = !emAndamento && podeEditar
