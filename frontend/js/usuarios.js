@@ -253,8 +253,8 @@ async function confirmarResetSenha() {
   const erroEl = document.getElementById("resetErro");
   erroEl.classList.add("d-none");
 
-  if (novaSenha.length < 8) {
-    erroEl.innerText = "A senha precisa ter pelo menos 8 caracteres.";
+  if (novaSenha.length < 10) {
+    erroEl.innerText = "A senha precisa ter pelo menos 10 caracteres.";
     erroEl.classList.remove("d-none");
     return;
   }

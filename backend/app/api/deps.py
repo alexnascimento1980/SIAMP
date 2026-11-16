@@ -1,9 +1,10 @@
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import decodificar_access_token
+from app.core.security import criar_access_token, decodificar_access_token
 from app.models.usuario import Usuario
 
 # Nome do cookie httpOnly de sessão, definido em /auth/login (ver
@@ -44,6 +45,12 @@ def get_current_user(
     if usuario is None or not usuario.ativo:
         raise credenciais_invalidas
 
+    # Token emitido antes de um reset de senha (versão antiga) não vale
+    # mais. Tokens antigos sem o claim "tv" contam como versão 0, então
+    # sessões já abertas continuam válidas até o primeiro reset.
+    if payload.get("tv", 0) != (usuario.token_version or 0):
+        raise credenciais_invalidas
+
     return usuario
 
 
@@ -60,3 +67,28 @@ def exigir_perfil(*perfis_permitidos: str):
         return usuario
 
     return verificador
+
+
+def definir_cookie_sessao(response: Response, usuario: Usuario) -> str:
+    """Emite o JWT do usuário e o grava no cookie httpOnly de sessão.
+    Retorna o token (o login também o devolve no corpo da resposta)."""
+    token = criar_access_token(
+        subject=usuario.email,
+        perfil=usuario.perfil,
+        versao=usuario.token_version or 0,
+    )
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=token,
+        max_age=settings.jwt_expires_minutes * 60,
+        httponly=True,
+        secure=settings.cookie_secure,
+        # "lax" é suficiente aqui: o frontend só chama a API via fetch/XHR
+        # (nunca via navegação de topo cross-site), e cookies SameSite=Lax
+        # não são enviados em requests cross-site desse tipo - o que já
+        # mitiga CSRF nos endpoints de escrita sem precisar de um token
+        # CSRF separado.
+        samesite="lax",
+        path="/",
+    )
+    return token

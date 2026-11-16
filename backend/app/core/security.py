@@ -16,11 +16,11 @@ def gerar_hash_senha(senha_texto: str) -> str:
     return pwd_context.hash(senha_texto)
 
 
-def criar_access_token(subject: str, perfil: str) -> str:
+def criar_access_token(subject: str, perfil: str, versao: int = 0) -> str:
     expira_em = datetime.now(UTC) + timedelta(
         minutes=settings.jwt_expires_minutes
     )
-    payload = {"sub": subject, "perfil": perfil, "exp": expira_em}
+    payload = {"sub": subject, "perfil": perfil, "tv": versao, "exp": expira_em}
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 

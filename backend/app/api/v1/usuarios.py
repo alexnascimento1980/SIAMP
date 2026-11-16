@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import exigir_perfil
+from app.api.deps import definir_cookie_sessao, exigir_perfil
 from app.core.database import get_db
 from app.core.security import gerar_hash_senha
 from app.models.usuario import Usuario
@@ -215,6 +215,7 @@ def alterar_protecao_usuario(
 def resetar_senha_usuario(
     usuario_id: int,
     dados: UsuarioResetSenha,
+    response: Response,
     db: Session = Depends(get_db),
     usuario_atual: Usuario = Depends(exigir_perfil("ADMIN")),
 ):
@@ -223,7 +224,12 @@ def resetar_senha_usuario(
     não tem outro jeito de entrar. Restrito a ADMIN. Não há como
     'visualizar' a senha atual em nenhuma circunstância: senhas são
     guardadas apenas como hash (bcrypt), uma função de mão única - só
-    é possível definir uma nova, nunca recuperar a antiga."""
+    é possível definir uma nova, nunca recuperar a antiga.
+
+    O reset também encerra todas as sessões abertas da conta (as
+    anteriores deixam de valer). Se o ADMIN resetou a PRÓPRIA senha,
+    a sessão dele é renovada na mesma resposta, sem precisar entrar
+    de novo."""
     alvo = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if alvo is None:
         raise HTTPException(
@@ -250,6 +256,10 @@ def resetar_senha_usuario(
         )
 
     alvo.senha_hash = gerar_hash_senha(dados.nova_senha)
+    alvo.token_version = (alvo.token_version or 0) + 1
     db.commit()
     db.refresh(alvo)
+
+    if alvo.id == usuario_atual.id:
+        definir_cookie_sessao(response, alvo)
     return alvo

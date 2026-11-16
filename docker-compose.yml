@@ -44,7 +44,10 @@ services:
       # um passo manual/CI e deixar SEED_ON_START=false.
       SEED_ON_START: ${SEED_ON_START:-true}
     ports:
-      - "8000:8000"
+      # Só no localhost: o navegador acessa a API pelo proxy do nginx do
+      # frontend (porta 8090); esta porta existe apenas para /docs e
+      # depuração local, e não deve ficar aberta para a rede.
+      - "127.0.0.1:8000:8000"
     volumes:
       # Necessário apenas para o carregamento opcional de seeds
       # (SEED_ON_START=true). Somente leitura.

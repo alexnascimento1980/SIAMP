@@ -26,7 +26,7 @@ build/
 # Artefatos gerados por scripts de migração de dados entre ambientes
 # (ex.: app.scripts.exportar_catalogos) - específicos de uma
 # transferência pontual, não fazem parte do código-fonte do projeto.
-database/exportado_*.sql
+database/exportado_*
 
 # Artefatos dos testes E2E (screenshots de falha, cache do Playwright)
 e2e/test-results/
