@@ -46,9 +46,9 @@ def test_criar_maquina_sem_cavidades_e_ciclo(client, db_session):
 def test_excluir_maquina_sem_registros(client, db_session):
     admin = _criar_admin(db_session)
     _login(client, admin)
-    maquina_id = client.post(
-        "/api/v1/maquinas/", json={"numero_maquina": "10", "descricao": "Descartável"}
-    ).json()["id"]
+    maquina_id = client.post("/api/v1/maquinas/", json={"numero_maquina": "10", "descricao": "Descartável"}).json()[
+        "id"
+    ]
 
     res = client.delete(f"/api/v1/maquinas/{maquina_id}")
     assert res.status_code == 204

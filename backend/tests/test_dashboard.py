@@ -139,16 +139,24 @@ def _criar_turno_com_data(db_session, maquina, quando, quantidade=100):
     from app.models.lancamento import Lancamento
 
     turno = Turno(
-        nome_turno="1º Turno", responsavel_nome="Teste",
-        status_assinatura="ASSINADO_DIGITALMENTE", modelo_apontamento="LANCAMENTO",
+        nome_turno="1º Turno",
+        responsavel_nome="Teste",
+        status_assinatura="ASSINADO_DIGITALMENTE",
+        modelo_apontamento="LANCAMENTO",
         data_registro=quando,
     )
     db_session.add(turno)
     db_session.flush()
-    db_session.add(Lancamento(
-        turno_id=turno.id, maquina_id=maquina.id, tipo="PRODUCAO",
-        horario_inicio=time(5, 0), horario_fim=time(6, 0), quantidade=quantidade,
-    ))
+    db_session.add(
+        Lancamento(
+            turno_id=turno.id,
+            maquina_id=maquina.id,
+            tipo="PRODUCAO",
+            horario_inicio=time(5, 0),
+            horario_fim=time(6, 0),
+            quantidade=quantidade,
+        )
+    )
     db_session.commit()
     return turno
 
@@ -266,8 +274,7 @@ def test_dashboard_periodo_personalizado_filtra_intervalo_exato(client, db_sessi
     data_fim = (agora - timedelta(days=5)).date().isoformat()
 
     res = client.get(
-        f"/api/v1/dashboard/metricas-gerais?periodo=personalizado"
-        f"&data_inicio={data_inicio}&data_fim={data_fim}"
+        f"/api/v1/dashboard/metricas-gerais?periodo=personalizado&data_inicio={data_inicio}&data_fim={data_fim}"
     )
     assert res.status_code == 200, res.text
     dados = res.json()
@@ -296,8 +303,7 @@ def test_dashboard_periodo_personalizado_e_inclusivo_no_dia_final(client, db_ses
     data_fim = hoje.date().isoformat()
 
     res = client.get(
-        f"/api/v1/dashboard/metricas-gerais?periodo=personalizado"
-        f"&data_inicio={data_inicio}&data_fim={data_fim}"
+        f"/api/v1/dashboard/metricas-gerais?periodo=personalizado&data_inicio={data_inicio}&data_fim={data_fim}"
     )
     assert res.status_code == 200
     assert res.json()["kpis"]["total_pecas_produzidas"] == 100
@@ -313,7 +319,6 @@ def test_dashboard_personalizado_sem_datas_retorna_erro_claro(client, db_session
 def test_dashboard_personalizado_data_fim_antes_do_inicio_e_rejeitado(client, db_session, usuario_teste):
     _login(client, usuario_teste)
     res = client.get(
-        "/api/v1/dashboard/metricas-gerais?periodo=personalizado"
-        "&data_inicio=2026-09-10&data_fim=2026-09-01"
+        "/api/v1/dashboard/metricas-gerais?periodo=personalizado&data_inicio=2026-09-10&data_fim=2026-09-01"
     )
     assert res.status_code == 400

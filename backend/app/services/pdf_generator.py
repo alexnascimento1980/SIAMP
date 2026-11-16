@@ -82,7 +82,9 @@ def gerar_relatorio_turno_pdf(dados_turno: dict, kpis: dict, registros: list[dic
     elementos = []
 
     # Cabeçalho
-    titulo_style = ParagraphStyle('Titulo', parent=styles['Heading1'], fontSize=16, leading=20, textColor=colors.HexColor('#1E3A8A'))
+    titulo_style = ParagraphStyle(
+        "Titulo", parent=styles["Heading1"], fontSize=16, leading=20, textColor=colors.HexColor("#1E3A8A")
+    )
     elementos.append(Paragraph("SIAMP - Relatório de Fechamento de Turno", titulo_style))
     # data_registro é a data em que o turno começou (não a do
     # fechamento) - já corrigida no backend para turnos que atravessam
@@ -90,34 +92,48 @@ def gerar_relatorio_turno_pdf(dados_turno: dict, kpis: dict, registros: list[dic
     # se algum chamador antigo não passar essa chave.
     _data_registro = dados_turno.get("data_registro")
     _data_formatada = _data_registro.strftime("%d/%m/%Y") if _data_registro else "-"
-    elementos.append(Paragraph(f"<b>Turno:</b> {dados_turno['nome_turno']} | <b>Responsável:</b> {dados_turno['responsavel_nome']} | <b>Data:</b> {_data_formatada}", styles['Normal']))
+    elementos.append(
+        Paragraph(
+            f"<b>Turno:</b> {dados_turno['nome_turno']} | <b>Responsável:</b> {dados_turno['responsavel_nome']} | <b>Data:</b> {_data_formatada}",
+            styles["Normal"],
+        )
+    )
     elementos.append(Spacer(1, 15))
 
     # Tabela de KPIs Principais (Produção)
-    minutos_programados = kpis.get('minutos_parados_programados', 0)
-    minutos_nao_programados = kpis.get(
-        'minutos_parados_nao_programados', kpis['minutos_parados']
-    )
+    minutos_programados = kpis.get("minutos_parados_programados", 0)
+    minutos_nao_programados = kpis.get("minutos_parados_nao_programados", kpis["minutos_parados"])
     dados_resumo = [
         ["Total Produzido (pçs)", "Produção Esperada", "Parada Não Programada", "Eficiência (OEE)"],
-        [f"{kpis['total_produzido']}", f"{kpis['total_esperado']}", f"{minutos_nao_programados} min", f"{kpis['eficiencia_oee']}%"]
+        [
+            f"{kpis['total_produzido']}",
+            f"{kpis['total_esperado']}",
+            f"{minutos_nao_programados} min",
+            f"{kpis['eficiencia_oee']}%",
+        ],
     ]
     tabela = Table(dados_resumo, colWidths=[130, 130, 130, 130])
-    tabela.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F3F4F6')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-    ]))
+    tabela.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F3F4F6")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ]
+        )
+    )
     elementos.append(tabela)
     elementos.append(Spacer(1, 6))
     if minutos_programados:
-        elementos.append(Paragraph(
-            f"Parada programada (não penaliza o OEE): {minutos_programados} min",
-            styles['Normal'],
-        ))
+        elementos.append(
+            Paragraph(
+                f"Parada programada (não penaliza o OEE): {minutos_programados} min",
+                styles["Normal"],
+            )
+        )
         elementos.append(Spacer(1, 6))
 
     # Tabela de Qualidade (Índice de Produção × Índice de Qualidade = OEE)
@@ -131,14 +147,18 @@ def gerar_relatorio_turno_pdf(dados_turno: dict, kpis: dict, registros: list[dic
         ],
     ]
     tabela_qualidade = Table(dados_qualidade, colWidths=[130, 130, 130, 130])
-    tabela_qualidade.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F3F4F6')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-    ]))
+    tabela_qualidade.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F3F4F6")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ]
+        )
+    )
     elementos.append(tabela_qualidade)
     elementos.append(Spacer(1, 15))
 
@@ -151,7 +171,7 @@ def gerar_relatorio_turno_pdf(dados_turno: dict, kpis: dict, registros: list[dic
         # parada) usam Paragraph em vez de string simples - string pura
         # não quebra linha dentro da largura da coluna, só transborda
         # por cima das colunas vizinhas.
-        estilo_celula = ParagraphStyle('Celula', fontSize=7.5, leading=9)
+        estilo_celula = ParagraphStyle("Celula", fontSize=7.5, leading=9)
         for reg in registros:
             if reg.get("inicio_parada"):
                 parada_txt = f"{reg['inicio_parada']}–{reg.get('retomada') or '?'}"
@@ -159,16 +179,18 @@ def gerar_relatorio_turno_pdf(dados_turno: dict, kpis: dict, registros: list[dic
             else:
                 parada_txt = "-"
             refugo_val = reg.get("refugo")
-            linhas_detalhe.append([
-                reg["hora_referencia"],
-                reg["numero_maquina"],
-                Paragraph(reg.get("numero_op") or "-", estilo_celula),
-                Paragraph(reg.get("produto_descricao") or "-", estilo_celula),
-                str(reg["prod_executada"]),
-                str(reg.get("producao_esperada", "-")),
-                str(refugo_val) if refugo_val is not None else "-",
-                Paragraph(parada_txt, estilo_celula),
-            ])
+            linhas_detalhe.append(
+                [
+                    reg["hora_referencia"],
+                    reg["numero_maquina"],
+                    Paragraph(reg.get("numero_op") or "-", estilo_celula),
+                    Paragraph(reg.get("produto_descricao") or "-", estilo_celula),
+                    str(reg["prod_executada"]),
+                    str(reg.get("producao_esperada", "-")),
+                    str(refugo_val) if refugo_val is not None else "-",
+                    Paragraph(parada_txt, estilo_celula),
+                ]
+            )
 
         tabela_detalhe = Table(
             # "Hora" precisa caber tanto um horário único (modelo por
@@ -176,19 +198,25 @@ def gerar_relatorio_turno_pdf(dados_turno: dict, kpis: dict, registros: list[dic
             # "22:00-05:00") - por isso mais larga que as demais colunas
             # estreitas eram originalmente dimensionadas só para o
             # formato antigo.
-            linhas_detalhe, colWidths=[64, 36, 48, 122, 40, 40, 38, 91], repeatRows=1
+            linhas_detalhe,
+            colWidths=[64, 36, 48, 122, 40, 40, 38, 91],
+            repeatRows=1,
         )
-        tabela_detalhe.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F3F4F6')),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 8),
-            ('ALIGN', (0, 0), (0, -1), 'CENTER'),
-            ('ALIGN', (4, 0), (6, -1), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-            ('TOPPADDING', (0, 0), (-1, -1), 4),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ]))
+        tabela_detalhe.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F3F4F6")),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8),
+                    ("ALIGN", (0, 0), (0, -1), "CENTER"),
+                    ("ALIGN", (4, 0), (6, -1), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ]
+            )
+        )
         elementos.append(tabela_detalhe)
         elementos.append(Spacer(1, 15))
 
@@ -205,14 +233,18 @@ def gerar_relatorio_turno_pdf(dados_turno: dict, kpis: dict, registros: list[dic
     observacoes_turno = (dados_turno.get("observacoes") or "").strip()
     if observacoes_turno:
         texto_seguro = _escapar_xml(observacoes_turno).replace("\n", "<br/>")
-        elementos.append(Paragraph("<b>Observações Gerais do Turno:</b>", styles['Normal']))
-        elementos.append(Paragraph(texto_seguro, styles['Normal']))
+        elementos.append(Paragraph("<b>Observações Gerais do Turno:</b>", styles["Normal"]))
+        elementos.append(Paragraph(texto_seguro, styles["Normal"]))
         elementos.append(Spacer(1, 15))
 
     # Súmula da IA
-    alerta_style = ParagraphStyle('Alerta', parent=styles['Normal'], textColor=colors.HexColor('#B91C1C') if kpis['eficiencia_oee'] < 75 else colors.HexColor('#15803D'))
+    alerta_style = ParagraphStyle(
+        "Alerta",
+        parent=styles["Normal"],
+        textColor=colors.HexColor("#B91C1C") if kpis["eficiencia_oee"] < 75 else colors.HexColor("#15803D"),
+    )
     elementos.append(Paragraph(f"<b>Diagnóstico de Inteligência:</b> {kpis['alerta_ia']}", alerta_style))
-    
+
     doc.build(elementos)
     buffer.seek(0)
     return buffer.getvalue()
@@ -235,15 +267,19 @@ def gerar_relatorio_op_pdf(comparativo: dict) -> bytes:
     styles = getSampleStyleSheet()
     elementos = []
 
-    titulo_style = ParagraphStyle('Titulo', parent=styles['Heading1'], fontSize=16, leading=20, textColor=colors.HexColor('#1E3A8A'))
+    titulo_style = ParagraphStyle(
+        "Titulo", parent=styles["Heading1"], fontSize=16, leading=20, textColor=colors.HexColor("#1E3A8A")
+    )
     elementos.append(Paragraph("SIAMP - Relatório de Ordem de Produção", titulo_style))
-    elementos.append(Paragraph(
-        f"<b>OP:</b> {comparativo['numero_op']} | "
-        f"<b>Período:</b> {comparativo['periodo_inicio'].strftime('%d/%m/%Y')} a "
-        f"{comparativo['periodo_fim'].strftime('%d/%m/%Y')} | "
-        f"<b>Prazo:</b> {'Dentro do prazo' if comparativo['dentro_do_prazo'] else 'Fora do prazo'}",
-        styles['Normal'],
-    ))
+    elementos.append(
+        Paragraph(
+            f"<b>OP:</b> {comparativo['numero_op']} | "
+            f"<b>Período:</b> {comparativo['periodo_inicio'].strftime('%d/%m/%Y')} a "
+            f"{comparativo['periodo_fim'].strftime('%d/%m/%Y')} | "
+            f"<b>Prazo:</b> {'Dentro do prazo' if comparativo['dentro_do_prazo'] else 'Fora do prazo'}",
+            styles["Normal"],
+        )
+    )
     elementos.append(Spacer(1, 15))
 
     produzido = comparativo["quantidade_produzida"]
@@ -260,16 +296,20 @@ def gerar_relatorio_op_pdf(comparativo: dict) -> bytes:
         ],
         colWidths=[120, 120, 120, 120],
     )
-    tabela.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F3F4F6')),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-    ]))
+    tabela.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F3F4F6")),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 10),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ]
+        )
+    )
     elementos.append(tabela)
 
     doc.build(elementos)
@@ -301,16 +341,22 @@ def gerar_relatorio_dashboard_pdf(
     styles = getSampleStyleSheet()
     elementos = []
 
-    titulo_style = ParagraphStyle('Titulo', parent=styles['Heading1'], fontSize=16, leading=20, textColor=colors.HexColor(_AZUL_MARINHO))
-    subtitulo_style = ParagraphStyle('Subtitulo', parent=styles['Heading2'], fontSize=12, textColor=colors.HexColor(_AZUL_MARINHO))
+    titulo_style = ParagraphStyle(
+        "Titulo", parent=styles["Heading1"], fontSize=16, leading=20, textColor=colors.HexColor(_AZUL_MARINHO)
+    )
+    subtitulo_style = ParagraphStyle(
+        "Subtitulo", parent=styles["Heading2"], fontSize=12, textColor=colors.HexColor(_AZUL_MARINHO)
+    )
 
     elementos.append(Paragraph("SIAMP - Dashboard do Fechamento de Turno", titulo_style))
     _data_registro = dados_turno.get("data_registro")
     _data_formatada = _data_registro.strftime("%d/%m/%Y") if _data_registro else "-"
-    elementos.append(Paragraph(
-        f"<b>Turno:</b> {dados_turno['nome_turno']} | <b>Responsável:</b> {dados_turno['responsavel_nome']} | <b>Data:</b> {_data_formatada}",
-        styles['Normal'],
-    ))
+    elementos.append(
+        Paragraph(
+            f"<b>Turno:</b> {dados_turno['nome_turno']} | <b>Responsável:</b> {dados_turno['responsavel_nome']} | <b>Data:</b> {_data_formatada}",
+            styles["Normal"],
+        )
+    )
     elementos.append(Spacer(1, 15))
 
     # Desempenho do próprio turno - mesmo dado do relatório de
@@ -322,13 +368,17 @@ def gerar_relatorio_dashboard_pdf(
         [f"{kpis_turno['total_produzido']}", f"{kpis_turno['total_esperado']}", f"{kpis_turno['eficiencia_oee']}%"],
     ]
     tabela_turno = Table(dados_turno_tabela, colWidths=[170, 170, 170])
-    tabela_turno.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F3F4F6')),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-    ]))
+    tabela_turno.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F3F4F6")),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ]
+        )
+    )
     elementos.append(tabela_turno)
     elementos.append(Spacer(1, 18))
 
@@ -340,20 +390,26 @@ def gerar_relatorio_dashboard_pdf(
     linhas_acumulado = [["Período", "Turnos", "Produzido (pçs)", "OEE Médio"]]
     for chave in ("diario", "semanal", "mensal"):
         m = metricas_por_periodo[chave]
-        linhas_acumulado.append([
-            rotulos_periodo[chave],
-            str(m["total_turnos_encerrados"]),
-            f"{m['total_pecas_produzidas']}",
-            f"{m['oee_medio_estimado']}%",
-        ])
+        linhas_acumulado.append(
+            [
+                rotulos_periodo[chave],
+                str(m["total_turnos_encerrados"]),
+                f"{m['total_pecas_produzidas']}",
+                f"{m['oee_medio_estimado']}%",
+            ]
+        )
     tabela_acumulado = Table(linhas_acumulado, colWidths=[130, 100, 140, 140])
-    tabela_acumulado.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F3F4F6')),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-    ]))
+    tabela_acumulado.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F3F4F6")),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ]
+        )
+    )
     elementos.append(tabela_acumulado)
     elementos.append(Spacer(1, 18))
 

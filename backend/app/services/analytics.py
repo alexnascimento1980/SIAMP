@@ -6,9 +6,7 @@ from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
 
 
-def calcular_capacidade_esperada_registro(
-    reg: RegistroHorario, maq: Maquina, produto: Produto | None
-) -> dict:
+def calcular_capacidade_esperada_registro(reg: RegistroHorario, maq: Maquina, produto: Produto | None) -> dict:
     """Capacidade teórica esperada de UM registro (hora/máquina), já
     descontando parada programada. Extraída para ser reutilizada tanto no
     agregado de KPIs do turno (_kpis_a_partir_de_registros) quanto no
@@ -136,15 +134,18 @@ def _kpis_a_partir_de_registros(
         "indice_producao": round(indice_producao * 100, 2),
         "indice_qualidade": round(indice_qualidade * 100, 2),
         "eficiencia_oee": eficiencia_oee,
-        "alerta_ia": "Abaixo da meta esperada" if eficiencia_oee < 75.0 else "Operação normal"
+        "alerta_ia": "Abaixo da meta esperada" if eficiencia_oee < 75.0 else "Operação normal",
     }
 
 
 def calcular_kpis_turno(db: Session, turno_id: int) -> dict:
-    registros = db.query(RegistroHorario, Maquina, Produto).\
-        join(Maquina, RegistroHorario.maquina_id == Maquina.id).\
-        outerjoin(Produto, RegistroHorario.produto_id == Produto.id).\
-        filter(RegistroHorario.turno_id == turno_id).all()
+    registros = (
+        db.query(RegistroHorario, Maquina, Produto)
+        .join(Maquina, RegistroHorario.maquina_id == Maquina.id)
+        .outerjoin(Produto, RegistroHorario.produto_id == Produto.id)
+        .filter(RegistroHorario.turno_id == turno_id)
+        .all()
+    )
 
     return _kpis_a_partir_de_registros(registros)
 
@@ -153,9 +154,7 @@ def calcular_kpis_varios_turnos(db: Session, turno_ids: list[int]) -> dict[int, 
     """Calcula os KPIs de vários turnos em uma única query (em vez de uma
     query por turno), usado no histórico (GET /turnos/) para evitar N+1.
     Turnos sem nenhum registro entram no resultado com KPIs zerados."""
-    kpis_por_turno = {
-        turno_id: _kpis_a_partir_de_registros([]) for turno_id in turno_ids
-    }
+    kpis_por_turno = {turno_id: _kpis_a_partir_de_registros([]) for turno_id in turno_ids}
 
     if not turno_ids:
         return kpis_por_turno
@@ -211,9 +210,7 @@ def _duracao_segundos(lanc: Lancamento) -> int:
     return fim - inicio
 
 
-def calcular_capacidade_esperada_lancamento(
-    lanc: Lancamento, maq: Maquina, produto: Produto | None
-) -> int:
+def calcular_capacidade_esperada_lancamento(lanc: Lancamento, maq: Maquina, produto: Produto | None) -> int:
     """Capacidade teórica esperada de UM lançamento, com base na
     duração real do intervalo (não mais numa hora cheia fixa).
 
@@ -412,9 +409,7 @@ def calcular_kpis_varios_turnos_generico(db: Session, turnos: list) -> dict[int,
 
     resultado = calcular_kpis_varios_turnos(db, ids_horario)
 
-    kpis_lancamento = {
-        turno_id: _kpis_a_partir_de_lancamentos([]) for turno_id in ids_lancamento
-    }
+    kpis_lancamento = {turno_id: _kpis_a_partir_de_lancamentos([]) for turno_id in ids_lancamento}
     if ids_lancamento:
         lancamentos = (
             db.query(Lancamento, Maquina, Produto)

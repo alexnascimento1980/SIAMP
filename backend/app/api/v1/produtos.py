@@ -69,11 +69,7 @@ def atualizar_produto(
     # erro de digitação no cadastro original), mas confere que o novo
     # valor não colide com outra peça já existente.
     if "codigo" in dados_dict and dados_dict["codigo"] != produto.codigo:
-        colisao = (
-            db.query(Produto)
-            .filter(Produto.codigo == dados_dict["codigo"], Produto.id != produto_id)
-            .first()
-        )
+        colisao = db.query(Produto).filter(Produto.codigo == dados_dict["codigo"], Produto.id != produto_id).first()
         if colisao:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -110,17 +106,9 @@ def excluir_produto(
         )
 
     tem_registro_horario = (
-        db.query(RegistroHorario.id)
-        .filter(RegistroHorario.produto_id == produto_id)
-        .first()
-        is not None
+        db.query(RegistroHorario.id).filter(RegistroHorario.produto_id == produto_id).first() is not None
     )
-    tem_lancamento = (
-        db.query(Lancamento.id)
-        .filter(Lancamento.produto_id == produto_id)
-        .first()
-        is not None
-    )
+    tem_lancamento = db.query(Lancamento.id).filter(Lancamento.produto_id == produto_id).first() is not None
 
     if tem_registro_horario or tem_lancamento:
         raise HTTPException(

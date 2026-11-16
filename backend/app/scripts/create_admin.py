@@ -22,6 +22,7 @@ a cada `docker compose up`, sem precisar do comando acima):
     ADMIN_NOME="Admin" ADMIN_EMAIL="admin@empresa.com" ADMIN_SENHA="troque-esta-senha" \\
         docker compose exec -T backend_api python -m app.scripts.create_admin
 """
+
 import argparse
 import os
 import sys
@@ -40,8 +41,7 @@ def main() -> None:
 
     if not args.senha:
         print(
-            "[create_admin] Informe a senha via --senha ou variável de "
-            "ambiente ADMIN_SENHA.",
+            "[create_admin] Informe a senha via --senha ou variável de ambiente ADMIN_SENHA.",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -64,8 +64,7 @@ def main() -> None:
             if alteracoes:
                 db.commit()
                 print(
-                    f"[create_admin] Usuário '{args.email}' já existia (id={existente.id}) - "
-                    f"{', '.join(alteracoes)}."
+                    f"[create_admin] Usuário '{args.email}' já existia (id={existente.id}) - {', '.join(alteracoes)}."
                 )
             else:
                 print(
@@ -85,8 +84,7 @@ def main() -> None:
         db.add(usuario)
         db.commit()
         print(
-            f"[create_admin] Usuário admin '{args.email}' criado com sucesso, "
-            "já protegido contra exclusão/desativação."
+            f"[create_admin] Usuário admin '{args.email}' criado com sucesso, já protegido contra exclusão/desativação."
         )
     finally:
         db.close()

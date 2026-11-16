@@ -21,6 +21,7 @@ Uso (rodar de dentro de backend/):
 O arquivo gerado usa ON CONFLICT DO NOTHING, então é seguro rodar mais
 de uma vez sem duplicar registros já existentes no destino.
 """
+
 import os
 
 from sqlalchemy.orm import Session
@@ -84,10 +85,7 @@ def main() -> None:
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write("\n".join(blocos))
 
-    print(
-        f"[exportar_catalogos] {len(maquinas)} máquina(s) e {len(produtos)} "
-        f"peça(s) exportadas para {OUTPUT_FILE}"
-    )
+    print(f"[exportar_catalogos] {len(maquinas)} máquina(s) e {len(produtos)} peça(s) exportadas para {OUTPUT_FILE}")
 
 
 if __name__ == "__main__":

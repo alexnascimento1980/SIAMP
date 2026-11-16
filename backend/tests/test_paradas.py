@@ -1,4 +1,3 @@
-
 from app.core.security import gerar_hash_senha
 from app.models.maquina import Maquina
 from app.models.turno import Turno

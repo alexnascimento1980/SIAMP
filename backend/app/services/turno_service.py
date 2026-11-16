@@ -42,9 +42,7 @@ def buscar_registros_para_relatorio(db: Session, turno_id: int) -> list[dict]:
     )
     resultado = []
     for reg, maq, produto, ordem in registros:
-        esperado = round(
-            calcular_capacidade_esperada_registro(reg, maq, produto)["capacidade_ajustada"]
-        )
+        esperado = round(calcular_capacidade_esperada_registro(reg, maq, produto)["capacidade_ajustada"])
         # Mesma lógica do modelo de lançamentos (ver
         # lancamento_service.montar_registros_pdf_lancamento): produção
         # real aconteceu, mas sem ciclo/cavidades cadastrados não há
@@ -64,22 +62,22 @@ def buscar_registros_para_relatorio(db: Session, turno_id: int) -> list[dict]:
             ciclo_texto = f"ciclo cadastrado: {ciclo_padrao}s" if ciclo_padrao else "sem ciclo cadastrado"
             if reg.ciclo_informado:
                 ciclo_texto += f" (informado pelo operador: {reg.ciclo_informado}s)"
-            descricao_com_ciclo = (
-                f"{produto.descricao} ({ciclo_texto})" if produto else f"({ciclo_texto})"
-            )
+            descricao_com_ciclo = f"{produto.descricao} ({ciclo_texto})" if produto else f"({ciclo_texto})"
 
-        resultado.append({
-            "hora_referencia": reg.hora_referencia.strftime("%H:%M"),
-            "numero_maquina": maq.numero_maquina,
-            "produto_descricao": descricao_com_ciclo,
-            "numero_op": ordem.numero_op if ordem else None,
-            "prod_executada": reg.prod_executada,
-            "producao_esperada": esperado_exibicao,
-            "refugo": reg.refugo,
-            "inicio_parada": reg.inicio_parada.strftime("%H:%M") if reg.inicio_parada else None,
-            "retomada": reg.retomada.strftime("%H:%M") if reg.retomada else None,
-            "parada_programada": reg.parada_programada,
-        })
+        resultado.append(
+            {
+                "hora_referencia": reg.hora_referencia.strftime("%H:%M"),
+                "numero_maquina": maq.numero_maquina,
+                "produto_descricao": descricao_com_ciclo,
+                "numero_op": ordem.numero_op if ordem else None,
+                "prod_executada": reg.prod_executada,
+                "producao_esperada": esperado_exibicao,
+                "refugo": reg.refugo,
+                "inicio_parada": reg.inicio_parada.strftime("%H:%M") if reg.inicio_parada else None,
+                "retomada": reg.retomada.strftime("%H:%M") if reg.retomada else None,
+                "parada_programada": reg.parada_programada,
+            }
+        )
     return resultado
 
 
@@ -153,61 +151,81 @@ def exportar_registros_csv(
     saida = io.StringIO()
     saida.write("\ufeff")  # BOM - Excel reconhece UTF-8 com acentuação corretamente
     escritor = csv.writer(saida, delimiter=";")
-    escritor.writerow([
-        "data_turno", "nome_turno", "lider", "regulador", "modelo_apontamento",
-        "numero_maquina", "tipo", "horario_inicio", "horario_fim",
-        "produto_codigo", "produto_descricao", "numero_op",
-        "prod_executada", "producao_esperada", "ciclo_informado",
-        "parada_programada", "contador_parada", "contador_retomada", "motivo",
-    ])
+    escritor.writerow(
+        [
+            "data_turno",
+            "nome_turno",
+            "lider",
+            "regulador",
+            "modelo_apontamento",
+            "numero_maquina",
+            "tipo",
+            "horario_inicio",
+            "horario_fim",
+            "produto_codigo",
+            "produto_descricao",
+            "numero_op",
+            "prod_executada",
+            "producao_esperada",
+            "ciclo_informado",
+            "parada_programada",
+            "contador_parada",
+            "contador_retomada",
+            "motivo",
+        ]
+    )
 
     for reg, turno, maq, produto, ordem in registros:
         capacidade = calcular_capacidade_esperada_registro(reg, maq, produto)
-        escritor.writerow([
-            turno.data_registro.strftime("%d/%m/%Y"),
-            _sanitizar_campo_csv(turno.nome_turno),
-            _sanitizar_campo_csv(turno.responsavel_nome),
-            _sanitizar_campo_csv(turno.regulador_nome or ""),
-            "HORARIO",
-            maq.numero_maquina,
-            "HORA",
-            reg.hora_referencia.strftime("%H:%M"),
-            "",
-            produto.codigo if produto else "",
-            _sanitizar_campo_csv(produto.descricao if produto else ""),
-            ordem.numero_op if ordem else "",
-            reg.prod_executada,
-            round(capacidade["capacidade_ajustada"]),
-            reg.ciclo_informado or "",
-            "Sim" if reg.parada_programada else "Não",
-            reg.contador_parada if reg.contador_parada is not None else "",
-            reg.contador_retomada if reg.contador_retomada is not None else "",
-            _sanitizar_campo_csv(reg.motivo_parada or ""),
-        ])
+        escritor.writerow(
+            [
+                turno.data_registro.strftime("%d/%m/%Y"),
+                _sanitizar_campo_csv(turno.nome_turno),
+                _sanitizar_campo_csv(turno.responsavel_nome),
+                _sanitizar_campo_csv(turno.regulador_nome or ""),
+                "HORARIO",
+                maq.numero_maquina,
+                "HORA",
+                reg.hora_referencia.strftime("%H:%M"),
+                "",
+                produto.codigo if produto else "",
+                _sanitizar_campo_csv(produto.descricao if produto else ""),
+                ordem.numero_op if ordem else "",
+                reg.prod_executada,
+                round(capacidade["capacidade_ajustada"]),
+                reg.ciclo_informado or "",
+                "Sim" if reg.parada_programada else "Não",
+                reg.contador_parada if reg.contador_parada is not None else "",
+                reg.contador_retomada if reg.contador_retomada is not None else "",
+                _sanitizar_campo_csv(reg.motivo_parada or ""),
+            ]
+        )
 
     for lanc, turno, maq, produto, ordem in lancamentos:
         esperado = calcular_capacidade_esperada_lancamento(lanc, maq, produto)
-        escritor.writerow([
-            turno.data_registro.strftime("%d/%m/%Y"),
-            _sanitizar_campo_csv(turno.nome_turno),
-            _sanitizar_campo_csv(turno.responsavel_nome),
-            _sanitizar_campo_csv(turno.regulador_nome or ""),
-            "LANCAMENTO",
-            maq.numero_maquina,
-            lanc.tipo,
-            lanc.horario_inicio.strftime("%H:%M"),
-            lanc.horario_fim.strftime("%H:%M"),
-            produto.codigo if produto else "",
-            _sanitizar_campo_csv(produto.descricao if produto else ""),
-            ordem.numero_op if ordem else "",
-            lanc.quantidade if lanc.quantidade is not None else "",
-            esperado,
-            lanc.ciclo_informado or "",
-            "Sim" if lanc.tipo == "PARADA_PROGRAMADA" else "Não",
-            "",
-            "",
-            _sanitizar_campo_csv(lanc.motivo or ""),
-        ])
+        escritor.writerow(
+            [
+                turno.data_registro.strftime("%d/%m/%Y"),
+                _sanitizar_campo_csv(turno.nome_turno),
+                _sanitizar_campo_csv(turno.responsavel_nome),
+                _sanitizar_campo_csv(turno.regulador_nome or ""),
+                "LANCAMENTO",
+                maq.numero_maquina,
+                lanc.tipo,
+                lanc.horario_inicio.strftime("%H:%M"),
+                lanc.horario_fim.strftime("%H:%M"),
+                produto.codigo if produto else "",
+                _sanitizar_campo_csv(produto.descricao if produto else ""),
+                ordem.numero_op if ordem else "",
+                lanc.quantidade if lanc.quantidade is not None else "",
+                esperado,
+                lanc.ciclo_informado or "",
+                "Sim" if lanc.tipo == "PARADA_PROGRAMADA" else "Não",
+                "",
+                "",
+                _sanitizar_campo_csv(lanc.motivo or ""),
+            ]
+        )
 
     return saida.getvalue()
 

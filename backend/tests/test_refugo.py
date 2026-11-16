@@ -11,6 +11,7 @@ usuário em produção: uma peça real, CAPOT DV, pesa 0,0921g - menos de
 dezenas de peças descartadas. peso_gramas (peça) é um campo já
 existente no cadastro, reaproveitado aqui em vez de criar um segundo
 campo de peso duplicado."""
+
 from datetime import time
 
 from app.core.security import gerar_hash_senha
@@ -32,8 +33,11 @@ def _login(client, usuario):
 def _criar_maquina_e_peca_com_peso(db_session, peso_gramas=0.0921):
     maquina = Maquina(numero_maquina="1", descricao="Injetora 1", ativo=True)
     peca = Produto(
-        codigo="PL-REFUGO", descricao="Peça com peso cadastrado",
-        ciclo_padrao=10.0, cavidades=2, peso_gramas=peso_gramas,
+        codigo="PL-REFUGO",
+        descricao="Peça com peso cadastrado",
+        ciclo_padrao=10.0,
+        cavidades=2,
+        peso_gramas=peso_gramas,
     )
     db_session.add_all([maquina, peca])
     db_session.commit()
@@ -44,8 +48,11 @@ def _criar_maquina_e_peca_com_peso(db_session, peso_gramas=0.0921):
 
 def _lancamento_producao(**kwargs):
     padrao = dict(
-        tipo=TIPO_PRODUCAO, horario_inicio=time(22, 0), horario_fim=time(4, 0),
-        quantidade=1960, peso_bruto_descarte=None,
+        tipo=TIPO_PRODUCAO,
+        horario_inicio=time(22, 0),
+        horario_fim=time(4, 0),
+        quantidade=1960,
+        peso_bruto_descarte=None,
     )
     padrao.update(kwargs)
     return Lancamento(**padrao)
@@ -112,8 +119,11 @@ def test_parada_falha_nunca_calcula_refugo():
 
 def test_fechamento_com_descarte_calcula_qualidade_e_oee(client, db_session):
     admin = Usuario(
-        nome="Admin", email="admin-refugo@siamp.test",
-        senha_hash=gerar_hash_senha("senha-forte-123"), perfil="ADMIN", ativo=True,
+        nome="Admin",
+        email="admin-refugo@siamp.test",
+        senha_hash=gerar_hash_senha("senha-forte-123"),
+        perfil="ADMIN",
+        ativo=True,
     )
     db_session.add(admin)
     db_session.commit()
@@ -292,8 +302,10 @@ def test_pecas_boas_conta_o_turno_inteiro_nao_so_a_injetora_com_descarte(client,
     maquina1, peca_com_descarte = _criar_maquina_e_peca_com_peso(db_session, peso_gramas=0.0921)
     maquina2 = Maquina(numero_maquina="2", descricao="Injetora 2", ativo=True)
     peca_sem_descarte = Produto(
-        codigo="PL-SEM-DESCARTE", descricao="Peça sem descarte pesado nesse turno",
-        ciclo_padrao=20.0, cavidades=4,
+        codigo="PL-SEM-DESCARTE",
+        descricao="Peça sem descarte pesado nesse turno",
+        ciclo_padrao=20.0,
+        cavidades=4,
     )
     db_session.add_all([maquina2, peca_sem_descarte])
     db_session.commit()
@@ -386,9 +398,13 @@ def test_relatorio_op_pdf_mostra_meta_real_refugo(client, db_session, usuario_te
     maquina, peca = _criar_maquina_e_peca_com_peso(db_session, peso_gramas=0.0921)
 
     op = OrdemProducao(
-        numero_op="OP-REFUGO-1", produto_id=peca.id, produto_codigo=peca.codigo,
-        produto_descricao=peca.descricao, quantidade_a_produzir=5000,
-        periodo_inicio=date(2026, 1, 1), periodo_fim=date(2026, 12, 31),
+        numero_op="OP-REFUGO-1",
+        produto_id=peca.id,
+        produto_codigo=peca.codigo,
+        produto_descricao=peca.descricao,
+        quantidade_a_produzir=5000,
+        periodo_inicio=date(2026, 1, 1),
+        periodo_fim=date(2026, 12, 31),
         maquina_id=maquina.id,
     )
     db_session.add(op)
@@ -438,9 +454,13 @@ def test_relatorio_op_pdf_acessivel_a_supervisor_e_operador(client, db_session, 
 
     peca = _criar_maquina_e_peca_com_peso(db_session)[1]
     op = OrdemProducao(
-        numero_op="OP-ACESSO-1", produto_id=peca.id, produto_codigo=peca.codigo,
-        produto_descricao=peca.descricao, quantidade_a_produzir=100,
-        periodo_inicio=date(2026, 1, 1), periodo_fim=date(2026, 12, 31),
+        numero_op="OP-ACESSO-1",
+        produto_id=peca.id,
+        produto_codigo=peca.codigo,
+        produto_descricao=peca.descricao,
+        quantidade_a_produzir=100,
+        periodo_inicio=date(2026, 1, 1),
+        periodo_fim=date(2026, 12, 31),
     )
     db_session.add(op)
     db_session.commit()
@@ -459,9 +479,13 @@ def test_dashboard_comparativo_op_inclui_refugo(client, db_session, usuario_test
     maquina, peca = _criar_maquina_e_peca_com_peso(db_session, peso_gramas=0.0921)
 
     op = OrdemProducao(
-        numero_op="OP-DASH-1", produto_id=peca.id, produto_codigo=peca.codigo,
-        produto_descricao=peca.descricao, quantidade_a_produzir=5000,
-        periodo_inicio=date(2026, 1, 1), periodo_fim=date(2026, 12, 31),
+        numero_op="OP-DASH-1",
+        produto_id=peca.id,
+        produto_codigo=peca.codigo,
+        produto_descricao=peca.descricao,
+        quantidade_a_produzir=5000,
+        periodo_inicio=date(2026, 1, 1),
+        periodo_fim=date(2026, 12, 31),
     )
     db_session.add(op)
     db_session.commit()
@@ -489,8 +513,6 @@ def test_dashboard_comparativo_op_inclui_refugo(client, db_session, usuario_test
 
     res = client.get("/api/v1/dashboard/metricas-gerais?periodo=total")
     assert res.status_code == 200
-    comparativo = next(
-        c for c in res.json()["comparativo_ordens_producao"] if c["numero_op"] == "OP-DASH-1"
-    )
+    comparativo = next(c for c in res.json()["comparativo_ordens_producao"] if c["numero_op"] == "OP-DASH-1")
     assert comparativo["quantidade_refugo"] == 20
     assert comparativo["id"] == op.id

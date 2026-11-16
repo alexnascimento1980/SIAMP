@@ -1,4 +1,3 @@
-
 from datetime import date, datetime
 
 from helpers_horario import criar_turno_horario
@@ -53,7 +52,6 @@ def test_fechamento_com_lancamento_de_producao(client, db_session, usuario_teste
     assert dados["kpis"]["total_esperado"] == 1800
     assert dados["kpis"]["total_produzido"] == 500
     assert dados["status_assinatura"] == "ASSINADO_DIGITALMENTE"
-
 
 
 def test_fechamento_do_3o_turno_de_madrugada_usa_data_do_dia_anterior(client, db_session, usuario_teste, monkeypatch):
@@ -126,6 +124,7 @@ def test_fechamento_do_1o_turno_nao_sofre_ajuste_de_data(client, db_session, usu
 
     turno = db_session.query(Turno).filter(Turno.id == turno_id).first()
     assert turno.data_registro.date() == date(2026, 9, 15)
+
 
 def test_horario_fim_igual_ao_inicio_e_rejeitado(client, db_session, usuario_teste):
     _login(client, usuario_teste)
@@ -365,9 +364,7 @@ def test_turnos_horario_e_lancamento_juntos_no_historico(client, db_session, usu
         {
             "nome_turno": "1º Turno",
             "responsavel_nome": "Líder Teste",
-            "registros": [
-                {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 50}
-            ],
+            "registros": [{"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 50}],
         },
     )
     # Turno modelo novo (lançamento)
@@ -454,23 +451,15 @@ def test_pdf_inclui_observacoes_gerais_do_turno(client, db_session, usuario_test
         ],
     }
 
-    turno_sem_obs_id = client.post(
-        "/api/v1/turnos/lancamento", json=payload_base
-    ).json()["turno_id"]
-    tamanho_sem_obs = len(
-        client.get(f"/api/v1/turnos/{turno_sem_obs_id}/relatorio.pdf").content
-    )
+    turno_sem_obs_id = client.post("/api/v1/turnos/lancamento", json=payload_base).json()["turno_id"]
+    tamanho_sem_obs = len(client.get(f"/api/v1/turnos/{turno_sem_obs_id}/relatorio.pdf").content)
 
     payload_com_obs = {
         **payload_base,
         "observacoes": "Troca de molde às 06:30 - parada de 15 minutos não registrada como falha.",
     }
-    turno_com_obs_id = client.post(
-        "/api/v1/turnos/lancamento", json=payload_com_obs
-    ).json()["turno_id"]
-    tamanho_com_obs = len(
-        client.get(f"/api/v1/turnos/{turno_com_obs_id}/relatorio.pdf").content
-    )
+    turno_com_obs_id = client.post("/api/v1/turnos/lancamento", json=payload_com_obs).json()["turno_id"]
+    tamanho_com_obs = len(client.get(f"/api/v1/turnos/{turno_com_obs_id}/relatorio.pdf").content)
 
     assert tamanho_com_obs > tamanho_sem_obs
 
@@ -607,9 +596,7 @@ def test_pdf_inclui_observacoes_apos_fluxo_rascunho_editar_fechar(client, db_ses
         "/api/v1/turnos/lancamento",
         json={"nome_turno": "1º Turno", "responsavel_nome": "Líder Teste", **payload_lancamentos},
     ).json()["turno_id"]
-    tamanho_sem_obs = len(
-        client.get(f"/api/v1/turnos/{turno_controle_id}/relatorio.pdf").content
-    )
+    tamanho_sem_obs = len(client.get(f"/api/v1/turnos/{turno_controle_id}/relatorio.pdf").content)
 
     assert tamanho_com_obs > tamanho_sem_obs
 
@@ -928,8 +915,11 @@ def test_parada_falha_reduz_indice_producao_no_modelo_lancamento(client, db_sess
     # parada não programada.
     _login(client, usuario_teste)
     maquina = Maquina(
-        numero_maquina="1", descricao="Injetora 1", ativo=True,
-        ciclo_padrao=10.0, cavidades=2,
+        numero_maquina="1",
+        descricao="Injetora 1",
+        ativo=True,
+        ciclo_padrao=10.0,
+        cavidades=2,
     )
     peca = Produto(codigo="PL1", descricao="Peça Lançamento", ciclo_padrao=10.0, cavidades=2)
     db_session.add_all([maquina, peca])
@@ -979,8 +969,11 @@ def test_parada_programada_continua_sem_penalizar_indice_no_modelo_lancamento(cl
     # esperado - não é justo penalizar o turno por algo planejado.
     _login(client, usuario_teste)
     maquina = Maquina(
-        numero_maquina="1", descricao="Injetora 1", ativo=True,
-        ciclo_padrao=10.0, cavidades=2,
+        numero_maquina="1",
+        descricao="Injetora 1",
+        ativo=True,
+        ciclo_padrao=10.0,
+        cavidades=2,
     )
     peca = Produto(codigo="PL1", descricao="Peça Lançamento", ciclo_padrao=10.0, cavidades=2)
     db_session.add_all([maquina, peca])
@@ -1067,8 +1060,11 @@ def test_pdf_linha_de_falha_mostra_esperado_consistente_com_total(client, db_ses
     # com "Produção Esperada" do cabeçalho do relatório.
     _login(client, usuario_teste)
     maquina = Maquina(
-        numero_maquina="1", descricao="Injetora 1", ativo=True,
-        ciclo_padrao=10.0, cavidades=2,
+        numero_maquina="1",
+        descricao="Injetora 1",
+        ativo=True,
+        ciclo_padrao=10.0,
+        cavidades=2,
     )
     peca = Produto(codigo="PL1", descricao="Peça Lançamento", ciclo_padrao=10.0, cavidades=2)
     db_session.add_all([maquina, peca])
@@ -1116,8 +1112,11 @@ def test_pdf_linha_de_falha_mostra_esperado_consistente_com_total(client, db_ses
 def test_pdf_linha_de_parada_programada_continua_mostrando_zero(client, db_session, usuario_teste):
     _login(client, usuario_teste)
     maquina = Maquina(
-        numero_maquina="1", descricao="Injetora 1", ativo=True,
-        ciclo_padrao=10.0, cavidades=2,
+        numero_maquina="1",
+        descricao="Injetora 1",
+        ativo=True,
+        ciclo_padrao=10.0,
+        cavidades=2,
     )
     db_session.add(maquina)
     db_session.commit()

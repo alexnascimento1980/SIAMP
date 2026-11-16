@@ -38,8 +38,7 @@ def _resolver_maquina(db: Session, numero_maquina: str | None) -> Maquina | None
             return maquina
 
     raise ValueError(
-        f"Máquina '{numero_maquina}' não encontrada. Cadastre-a em "
-        "Máquinas antes de vincular a uma Ordem de Produção."
+        f"Máquina '{numero_maquina}' não encontrada. Cadastre-a em Máquinas antes de vincular a uma Ordem de Produção."
     )
 
 
@@ -54,8 +53,7 @@ def _resolver_produto(db: Session, produto_id: int | None) -> Produto | None:
     produto = db.query(Produto).filter(Produto.id == produto_id).first()
     if produto is None:
         raise ValueError(
-            f"Peça (id={produto_id}) não encontrada. Cadastre-a em Peças "
-            "antes de vincular a uma Ordem de Produção."
+            f"Peça (id={produto_id}) não encontrada. Cadastre-a em Peças antes de vincular a uma Ordem de Produção."
         )
     return produto
 
@@ -95,12 +93,8 @@ def montar_response_ordem(ordem: OrdemProducao) -> OrdemProducaoResponse:
     )
 
 
-def criar_ordem_producao(
-    db: Session, dados: OrdemProducaoCreate, usuario_id: int
-) -> OrdemProducaoResponse:
-    ja_existe = (
-        db.query(OrdemProducao).filter(OrdemProducao.numero_op == dados.numero_op).first()
-    )
+def criar_ordem_producao(db: Session, dados: OrdemProducaoCreate, usuario_id: int) -> OrdemProducaoResponse:
+    ja_existe = db.query(OrdemProducao).filter(OrdemProducao.numero_op == dados.numero_op).first()
     if ja_existe:
         raise ValueError("Já existe uma Ordem de Produção cadastrada com este número.")
 
@@ -123,9 +117,7 @@ def criar_ordem_producao(
     return montar_response_ordem(nova)
 
 
-def atualizar_ordem_producao(
-    db: Session, ordem_id: int, dados: OrdemProducaoUpdate
-) -> OrdemProducaoResponse:
+def atualizar_ordem_producao(db: Session, ordem_id: int, dados: OrdemProducaoUpdate) -> OrdemProducaoResponse:
     ordem = db.query(OrdemProducao).filter(OrdemProducao.id == ordem_id).first()
     if ordem is None:
         raise ValueError("Ordem de Produção não encontrada.")
@@ -217,16 +209,11 @@ def calcular_comparativo(db: Session, ordem_id: int) -> OrdemProducaoComparativo
         .filter(Turno.marcado_teste.is_(False))
         .all()
     )
-    refugo_lancamento = sum(
-        calcular_refugo_lancamento(lanc, produto) or 0
-        for lanc, produto in lancamentos_com_peca
-    )
+    refugo_lancamento = sum(calcular_refugo_lancamento(lanc, produto) or 0 for lanc, produto in lancamentos_com_peca)
     quantidade_refugo = int(refugo_horario or 0) + refugo_lancamento
 
     percentual = (
-        round((quantidade_produzida / ordem.quantidade_a_produzir) * 100, 1)
-        if ordem.quantidade_a_produzir
-        else 0.0
+        round((quantidade_produzida / ordem.quantidade_a_produzir) * 100, 1) if ordem.quantidade_a_produzir else 0.0
     )
 
     return OrdemProducaoComparativo(

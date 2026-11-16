@@ -18,8 +18,11 @@ def _login(client, usuario):
 
 def _criar_admin(db_session, email="admin-extracao@siamp.test"):
     admin = Usuario(
-        nome="Admin Teste", email=email,
-        senha_hash=gerar_hash_senha("senha-forte-123"), perfil="ADMIN", ativo=True,
+        nome="Admin Teste",
+        email=email,
+        senha_hash=gerar_hash_senha("senha-forte-123"),
+        perfil="ADMIN",
+        ativo=True,
     )
     db_session.add(admin)
     db_session.commit()

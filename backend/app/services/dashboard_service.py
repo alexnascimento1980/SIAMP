@@ -104,9 +104,7 @@ def calcular_metricas_acumuladas(
         }
 
     total_pecas_horario = (
-        db.query(func.sum(RegistroHorario.prod_executada))
-        .filter(RegistroHorario.turno_id.in_(ids_turnos))
-        .scalar()
+        db.query(func.sum(RegistroHorario.prod_executada)).filter(RegistroHorario.turno_id.in_(ids_turnos)).scalar()
         or 0
     )
     total_pecas_lancamento = (
@@ -143,9 +141,7 @@ def calcular_metricas_acumuladas(
     producao_horario_por_maquina = dict(
         db.query(
             Maquina.numero_maquina,
-            func.sum(
-                case((RegistroHorario.turno_id.in_(ids_turnos), RegistroHorario.prod_executada), else_=0)
-            ),
+            func.sum(case((RegistroHorario.turno_id.in_(ids_turnos), RegistroHorario.prod_executada), else_=0)),
         )
         .outerjoin(RegistroHorario, Maquina.id == RegistroHorario.maquina_id)
         .group_by(Maquina.numero_maquina)
@@ -228,10 +224,7 @@ def montar_comparativo_ordens_producao(db: Session) -> list[dict]:
     (HORARIO e LANCAMENTO) - uma OP pode ser atendida por turnos dos
     dois tipos ao longo do tempo."""
     ordens = (
-        db.query(OrdemProducao)
-        .order_by(OrdemProducao.periodo_inicio.desc())
-        .limit(LIMITE_ORDENS_COMPARATIVO)
-        .all()
+        db.query(OrdemProducao).order_by(OrdemProducao.periodo_inicio.desc()).limit(LIMITE_ORDENS_COMPARATIVO).all()
     )
     if not ordens:
         return []
@@ -303,23 +296,23 @@ def montar_comparativo_ordens_producao(db: Session) -> list[dict]:
     for lanc, produto in lancamentos_com_peca:
         refugo_lanc = calcular_refugo_lancamento(lanc, produto)
         if refugo_lanc:
-            refugo_por_ordem[lanc.ordem_producao_id] = (
-                refugo_por_ordem.get(lanc.ordem_producao_id, 0) + refugo_lanc
-            )
+            refugo_por_ordem[lanc.ordem_producao_id] = refugo_por_ordem.get(lanc.ordem_producao_id, 0) + refugo_lanc
 
     resultado = []
     for o in ordens:
         produzido = producao_por_ordem.get(o.id, 0)
         percentual = round(produzido / o.quantidade_a_produzir * 100, 1) if o.quantidade_a_produzir else 0.0
-        resultado.append({
-            "id": o.id,
-            "numero_op": o.numero_op,
-            "produto_descricao": o.produto_descricao,
-            "quantidade_meta": o.quantidade_a_produzir,
-            "quantidade_produzida": produzido,
-            "quantidade_refugo": refugo_por_ordem.get(o.id, 0),
-            "percentual_atingido": percentual,
-        })
+        resultado.append(
+            {
+                "id": o.id,
+                "numero_op": o.numero_op,
+                "produto_descricao": o.produto_descricao,
+                "quantidade_meta": o.quantidade_a_produzir,
+                "quantidade_produzida": produzido,
+                "quantidade_refugo": refugo_por_ordem.get(o.id, 0),
+                "percentual_atingido": percentual,
+            }
+        )
     return resultado
 
 
@@ -353,9 +346,7 @@ def montar_diagnostico_ia(db: Session) -> dict:
     ciclo_efetivo = lanc.ciclo_informado or (produto.ciclo_padrao if produto else None) or maq.ciclo_padrao
     cavidades_efetivas = (produto.cavidades if produto else None) or maq.cavidades
 
-    inicio_seg = (
-        lanc.horario_inicio.hour * 3600 + lanc.horario_inicio.minute * 60 + lanc.horario_inicio.second
-    )
+    inicio_seg = lanc.horario_inicio.hour * 3600 + lanc.horario_inicio.minute * 60 + lanc.horario_inicio.second
     fim_seg = lanc.horario_fim.hour * 3600 + lanc.horario_fim.minute * 60 + lanc.horario_fim.second
     if fim_seg <= inicio_seg:
         fim_seg += 24 * 3600

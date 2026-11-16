@@ -74,10 +74,7 @@ def alterar_status_usuario(
     if alvo.protegido and not dados.ativo:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                f"'{alvo.nome}' está marcada como conta protegida - "
-                "remova a proteção antes de desativar."
-            ),
+            detail=(f"'{alvo.nome}' está marcada como conta protegida - remova a proteção antes de desativar."),
         )
 
     alvo.ativo = dados.ativo
@@ -131,10 +128,7 @@ def alterar_perfil_usuario(
     if alvo.protegido and novo_perfil != alvo.perfil:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                f"'{alvo.nome}' está marcada como conta protegida - "
-                "remova a proteção antes de alterar o perfil."
-            ),
+            detail=(f"'{alvo.nome}' está marcada como conta protegida - remova a proteção antes de alterar o perfil."),
         )
 
     alvo.perfil = novo_perfil
@@ -173,10 +167,7 @@ def excluir_usuario(
     if alvo.protegido:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                f"'{alvo.nome}' está marcada como conta protegida - "
-                "remova a proteção antes de excluir."
-            ),
+            detail=(f"'{alvo.nome}' está marcada como conta protegida - remova a proteção antes de excluir."),
         )
 
     db.delete(alvo)
@@ -249,10 +240,7 @@ def resetar_senha_usuario(
     if alvo.protegido and alvo.id != usuario_atual.id:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                f"'{alvo.nome}' está marcada como conta protegida - "
-                "remova a proteção antes de resetar a senha."
-            ),
+            detail=(f"'{alvo.nome}' está marcada como conta protegida - remova a proteção antes de resetar a senha."),
         )
 
     alvo.senha_hash = gerar_hash_senha(dados.nova_senha)

@@ -70,8 +70,7 @@ async def _ler_upload_limitado(arquivo: UploadFile) -> bytes:
         if total > _TAMANHO_MAXIMO_UPLOAD:
             raise HTTPException(
                 status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-                detail=f"Arquivo maior que o limite permitido "
-                f"({_TAMANHO_MAXIMO_UPLOAD // (1024 * 1024)} MB).",
+                detail=f"Arquivo maior que o limite permitido ({_TAMANHO_MAXIMO_UPLOAD // (1024 * 1024)} MB).",
             )
         pedacos.append(pedaco)
     return b"".join(pedacos)
@@ -97,11 +96,7 @@ def listar_ordens_producao(
     """Lista as Ordens de Produção cadastradas, mais recentes primeiro.
     Leitura liberada para qualquer usuário logado (base para os
     dashboards de acompanhamento)."""
-    ordens = (
-        db.query(OrdemProducao)
-        .order_by(OrdemProducao.periodo_inicio.desc())
-        .all()
-    )
+    ordens = db.query(OrdemProducao).order_by(OrdemProducao.periodo_inicio.desc()).all()
     return [montar_response_ordem(o) for o in ordens]
 
 
@@ -131,9 +126,7 @@ def obter_comparativo(
     try:
         return calcular_comparativo(db, ordem_id)
     except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @router.get("/{ordem_id}/relatorio.pdf")
@@ -150,9 +143,7 @@ def baixar_relatorio_op(
     try:
         comparativo = calcular_comparativo(db, ordem_id)
     except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
     pdf_bytes = gerar_relatorio_op_pdf(comparativo.model_dump())
     nome_arquivo = f"relatorio_op_{comparativo.numero_op}.pdf"
@@ -172,11 +163,7 @@ def criar_ordem(
     try:
         return criar_ordem_producao(db, dados, usuario.id)
     except ValueError as exc:
-        status_code = (
-            status.HTTP_409_CONFLICT
-            if "já existe" in str(exc).lower()
-            else status.HTTP_400_BAD_REQUEST
-        )
+        status_code = status.HTTP_409_CONFLICT if "já existe" in str(exc).lower() else status.HTTP_400_BAD_REQUEST
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
 
 
@@ -190,11 +177,7 @@ def editar_ordem(
     try:
         return atualizar_ordem_producao(db, ordem_id, dados)
     except ValueError as exc:
-        status_code = (
-            status.HTTP_404_NOT_FOUND
-            if "não encontrada" in str(exc)
-            else status.HTTP_400_BAD_REQUEST
-        )
+        status_code = status.HTTP_404_NOT_FOUND if "não encontrada" in str(exc) else status.HTTP_400_BAD_REQUEST
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
 
 

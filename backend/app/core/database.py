@@ -5,15 +5,13 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+psycopg2://siamp_user:siamp_password@localhost:5432/siamp_db"
-)
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg2://siamp_user:siamp_password@localhost:5432/siamp_db")
 
 # pool_size/max_overflow são específicos do QueuePool (usado em Postgres) e
 # quebram a criação da engine em SQLite (usado nos testes, que roda com
 # SingletonThreadPool/StaticPool). Por isso só são aplicados fora do SQLite.
 _eh_sqlite = DATABASE_URL.startswith("sqlite")
+
 
 def _inteiro_do_ambiente(nome: str, padrao: int) -> int:
     try:
@@ -52,9 +50,7 @@ Base = declarative_base()
 # ficavam todas bloqueadas esperando conexão enquanto os pedidos que já
 # tinham conexão esperavam uma thread para terminar - um impasse que só se
 # desfazia no pool_timeout (30 s) e terminava em erro 500.
-_LIMITE_SESSOES = None if _eh_sqlite else (
-    _engine_kwargs["pool_size"] + _engine_kwargs["max_overflow"]
-) or None
+_LIMITE_SESSOES = None if _eh_sqlite else (_engine_kwargs["pool_size"] + _engine_kwargs["max_overflow"]) or None
 _semaforo_sessoes: asyncio.Semaphore | None = None
 
 

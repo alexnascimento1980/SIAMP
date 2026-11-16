@@ -73,9 +73,7 @@ def _payload_op_exemplo(produto_id, **overrides):
 
 
 def _seed_maquina(db_session, numero="6"):
-    maquina = Maquina(
-        numero_maquina=numero, descricao="Injetora de teste", cavidades=8, ciclo_padrao=19.0
-    )
+    maquina = Maquina(numero_maquina=numero, descricao="Injetora de teste", cavidades=8, ciclo_padrao=19.0)
     db_session.add(maquina)
     db_session.commit()
     db_session.refresh(maquina)
@@ -107,9 +105,7 @@ def test_criar_ordem_resolve_maquina_com_zero_a_esquerda(client, db_session):
     # A OP impressa mostra "06", mas a máquina cadastrada é "6" - o
     # sistema precisa resolver essa normalização automaticamente.
     admin = _criar_admin(db_session)
-    db_session.add(
-        Maquina(numero_maquina="6", descricao="Injetora 06-120T", cavidades=8, ciclo_padrao=19.0)
-    )
+    db_session.add(Maquina(numero_maquina="6", descricao="Injetora 06-120T", cavidades=8, ciclo_padrao=19.0))
     db_session.commit()
     produto = _seed_produto(db_session)
 
@@ -136,9 +132,7 @@ def test_periodo_fim_antes_do_inicio_e_rejeitado(client, db_session):
     _seed_maquina(db_session)
     produto = _seed_produto(db_session)
     _login(client, admin)
-    payload = _payload_op_exemplo(
-        produto.id, periodo_inicio="2026-08-20", periodo_fim="2026-08-18"
-    )
+    payload = _payload_op_exemplo(produto.id, periodo_inicio="2026-08-20", periodo_fim="2026-08-18")
     res = client.post("/api/v1/ordens-producao/", json=payload)
     assert res.status_code == 422
 
@@ -160,16 +154,12 @@ def test_editar_ordem_inexistente_retorna_404(client, db_session):
 
 def test_comparativo_sem_producao_real(client, db_session):
     admin = _criar_admin(db_session)
-    db_session.add(
-        Maquina(numero_maquina="6", descricao="Injetora", cavidades=8, ciclo_padrao=19.0)
-    )
+    db_session.add(Maquina(numero_maquina="6", descricao="Injetora", cavidades=8, ciclo_padrao=19.0))
     db_session.commit()
     produto = _seed_produto(db_session)
 
     _login(client, admin)
-    ordem_id = client.post(
-        "/api/v1/ordens-producao/", json=_payload_op_exemplo(produto.id)
-    ).json()["id"]
+    ordem_id = client.post("/api/v1/ordens-producao/", json=_payload_op_exemplo(produto.id)).json()["id"]
 
     res = client.get(f"/api/v1/ordens-producao/{ordem_id}/comparativo")
     assert res.status_code == 200
@@ -192,16 +182,12 @@ def test_dentro_do_prazo_usa_horario_de_brasilia_nao_utc(client, db_session, mon
     import app.services.ordem_producao_service as modulo
 
     admin = _criar_admin(db_session)
-    db_session.add(
-        Maquina(numero_maquina="6", descricao="Injetora", cavidades=8, ciclo_padrao=19.0)
-    )
+    db_session.add(Maquina(numero_maquina="6", descricao="Injetora", cavidades=8, ciclo_padrao=19.0))
     db_session.commit()
     produto = _seed_produto(db_session)
 
     _login(client, admin)
-    ordem_id = client.post(
-        "/api/v1/ordens-producao/", json=_payload_op_exemplo(produto.id)
-    ).json()["id"]
+    ordem_id = client.post("/api/v1/ordens-producao/", json=_payload_op_exemplo(produto.id)).json()["id"]
 
     # periodo_fim = 2026-08-20 - ainda dentro do prazo
     monkeypatch.setattr(modulo, "agora_brasilia", lambda: datetime(2026, 8, 20, 10, 0))
@@ -229,9 +215,7 @@ def test_comparativo_soma_producao_de_multiplas_maquinas(client, db_session):
     outro_produto = _seed_produto(db_session, codigo="OUTRO-COD")
 
     _login(client, admin)
-    ordem_id = client.post(
-        "/api/v1/ordens-producao/", json=_payload_op_exemplo(produto.id)
-    ).json()["id"]
+    ordem_id = client.post("/api/v1/ordens-producao/", json=_payload_op_exemplo(produto.id)).json()["id"]
 
     # Outra OP, para confirmar que não entra na soma.
     outra_ordem_id = client.post(
@@ -334,16 +318,25 @@ def test_comparativo_soma_producao_do_modelo_lancamento(client, db_session):
     ).json()["id"]
 
     turno = Turno(
-        nome_turno="1º Turno", responsavel_nome="Teste",
-        status_assinatura="ASSINADO_DIGITALMENTE", modelo_apontamento="LANCAMENTO",
+        nome_turno="1º Turno",
+        responsavel_nome="Teste",
+        status_assinatura="ASSINADO_DIGITALMENTE",
+        modelo_apontamento="LANCAMENTO",
     )
     db_session.add(turno)
     db_session.flush()
-    db_session.add(Lancamento(
-        turno_id=turno.id, maquina_id=maquina.id, tipo="PRODUCAO",
-        horario_inicio=time(5, 0), horario_fim=time(6, 0),
-        produto_id=produto.id, quantidade=8000, ordem_producao_id=ordem_id,
-    ))
+    db_session.add(
+        Lancamento(
+            turno_id=turno.id,
+            maquina_id=maquina.id,
+            tipo="PRODUCAO",
+            horario_inicio=time(5, 0),
+            horario_fim=time(6, 0),
+            produto_id=produto.id,
+            quantidade=8000,
+            ordem_producao_id=ordem_id,
+        )
+    )
     db_session.commit()
 
     res = client.get(f"/api/v1/ordens-producao/{ordem_id}/comparativo")
@@ -366,15 +359,22 @@ def test_comparativo_exclui_turno_marcado_como_teste(client, db_session):
     ).json()["id"]
 
     turno = Turno(
-        nome_turno="1º Turno", responsavel_nome="Teste",
-        status_assinatura="ASSINADO_DIGITALMENTE", marcado_teste=True,
+        nome_turno="1º Turno",
+        responsavel_nome="Teste",
+        status_assinatura="ASSINADO_DIGITALMENTE",
+        marcado_teste=True,
     )
     db_session.add(turno)
     db_session.flush()
-    db_session.add(RegistroHorario(
-        turno_id=turno.id, maquina_id=maquina.id, hora_referencia=time(8, 0),
-        prod_executada=10000, ordem_producao_id=ordem_id,
-    ))
+    db_session.add(
+        RegistroHorario(
+            turno_id=turno.id,
+            maquina_id=maquina.id,
+            hora_referencia=time(8, 0),
+            prod_executada=10000,
+            ordem_producao_id=ordem_id,
+        )
+    )
     db_session.commit()
 
     res = client.get(f"/api/v1/ordens-producao/{ordem_id}/comparativo")

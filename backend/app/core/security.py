@@ -17,17 +17,13 @@ def gerar_hash_senha(senha_texto: str) -> str:
 
 
 def criar_access_token(subject: str, perfil: str, versao: int = 0) -> str:
-    expira_em = datetime.now(UTC) + timedelta(
-        minutes=settings.jwt_expires_minutes
-    )
+    expira_em = datetime.now(UTC) + timedelta(minutes=settings.jwt_expires_minutes)
     payload = {"sub": subject, "perfil": perfil, "tv": versao, "exp": expira_em}
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 
 def decodificar_access_token(token: str) -> dict | None:
     try:
-        return jwt.decode(
-            token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm]
-        )
+        return jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
     except jwt.PyJWTError:
         return None

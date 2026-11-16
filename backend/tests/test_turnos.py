@@ -110,9 +110,7 @@ def test_fechamento_com_peca_e_parada_programada(client, db_session, usuario_tes
     assert kpis["minutos_parados_nao_programados"] == 0
 
     detalhe = client.get(f"/api/v1/turnos/{turno_id}").json()
-    reg_com_parada = next(
-        r for r in detalhe["registros"] if r["hora_referencia"] == "06:00"
-    )
+    reg_com_parada = next(r for r in detalhe["registros"] if r["hora_referencia"] == "06:00")
     assert reg_com_parada["produto_codigo"] == "PX"
     assert reg_com_parada["produto_descricao"] == "Peça de teste"
     assert reg_com_parada["parada_programada"] is True
@@ -121,7 +119,6 @@ def test_fechamento_com_peca_e_parada_programada(client, db_session, usuario_tes
     assert pdf_res.status_code == 200
     assert pdf_res.headers["content-type"] == "application/pdf"
     assert pdf_res.content[:4] == b"%PDF"
-
 
 
 def test_fechamento_do_3o_turno_horario_de_madrugada_usa_data_anterior(client, db_session, usuario_teste, monkeypatch):
@@ -159,6 +156,7 @@ def test_fechamento_do_3o_turno_horario_de_madrugada_usa_data_anterior(client, d
 
     turno = db_session.query(Turno).filter(Turno.id == turno_id).first()
     assert turno.data_registro.date() == date(2026, 9, 14)
+
 
 def test_parada_programada_sem_inicio_e_rejeitada(client, db_session, usuario_teste):
     _login(client, usuario_teste)
@@ -254,9 +252,11 @@ def test_reenviar_email_bem_sucedido_com_smtp_configurado(client, db_session, us
         brevo_api_key="",
         report_recipients=["gerente@empresa.com"],
     )
-    with patch("app.services.relatorio_email_service.settings", fake_settings), patch(
-        "app.services.mailer.settings", fake_settings
-    ), patch("smtplib.SMTP") as mock_smtp:
+    with (
+        patch("app.services.relatorio_email_service.settings", fake_settings),
+        patch("app.services.mailer.settings", fake_settings),
+        patch("smtplib.SMTP") as mock_smtp,
+    ):
         mock_smtp.return_value.__enter__.return_value = mock_smtp.return_value
         res = client.post(f"/api/v1/turnos/{turno_id}/reenviar-email")
 
@@ -378,9 +378,7 @@ def test_montar_nome_arquivo_relatorio():
 
     from app.services.relatorio_email_service import montar_nome_arquivo_relatorio
 
-    nome = montar_nome_arquivo_relatorio(
-        "1º Turno (05:00 - 13:00)", datetime(2026, 8, 19)
-    )
+    nome = montar_nome_arquivo_relatorio("1º Turno (05:00 - 13:00)", datetime(2026, 8, 19))
     assert nome == "relatorio_1-turno_19-08-2026.pdf"
 
 
@@ -431,9 +429,11 @@ def test_assunto_do_email_inclui_data_dd_mm_aa(client, db_session, usuario_teste
         brevo_api_key="",
         report_recipients=["gerente@empresa.com"],
     )
-    with patch("app.services.relatorio_email_service.settings", fake_settings), patch(
-        "app.services.mailer.settings", fake_settings
-    ), patch("smtplib.SMTP") as mock_smtp:
+    with (
+        patch("app.services.relatorio_email_service.settings", fake_settings),
+        patch("app.services.mailer.settings", fake_settings),
+        patch("smtplib.SMTP") as mock_smtp,
+    ):
         mock_smtp.return_value.__enter__.return_value = mock_smtp.return_value
         res = client.post(f"/api/v1/turnos/{turno_id}/reenviar-email")
 
@@ -530,9 +530,7 @@ def test_corrigir_turno_antigo_fechado_continua_funcionando(client, db_session):
         {
             "nome_turno": "1º Turno",
             "responsavel_nome": "Líder Teste",
-            "registros": [
-                {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 50}
-            ],
+            "registros": [{"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 50}],
         },
     )
     admin = _criar_admin(db_session, "admin-corrige-legado@siamp.test")
@@ -565,9 +563,7 @@ def test_rascunho_antigo_por_hora_nao_pode_mais_ser_corrigido(client, db_session
     payload = {
         "nome_turno": "1º Turno",
         "responsavel_nome": "Líder Teste",
-        "registros": [
-            {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 50}
-        ],
+        "registros": [{"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 50}],
     }
     turno = criar_turno_horario(db_session, payload, em_andamento=True)
     _login(client, _criar_admin(db_session, "admin-rasc-antigo@siamp.test"))
@@ -597,9 +593,7 @@ def test_corrigir_turno_por_hora_em_turno_de_lancamento_e_rejeitado(client, db_s
         json={
             "nome_turno": "2º Turno",
             "responsavel_nome": "Líder Teste",
-            "registros": [
-                {"numero_maquina": maquina.numero_maquina, "hora_referencia": "13:00", "prod_executada": 5}
-            ],
+            "registros": [{"numero_maquina": maquina.numero_maquina, "hora_referencia": "13:00", "prod_executada": 5}],
         },
     )
     assert res.status_code == 400
@@ -611,19 +605,26 @@ def test_rascunho_em_andamento_nao_aparece_nas_metricas_do_dashboard(client, db_
     maquina, _peca = _criar_maquina_e_peca(db_session)
 
     # Rascunho em andamento: não deve contar.
-    criar_turno_horario(db_session, {
+    criar_turno_horario(
+        db_session,
+        {
             "nome_turno": "1º Turno",
             "responsavel_nome": "Líder Teste",
             "registros": [
                 {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 999}
             ],
-        }, em_andamento=True)
+        },
+        em_andamento=True,
+    )
     # Turno fechado de verdade: deve contar.
-    criar_turno_horario(db_session, {
+    criar_turno_horario(
+        db_session,
+        {
             "nome_turno": "2º Turno",
             "responsavel_nome": "Líder Teste",
             "registros": [{"numero_maquina": maquina.numero_maquina, "hora_referencia": "13:00", "prod_executada": 30}],
-        })
+        },
+    )
 
     res = client.get("/api/v1/dashboard/metricas-gerais")
     assert res.status_code == 200
@@ -636,7 +637,9 @@ def test_exportar_csv_contem_registros_de_turnos_fechados(client, db_session, us
     _login(client, usuario_teste)
     maquina, peca = _criar_maquina_e_peca(db_session)
 
-    criar_turno_horario(db_session, {
+    criar_turno_horario(
+        db_session,
+        {
             "nome_turno": "1º Turno (05:00 - 13:00)",
             "responsavel_nome": "Líder Teste",
             "regulador_nome": "Regulador Teste",
@@ -648,7 +651,8 @@ def test_exportar_csv_contem_registros_de_turnos_fechados(client, db_session, us
                     "produto_id": peca.id,
                 }
             ],
-        })
+        },
+    )
 
     res = client.get("/api/v1/turnos/exportar/csv")
     assert res.status_code == 200
@@ -671,7 +675,9 @@ def test_exportar_csv_neutraliza_injecao_de_formula(client, db_session, usuario_
     _login(client, usuario_teste)
     maquina, peca = _criar_maquina_e_peca(db_session)
 
-    criar_turno_horario(db_session, {
+    criar_turno_horario(
+        db_session,
+        {
             "nome_turno": "1º Turno (05:00 - 13:00)",
             "responsavel_nome": '=HYPERLINK("http://evil.example","clique")',
             "regulador_nome": "Regulador Teste",
@@ -683,7 +689,8 @@ def test_exportar_csv_neutraliza_injecao_de_formula(client, db_session, usuario_
                     "produto_id": peca.id,
                 }
             ],
-        })
+        },
+    )
 
     res = client.get("/api/v1/turnos/exportar/csv")
     conteudo = res.content.decode("utf-8-sig")
@@ -697,13 +704,17 @@ def test_exportar_csv_nao_inclui_rascunho_em_andamento(client, db_session, usuar
     _login(client, usuario_teste)
     maquina, _peca = _criar_maquina_e_peca(db_session)
 
-    criar_turno_horario(db_session, {
+    criar_turno_horario(
+        db_session,
+        {
             "nome_turno": "1º Turno",
             "responsavel_nome": "Líder Teste",
             "registros": [
                 {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 777}
             ],
-        }, em_andamento=True)
+        },
+        em_andamento=True,
+    )
 
     res = client.get("/api/v1/turnos/exportar/csv")
     assert res.status_code == 200
@@ -719,13 +730,14 @@ def test_exportar_csv_filtra_por_periodo(client, db_session, usuario_teste):
     _login(client, usuario_teste)
     maquina, _peca = _criar_maquina_e_peca(db_session)
 
-    criar_turno_horario(db_session, {
+    criar_turno_horario(
+        db_session,
+        {
             "nome_turno": "1º Turno",
             "responsavel_nome": "Líder Teste",
-            "registros": [
-                {"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 42}
-            ],
-        })
+            "registros": [{"numero_maquina": maquina.numero_maquina, "hora_referencia": "05:00", "prod_executada": 42}],
+        },
+    )
 
     # Usa agora_brasilia() (mesma referência de fuso que o próprio turno
     # recebeu ao ser criado), não date.today() (fuso do servidor, UTC
@@ -737,9 +749,7 @@ def test_exportar_csv_filtra_por_periodo(client, db_session, usuario_teste):
     # especificamente quando o teste rodava no dia 1º de qualquer mês,
     # já que nesse caso o limite coincidia com a própria data de hoje.
     ontem = agora_brasilia().date() - timedelta(days=1)
-    res = client.get(
-        f"/api/v1/turnos/exportar/csv?data_inicio=2000-01-01&data_fim={ontem.isoformat()}"
-    )
+    res = client.get(f"/api/v1/turnos/exportar/csv?data_inicio=2000-01-01&data_fim={ontem.isoformat()}")
     conteudo = res.content.decode("utf-8-sig")
     # Período no passado, antes do turno criado agora -> não deve aparecer
     assert "42" not in conteudo
@@ -758,8 +768,11 @@ def test_reenvio_agenda_email_so_com_brevo_configurado_sem_smtp(client, db_sessi
     maquina, _peca = _criar_maquina_e_peca(db_session)
 
     fake_settings = SimpleNamespace(
-        smtp_user="", smtp_pass="", smtp_from="siamp@empresa.com",
-        smtp_server="", smtp_port=587,
+        smtp_user="",
+        smtp_pass="",
+        smtp_from="siamp@empresa.com",
+        smtp_server="",
+        smtp_port=587,
         brevo_api_key="chave-brevo-falsa",
         report_recipients=["gerente@empresa.com"],
     )
@@ -771,9 +784,11 @@ def test_reenvio_agenda_email_so_com_brevo_configurado_sem_smtp(client, db_sessi
         ],
     }
     turno_id = criar_turno_horario(db_session, payload).id
-    with patch("app.services.relatorio_email_service.settings", fake_settings), patch(
-        "app.services.mailer.settings", fake_settings
-    ), patch("requests.post") as mock_post:
+    with (
+        patch("app.services.relatorio_email_service.settings", fake_settings),
+        patch("app.services.mailer.settings", fake_settings),
+        patch("requests.post") as mock_post,
+    ):
         mock_post.return_value = MagicMock(status_code=201, text="")
         res = client.post(f"/api/v1/turnos/{turno_id}/reenviar-email")
 
@@ -807,7 +822,9 @@ def test_indice_producao_horario_e_limitado_a_100_por_cento(client, db_session, 
     # maquina: cavidades=2 | peca: ciclo_padrao=5.0 (peça não define
     # cavidades, cai no padrão da máquina) -> 1h = 3600/5*2 = 1440 esperado
 
-    turno = criar_turno_horario(db_session, {
+    turno = criar_turno_horario(
+        db_session,
+        {
             "nome_turno": "1º Turno (05:00 - 13:00)",
             "responsavel_nome": "Líder Teste",
             "registros": [
@@ -818,7 +835,8 @@ def test_indice_producao_horario_e_limitado_a_100_por_cento(client, db_session, 
                     "produto_id": peca.id,
                 },
             ],
-        })
+        },
+    )
     kpis = calcular_kpis_turno(db_session, turno.id)
     assert kpis["total_produzido"] == 1600
     assert kpis["indice_producao"] == 100.0
@@ -834,7 +852,9 @@ def test_pdf_horario_mostra_nd_quando_producao_sem_ciclo_cadastrado(client, db_s
     db_session.refresh(maquina)
     db_session.refresh(peca_incompleta)
 
-    turno = criar_turno_horario(db_session, {
+    turno = criar_turno_horario(
+        db_session,
+        {
             "nome_turno": "1º Turno (05:00 - 13:00)",
             "responsavel_nome": "Líder Teste",
             "registros": [
@@ -845,7 +865,8 @@ def test_pdf_horario_mostra_nd_quando_producao_sem_ciclo_cadastrado(client, db_s
                     "produto_id": peca_incompleta.id,
                 },
             ],
-        })
+        },
+    )
     turno_id = turno.id
 
     from app.services.turno_service import buscar_registros_para_relatorio

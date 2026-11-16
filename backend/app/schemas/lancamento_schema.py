@@ -22,9 +22,7 @@ class LancamentoCreate(BaseModel):
     @model_validator(mode="after")
     def _validar(self):
         if self.tipo not in TIPOS_LANCAMENTO:
-            raise ValueError(
-                f"tipo deve ser um de: {', '.join(sorted(TIPOS_LANCAMENTO))}."
-            )
+            raise ValueError(f"tipo deve ser um de: {', '.join(sorted(TIPOS_LANCAMENTO))}.")
         if self.horario_fim == self.horario_inicio:
             raise ValueError("horario_fim não pode ser igual a horario_inicio.")
         # horario_fim <= horario_inicio é interpretado como o lançamento
