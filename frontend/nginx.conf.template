@@ -8,6 +8,20 @@ server {
     # tela) - ver frontend/js/login.js.
     index login.html;
 
+    # Cabeçalhos de segurança. O 'unsafe-inline' em script-src existe
+    # porque as telas ainda usam handlers inline (onclick=...) - o CSP
+    # continua bloqueando scripts de qualquer origem fora do próprio
+    # site e do jsDelivr (já fixado por versão + SRI nos HTML). Remover
+    # os handlers inline e tirar 'unsafe-inline' é o próximo passo.
+    # IMPORTANTE: add_header em um bloco location substitui (não soma
+    # com) os do nível server - por isso o location de js/css repete
+    # os cabeçalhos abaixo.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "geolocation=(), microphone=(), payment=()" always;
+
     # Repassa toda chamada de API para o backend, sempre pela mesma
     # origem do navegador (nunca direto para o host/porta do backend).
     # Isso é essencial, não só conveniência: onrender.com está na
@@ -26,6 +40,7 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        add_header X-Content-Type-Options "nosniff" always;
     }
 
     # Sem isso, o navegador pode continuar usando uma cópia antiga de
@@ -40,6 +55,11 @@ server {
     # no nome do arquivo (mudança maior no pipeline de build).
     location ~* \.(js|css)$ {
         add_header Cache-Control "no-cache";
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Permissions-Policy "geolocation=(), microphone=(), payment=()" always;
         try_files $uri =404;
     }
 
