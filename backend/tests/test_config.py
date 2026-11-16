@@ -21,3 +21,16 @@ def test_smtp_from_prevalece_quando_definida(monkeypatch):
 
     assert settings.smtp_user == "b610a9001@smtp-brevo.com"
     assert settings.smtp_from == "siamp@empresa.com"
+
+
+def test_inteiro_do_ambiente_usa_padrao_quando_ausente_ou_invalido(monkeypatch):
+    from app.core.database import _inteiro_do_ambiente
+
+    monkeypatch.delenv("DB_POOL_SIZE", raising=False)
+    assert _inteiro_do_ambiente("DB_POOL_SIZE", 5) == 5
+    monkeypatch.setenv("DB_POOL_SIZE", "abc")
+    assert _inteiro_do_ambiente("DB_POOL_SIZE", 5) == 5
+    monkeypatch.setenv("DB_POOL_SIZE", "8")
+    assert _inteiro_do_ambiente("DB_POOL_SIZE", 5) == 8
+    monkeypatch.setenv("DB_POOL_SIZE", "-3")
+    assert _inteiro_do_ambiente("DB_POOL_SIZE", 5) == 0
