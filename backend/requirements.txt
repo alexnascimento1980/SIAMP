@@ -31,11 +31,9 @@ pyparsing==3.3.2
 python-dateutil==2.9.0.post0
 scikit-learn==1.9.0
 scipy==1.18.0
-seaborn==0.13.2
 six==1.17.0
 SQLAlchemy==2.0.52
 threadpoolctl==3.6.0
 typing_extensions==4.16.0
 tzdata==2026.3
 alembic>=1.13,<2.0
-bcrypt==4.0.1

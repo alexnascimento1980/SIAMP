@@ -1,0 +1,7 @@
+# Dependências extras de análise/treino, usadas só fora da aplicação
+# (notebooks e src/train.py). A aplicação em si - imagem Docker de
+# produção incluída - instala apenas backend/requirements.txt.
+-r ../backend/requirements.txt
+
+# Gráficos exploratórios dos notebooks (não é usado pelo backend).
+seaborn==0.13.2
