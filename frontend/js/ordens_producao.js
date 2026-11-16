@@ -81,7 +81,7 @@ async function carregarOps() {
     renderizarLista(opsCarregadas, comparativos);
   } catch (erro) {
     console.error(erro);
-    container.innerHTML = `<div class="text-center text-danger py-4">${erro.message}</div>`;
+    container.innerHTML = `<div class="text-center text-danger py-4">${escaparHtml(erro.message)}</div>`;
   }
 }
 

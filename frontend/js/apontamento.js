@@ -179,7 +179,7 @@ async function carregarMaquinas() {
   } catch (erro) {
     console.error(erro);
     container.innerHTML = `<li class="nav-item"><span class="nav-link disabled text-danger">
-      Erro ao carregar máquinas: ${erro.message}
+      Erro ao carregar máquinas: ${escaparHtml(erro.message)}
     </span></li>`;
   }
 }
@@ -196,7 +196,15 @@ function renderizarAbasMaquinas() {
     btn.dataset.numeroMaquina = m.numero_maquina;
     const rotulo = m.descricao ? `Injetora ${m.numero_maquina}` : `Máquina ${m.numero_maquina}`;
     const qtdLancamentos = (lancamentosState[m.numero_maquina] || []).length;
-    btn.innerHTML = qtdLancamentos > 0 ? `${rotulo} <span class="badge bg-light text-dark ms-1">${qtdLancamentos}</span>` : rotulo;
+    // textContent (não innerHTML): numero_maquina é texto livre cadastrado
+    // por ADMIN/SUPERVISOR e não pode ser interpretado como HTML.
+    btn.textContent = rotulo;
+    if (qtdLancamentos > 0) {
+      const badge = document.createElement("span");
+      badge.className = "badge bg-light text-dark ms-1";
+      badge.textContent = String(qtdLancamentos);
+      btn.appendChild(badge);
+    }
     btn.addEventListener("click", () => selecionarMaquina(m.numero_maquina));
     li.appendChild(btn);
     container.appendChild(li);
@@ -565,8 +573,8 @@ function renderizarListaLancamentos() {
       return `
         <tr class="${emEdicao ? 'table-warning' : ''}">
           <td>${rotuloTipo[lanc.tipo]}</td>
-          <td>${lanc.horario_inicio}</td>
-          <td>${lanc.horario_fim}</td>
+          <td>${escaparHtml(lanc.horario_inicio)}</td>
+          <td>${escaparHtml(lanc.horario_fim)}</td>
           <td>${escaparHtml(pecaOuMotivo)}</td>
           <td>${op ? escaparHtml(op.numero_op) : "-"}</td>
           <td class="text-center">${lanc.quantidade ?? "-"}</td>
