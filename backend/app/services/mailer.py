@@ -143,7 +143,7 @@ def enviar_relatorio_email(
     anexos: list[tuple[bytes, str]],
 ) -> None:
     """Envia o relatório de fechamento de turno por e-mail (chamado em
-    background após o fechamento - ver turno_service.fechar_turno).
+    background após o fechamento - ver lancamento_service.fechar_turno_lancamento).
 
     anexos: lista de (conteudo_bytes, nome_arquivo) - normalmente o
     relatório de fechamento em PDF e, junto, o PDF do dashboard

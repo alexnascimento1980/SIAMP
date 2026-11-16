@@ -1,6 +1,8 @@
 
 from datetime import date, datetime
 
+from helpers_horario import criar_turno_horario
+
 from app.core.security import gerar_hash_senha
 from app.models.maquina import Maquina
 from app.models.produto import Produto
@@ -358,9 +360,9 @@ def test_turnos_horario_e_lancamento_juntos_no_historico(client, db_session, usu
     maquina, peca = _criar_maquina_e_peca(db_session)
 
     # Turno modelo antigo (por hora)
-    client.post(
-        "/api/v1/turnos/fechamento",
-        json={
+    criar_turno_horario(
+        db_session,
+        {
             "nome_turno": "1º Turno",
             "responsavel_nome": "Líder Teste",
             "registros": [

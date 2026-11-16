@@ -1,5 +1,7 @@
 from datetime import date, time
 
+from helpers_horario import criar_turno_horario
+
 from app.models.maquina import Maquina
 from app.models.ordem_producao import OrdemProducao
 from app.models.produto import Produto
@@ -31,9 +33,9 @@ def test_dashboard_producao_por_turno_reflete_turnos_reais(client, db_session, u
     db_session.refresh(maquina)
 
     _login(client, usuario_teste)
-    client.post(
-        "/api/v1/turnos/fechamento",
-        json={
+    criar_turno_horario(
+        db_session,
+        {
             "nome_turno": "1º Turno (05:00 - 13:00)",
             "responsavel_nome": "Teste",
             "registros": [
