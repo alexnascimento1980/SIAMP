@@ -30,7 +30,7 @@ async function carregarDestinatarios() {
     renderizarDestinatarios();
   } catch (erro) {
     console.error(erro);
-    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger py-3">${erro.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger py-3">${escaparHtml(erro.message)}</td></tr>`;
   }
 }
 

@@ -213,7 +213,7 @@ async function carregarMaquinas(incluirInativas = false) {
   } catch (erro) {
     console.error(erro);
     container.innerHTML = `<li class="nav-item"><span class="nav-link disabled text-danger">
-      Erro ao carregar máquinas: ${erro.message}
+      Erro ao carregar máquinas: ${escaparHtml(erro.message)}
     </span></li>`;
   }
 }
@@ -348,23 +348,23 @@ function renderizarTabela() {
       </td>
       <td>
         <input type="number" min="0" class="form-control" placeholder="0" 
-          value="${salvo.prod}" onchange="salvarValor('${hora}', 'prod', this.value)">
+          value="${escaparHtml(salvo.prod)}" onchange="salvarValor('${hora}', 'prod', this.value)">
       </td>
       <td>
         <input type="number" min="0.1" step="0.1" class="form-control" placeholder="ciclo (s)"
-          value="${salvo.cicloInformado}" onchange="salvarValor('${hora}', 'cicloInformado', this.value)">
+          value="${escaparHtml(salvo.cicloInformado)}" onchange="salvarValor('${hora}', 'cicloInformado', this.value)">
       </td>
       <td>
         <input type="time" class="form-control mb-1" 
-          value="${salvo.inicio}" onchange="salvarValor('${hora}', 'inicio', this.value)">
+          value="${escaparHtml(salvo.inicio)}" onchange="salvarValor('${hora}', 'inicio', this.value)">
         <input type="number" min="0" class="form-control form-control-sm" placeholder="contador"
-          value="${salvo.contadorParada}" onchange="salvarValor('${hora}', 'contadorParada', this.value)">
+          value="${escaparHtml(salvo.contadorParada)}" onchange="salvarValor('${hora}', 'contadorParada', this.value)">
       </td>
       <td>
         <input type="time" class="form-control mb-1" 
-          value="${salvo.retomada}" onchange="salvarValor('${hora}', 'retomada', this.value)">
+          value="${escaparHtml(salvo.retomada)}" onchange="salvarValor('${hora}', 'retomada', this.value)">
         <input type="number" min="0" class="form-control form-control-sm" placeholder="contador"
-          value="${salvo.contadorRetomada}" onchange="salvarValor('${hora}', 'contadorRetomada', this.value)">
+          value="${escaparHtml(salvo.contadorRetomada)}" onchange="salvarValor('${hora}', 'contadorRetomada', this.value)">
       </td>
       <td>
         <input type="checkbox" class="form-check-input" title="Parada programada (não penaliza o OEE)"

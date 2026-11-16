@@ -21,7 +21,7 @@ async function carregarTurnos() {
     renderizarTurnos(turnos);
   } catch (erro) {
     console.error(erro);
-    tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger py-4">${erro.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger py-4">${escaparHtml(erro.message)}</td></tr>`;
   }
 }
 
