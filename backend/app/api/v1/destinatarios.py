@@ -38,11 +38,7 @@ def criar_destinatario(
     usuario: Usuario = Depends(exigir_perfil("ADMIN")),
 ):
     email_normalizado = dados.email.lower()
-    ja_existe = (
-        db.query(DestinatarioRelatorio)
-        .filter(DestinatarioRelatorio.email == email_normalizado)
-        .first()
-    )
+    ja_existe = db.query(DestinatarioRelatorio).filter(DestinatarioRelatorio.email == email_normalizado).first()
     if ja_existe:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -67,11 +63,7 @@ def atualizar_destinatario(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(exigir_perfil("ADMIN")),
 ):
-    destinatario = (
-        db.query(DestinatarioRelatorio)
-        .filter(DestinatarioRelatorio.id == destinatario_id)
-        .first()
-    )
+    destinatario = db.query(DestinatarioRelatorio).filter(DestinatarioRelatorio.id == destinatario_id).first()
     if destinatario is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -92,11 +84,7 @@ def remover_destinatario(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(exigir_perfil("ADMIN")),
 ):
-    destinatario = (
-        db.query(DestinatarioRelatorio)
-        .filter(DestinatarioRelatorio.id == destinatario_id)
-        .first()
-    )
+    destinatario = db.query(DestinatarioRelatorio).filter(DestinatarioRelatorio.id == destinatario_id).first()
     if destinatario is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

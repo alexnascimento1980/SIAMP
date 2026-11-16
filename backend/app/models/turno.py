@@ -89,9 +89,7 @@ class Turno(Base):
     # (não implementado para Turno, ao contrário de Usuario/Produto):
     # a marcação é reversível a qualquer momento, sem perder o
     # registro.
-    marcado_teste: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, index=True
-    )
+    marcado_teste: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
 
     registros = relationship(
         "RegistroHorario",

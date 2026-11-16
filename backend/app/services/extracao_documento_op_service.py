@@ -66,9 +66,7 @@ def _obter_imagem_primeira_pagina(conteudo: bytes, nome_arquivo: str) -> Image.I
                 "Não foi possível abrir a imagem - verifique se o arquivo não está corrompido."
             ) from exc
 
-    raise ExtracaoDocumentoError(
-        "Formato não suportado - envie um PDF, JPG ou PNG."
-    )
+    raise ExtracaoDocumentoError("Formato não suportado - envie um PDF, JPG ou PNG.")
 
 
 def _limpar_inteiro(texto: str) -> int | None:
@@ -105,12 +103,14 @@ def _extrair_numero_op_recorte(imagem: Image.Image) -> str | None:
     Coordenadas em fração da largura/altura da página (não em
     pixels), para funcionar em qualquer resolução de digitalização."""
     largura, altura = imagem.size
-    recorte = imagem.crop((
-        int(largura * 0.71),
-        int(altura * 0.014),
-        int(largura * 1.0),
-        int(altura * 0.055),
-    ))
+    recorte = imagem.crop(
+        (
+            int(largura * 0.71),
+            int(altura * 0.014),
+            int(largura * 1.0),
+            int(altura * 0.055),
+        )
+    )
     texto = pytesseract.image_to_string(recorte, lang="por", config="--psm 7")
     match = re.search(r"(\d{3,6}-\d{4})", texto)
     return match.group(1) if match else None
@@ -132,9 +132,12 @@ def _remover_ruido_final(texto: str) -> str:
     tokens = texto.split()
     for i in range(len(tokens) - 2):
         se_curto_e_nao_numerico = (
-            len(tokens[i]) <= 2 and not tokens[i].isdigit()
-            and len(tokens[i + 1]) <= 2 and not tokens[i + 1].isdigit()
-            and len(tokens[i + 2]) <= 2 and not tokens[i + 2].isdigit()
+            len(tokens[i]) <= 2
+            and not tokens[i].isdigit()
+            and len(tokens[i + 1]) <= 2
+            and not tokens[i + 1].isdigit()
+            and len(tokens[i + 2]) <= 2
+            and not tokens[i + 2].isdigit()
         )
         if se_curto_e_nao_numerico:
             return " ".join(tokens[:i]).strip()
@@ -148,7 +151,7 @@ def _proxima_linha_nao_vazia(texto_completo: str, apos_regex: str) -> str | None
     match = re.search(apos_regex, texto_completo, re.IGNORECASE)
     if not match:
         return None
-    resto = texto_completo[match.end():]
+    resto = texto_completo[match.end() :]
     for linha in resto.splitlines():
         linha = linha.strip()
         if linha:
@@ -233,9 +236,7 @@ def _parsear_texto_extraido(texto: str, numero_op_recorte: str | None = None) ->
     lote_match = re.search(r"\b(\d{6,10}/\d{3,6})\b", texto)
     dados["lote"] = lote_match.group(1) if lote_match else None
 
-    periodo = re.search(
-        r"Principal[:.\s]+(\d{2}/\d{2}/\d{4})\s*at[eé]\s*(\d{2}/\d{2}/\d{4})", texto
-    )
+    periodo = re.search(r"Principal[:.\s]+(\d{2}/\d{2}/\d{4})\s*at[eé]\s*(\d{2}/\d{2}/\d{4})", texto)
     if periodo:
         dados["periodo_inicio"] = periodo.group(1)
         dados["periodo_fim"] = periodo.group(2)
@@ -249,9 +250,7 @@ def _parsear_texto_extraido(texto: str, numero_op_recorte: str | None = None) ->
     quantidade_linha = _proxima_linha_nao_vazia(texto, r"QUANTIDADE\s+A\s+PRODUZIR")
     dados["quantidade_a_produzir"] = _limpar_inteiro(quantidade_linha) if quantidade_linha else None
 
-    equipamento = re.search(
-        r"Equipamento[:.\s]+(\S+)\s*-\s*(.+?)(?:\s*Cavidades|\n|$)", texto
-    )
+    equipamento = re.search(r"Equipamento[:.\s]+(\S+)\s*-\s*(.+?)(?:\s*Cavidades|\n|$)", texto)
     if equipamento:
         dados["numero_maquina"] = equipamento.group(1).strip()
         dados["equipamento_descricao"] = equipamento.group(2).strip()
@@ -264,23 +263,17 @@ def _parsear_texto_extraido(texto: str, numero_op_recorte: str | None = None) ->
     if ciclo:
         dados["ciclo_segundos"] = _limpar_decimal(ciclo.group(1))
 
-    ferramenta = re.search(
-        r"Ferramenta[:.\s]+(\S+)\s*-\s*(.+?)(?:\s*Ciclo\s*\(segundos\)|\n|$)", texto
-    )
+    ferramenta = re.search(r"Ferramenta[:.\s]+(\S+)\s*-\s*(.+?)(?:\s*Ciclo\s*\(segundos\)|\n|$)", texto)
     if ferramenta:
         dados["ferramenta_codigo"] = ferramenta.group(1).strip()
         dados["ferramenta_descricao"] = _remover_ruido_final(ferramenta.group(2))
 
-    formula = re.search(
-        r"F[óo]rmula[:.\s]+(\d+)\s*-\s*(.+?)(?:\s*Q[tr]de\s+Produzida|\n|$)", texto
-    )
+    formula = re.search(r"F[óo]rmula[:.\s]+(\d+)\s*-\s*(.+?)(?:\s*Q[tr]de\s+Produzida|\n|$)", texto)
     if formula:
         dados["formula_codigo"] = formula.group(1).strip()
         dados["formula_descricao"] = _remover_ruido_final(formula.group(2))
 
-    embalagem = re.search(
-        r"Embalagem[:.\s]+(\d+)\s*-\s*(.+?)(?:\s*Peso\s+l[íi]quido|\n|$)", texto
-    )
+    embalagem = re.search(r"Embalagem[:.\s]+(\d+)\s*-\s*(.+?)(?:\s*Peso\s+l[íi]quido|\n|$)", texto)
     if embalagem:
         dados["embalagem_codigo"] = embalagem.group(1).strip()
         dados["embalagem_descricao"] = _remover_ruido_final(embalagem.group(2))
@@ -314,7 +307,8 @@ def _parsear_texto_extraido(texto: str, numero_op_recorte: str | None = None) ->
     # não estruturado, já que a tabela pode ter qualquer nº de linhas
     composicao = re.search(
         r"COMPOSI[ÇC][ÃA]O\s+DA\s+MISTURA\s*\n(.+?)(?:Observa[çc][õo]es|\Z)",
-        texto, re.IGNORECASE | re.DOTALL,
+        texto,
+        re.IGNORECASE | re.DOTALL,
     )
     if composicao:
         linhas_composicao = [linha.strip() for linha in composicao.group(1).splitlines() if linha.strip()]

@@ -9,16 +9,25 @@ from app.services.ml_engine import _taxa_falha_historica, prever_risco_parada
 
 def _criar_turno_com_lancamentos(db_session, maquina, lancamentos):
     turno = Turno(
-        nome_turno="1º Turno", responsavel_nome="Teste",
-        status_assinatura="ASSINADO_DIGITALMENTE", modelo_apontamento="LANCAMENTO",
+        nome_turno="1º Turno",
+        responsavel_nome="Teste",
+        status_assinatura="ASSINADO_DIGITALMENTE",
+        modelo_apontamento="LANCAMENTO",
     )
     db_session.add(turno)
     db_session.flush()
     for tipo, hi, hf, produto_id, quantidade in lancamentos:
-        db_session.add(Lancamento(
-            turno_id=turno.id, maquina_id=maquina.id, tipo=tipo,
-            horario_inicio=hi, horario_fim=hf, produto_id=produto_id, quantidade=quantidade,
-        ))
+        db_session.add(
+            Lancamento(
+                turno_id=turno.id,
+                maquina_id=maquina.id,
+                tipo=tipo,
+                horario_inicio=hi,
+                horario_fim=hf,
+                produto_id=produto_id,
+                quantidade=quantidade,
+            )
+        )
     db_session.commit()
     return turno
 
@@ -34,12 +43,16 @@ def test_taxa_falha_historica_calcula_proporcao_correta(db_session):
     db_session.refresh(maquina)
 
     # 3 produções + 1 falha = taxa de 1/4 = 25%
-    _criar_turno_com_lancamentos(db_session, maquina, [
-        ("PRODUCAO", time(5, 0), time(6, 0), None, 100),
-        ("PRODUCAO", time(6, 0), time(7, 0), None, 100),
-        ("PARADA_FALHA", time(7, 0), time(7, 10), None, None),
-        ("PRODUCAO", time(7, 10), time(8, 0), None, 100),
-    ])
+    _criar_turno_com_lancamentos(
+        db_session,
+        maquina,
+        [
+            ("PRODUCAO", time(5, 0), time(6, 0), None, 100),
+            ("PRODUCAO", time(6, 0), time(7, 0), None, 100),
+            ("PARADA_FALHA", time(7, 0), time(7, 10), None, None),
+            ("PRODUCAO", time(7, 10), time(8, 0), None, 100),
+        ],
+    )
 
     taxa = _taxa_falha_historica(db_session, Lancamento.maquina_id, maquina.id)
     assert taxa == 0.25
@@ -51,6 +64,7 @@ def test_prever_risco_parada_sem_modelo_usa_heuristica(db_session, monkeypatch):
     # projeto, então precisa de um mock para testar esse caminho de
     # forma determinística).
     import app.services.ml_engine as ml_engine
+
     monkeypatch.setattr(ml_engine, "carregar_modelo", lambda: None)
 
     maquina = Maquina(numero_maquina="1", descricao="Injetora", ativo=True)
@@ -59,9 +73,16 @@ def test_prever_risco_parada_sem_modelo_usa_heuristica(db_session, monkeypatch):
     db_session.refresh(maquina)
 
     resultado = prever_risco_parada(
-        db=db_session, maquina_id=maquina.id, produto_id=None,
-        ciclo_efetivo=15.0, ciclo_padrao_peca=15.0, cavidades_efetivas=4,
-        duracao_min=60.0, quantidade=1000, turno_num=1, dia_semana=2,
+        db=db_session,
+        maquina_id=maquina.id,
+        produto_id=None,
+        ciclo_efetivo=15.0,
+        ciclo_padrao_peca=15.0,
+        cavidades_efetivas=4,
+        duracao_min=60.0,
+        quantidade=1000,
+        turno_num=1,
+        dia_semana=2,
     )
     assert resultado["fonte"] == "heuristica"
     assert "risco_desvio" in resultado
@@ -79,9 +100,16 @@ def test_prever_risco_parada_com_modelo_treinado_usa_modelo_ml(db_session):
     db_session.refresh(maquina)
 
     resultado = prever_risco_parada(
-        db=db_session, maquina_id=maquina.id, produto_id=None,
-        ciclo_efetivo=15.0, ciclo_padrao_peca=15.0, cavidades_efetivas=4,
-        duracao_min=60.0, quantidade=1000, turno_num=1, dia_semana=2,
+        db=db_session,
+        maquina_id=maquina.id,
+        produto_id=None,
+        ciclo_efetivo=15.0,
+        ciclo_padrao_peca=15.0,
+        cavidades_efetivas=4,
+        duracao_min=60.0,
+        quantidade=1000,
+        turno_num=1,
+        dia_semana=2,
     )
     assert resultado["fonte"] == "modelo_ml"
     assert 0.0 <= resultado["probabilidade_critica"] <= 100.0
@@ -89,6 +117,7 @@ def test_prever_risco_parada_com_modelo_treinado_usa_modelo_ml(db_session):
 
 def test_prever_risco_parada_maquina_com_muitas_falhas_da_risco_alto(db_session, monkeypatch):
     import app.services.ml_engine as ml_engine
+
     monkeypatch.setattr(ml_engine, "carregar_modelo", lambda: None)
 
     maquina_arriscada = Maquina(numero_maquina="1", descricao="Injetora Arriscada", ativo=True)
@@ -99,28 +128,50 @@ def test_prever_risco_parada_maquina_com_muitas_falhas_da_risco_alto(db_session,
     db_session.refresh(maquina_estavel)
 
     # Máquina arriscada: metade dos lançamentos são falha
-    _criar_turno_com_lancamentos(db_session, maquina_arriscada, [
-        ("PRODUCAO", time(5, 0), time(6, 0), None, 100),
-        ("PARADA_FALHA", time(6, 0), time(6, 20), None, None),
-        ("PRODUCAO", time(6, 20), time(7, 0), None, 100),
-        ("PARADA_FALHA", time(7, 0), time(7, 20), None, None),
-    ])
+    _criar_turno_com_lancamentos(
+        db_session,
+        maquina_arriscada,
+        [
+            ("PRODUCAO", time(5, 0), time(6, 0), None, 100),
+            ("PARADA_FALHA", time(6, 0), time(6, 20), None, None),
+            ("PRODUCAO", time(6, 20), time(7, 0), None, 100),
+            ("PARADA_FALHA", time(7, 0), time(7, 20), None, None),
+        ],
+    )
     # Máquina estável: nunca falhou
-    _criar_turno_com_lancamentos(db_session, maquina_estavel, [
-        ("PRODUCAO", time(5, 0), time(6, 0), None, 100),
-        ("PRODUCAO", time(6, 0), time(7, 0), None, 100),
-        ("PRODUCAO", time(7, 0), time(8, 0), None, 100),
-    ])
+    _criar_turno_com_lancamentos(
+        db_session,
+        maquina_estavel,
+        [
+            ("PRODUCAO", time(5, 0), time(6, 0), None, 100),
+            ("PRODUCAO", time(6, 0), time(7, 0), None, 100),
+            ("PRODUCAO", time(7, 0), time(8, 0), None, 100),
+        ],
+    )
 
     resultado_arriscada = prever_risco_parada(
-        db=db_session, maquina_id=maquina_arriscada.id, produto_id=None,
-        ciclo_efetivo=15.0, ciclo_padrao_peca=15.0, cavidades_efetivas=4,
-        duracao_min=60.0, quantidade=1000, turno_num=1, dia_semana=2,
+        db=db_session,
+        maquina_id=maquina_arriscada.id,
+        produto_id=None,
+        ciclo_efetivo=15.0,
+        ciclo_padrao_peca=15.0,
+        cavidades_efetivas=4,
+        duracao_min=60.0,
+        quantidade=1000,
+        turno_num=1,
+        dia_semana=2,
     )
     resultado_estavel = prever_risco_parada(
-        db=db_session, maquina_id=maquina_estavel.id, produto_id=None,
-        ciclo_efetivo=15.0, ciclo_padrao_peca=15.0, cavidades_efetivas=4,
-        duracao_min=60.0, quantidade=1000, turno_num=1, dia_semana=2,
+        db=db_session,
+        maquina_id=maquina_estavel.id,
+        produto_id=None,
+        ciclo_efetivo=15.0,
+        ciclo_padrao_peca=15.0,
+        cavidades_efetivas=4,
+        duracao_min=60.0,
+        quantidade=1000,
+        turno_num=1,
+        dia_semana=2,
     )
 
     assert resultado_arriscada["probabilidade_critica"] > resultado_estavel["probabilidade_critica"]
@@ -130,6 +181,7 @@ def test_prever_risco_parada_maquina_com_muitas_falhas_da_risco_alto(db_session,
 
 def test_prever_risco_parada_ciclo_divergente_aumenta_risco(db_session, monkeypatch):
     import app.services.ml_engine as ml_engine
+
     monkeypatch.setattr(ml_engine, "carregar_modelo", lambda: None)
 
     maquina = Maquina(numero_maquina="1", descricao="Injetora", ativo=True)
@@ -138,15 +190,29 @@ def test_prever_risco_parada_ciclo_divergente_aumenta_risco(db_session, monkeypa
     db_session.refresh(maquina)
 
     resultado_normal = prever_risco_parada(
-        db=db_session, maquina_id=maquina.id, produto_id=None,
-        ciclo_efetivo=15.0, ciclo_padrao_peca=15.0, cavidades_efetivas=4,
-        duracao_min=60.0, quantidade=1000, turno_num=1, dia_semana=2,
+        db=db_session,
+        maquina_id=maquina.id,
+        produto_id=None,
+        ciclo_efetivo=15.0,
+        ciclo_padrao_peca=15.0,
+        cavidades_efetivas=4,
+        duracao_min=60.0,
+        quantidade=1000,
+        turno_num=1,
+        dia_semana=2,
     )
     # Ciclo real 50% acima do padrão da peça
     resultado_divergente = prever_risco_parada(
-        db=db_session, maquina_id=maquina.id, produto_id=None,
-        ciclo_efetivo=22.5, ciclo_padrao_peca=15.0, cavidades_efetivas=4,
-        duracao_min=60.0, quantidade=1000, turno_num=1, dia_semana=2,
+        db=db_session,
+        maquina_id=maquina.id,
+        produto_id=None,
+        ciclo_efetivo=22.5,
+        ciclo_padrao_peca=15.0,
+        cavidades_efetivas=4,
+        duracao_min=60.0,
+        quantidade=1000,
+        turno_num=1,
+        dia_semana=2,
     )
 
     assert resultado_divergente["detalhe"]["ciclo_divergencia_pct"] == 50.0
@@ -182,16 +248,24 @@ def test_dashboard_insight_usa_lancamento_mais_recente(client, db_session, usuar
     db_session.refresh(peca)
 
     turno = Turno(
-        nome_turno="2º Turno", responsavel_nome="Teste",
-        status_assinatura="ASSINADO_DIGITALMENTE", modelo_apontamento="LANCAMENTO",
+        nome_turno="2º Turno",
+        responsavel_nome="Teste",
+        status_assinatura="ASSINADO_DIGITALMENTE",
+        modelo_apontamento="LANCAMENTO",
     )
     db_session.add(turno)
     db_session.flush()
-    db_session.add(Lancamento(
-        turno_id=turno.id, maquina_id=maquina.id, tipo="PRODUCAO",
-        horario_inicio=time(13, 0), horario_fim=time(14, 0),
-        produto_id=peca.id, quantidade=500,
-    ))
+    db_session.add(
+        Lancamento(
+            turno_id=turno.id,
+            maquina_id=maquina.id,
+            tipo="PRODUCAO",
+            horario_inicio=time(13, 0),
+            horario_fim=time(14, 0),
+            produto_id=peca.id,
+            quantidade=500,
+        )
+    )
     db_session.commit()
 
     res = client.get("/api/v1/dashboard/metricas-gerais")

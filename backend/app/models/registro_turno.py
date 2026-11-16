@@ -59,9 +59,7 @@ class RegistroHorario(Base):
     # etc.): o tempo parado não deve contar contra a capacidade esperada
     # no cálculo do OEE (ver app/services/analytics.py). Paradas não
     # marcadas aqui são tratadas como não programadas (penalizam o OEE).
-    parada_programada: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False
-    )
+    parada_programada: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     turno = relationship("Turno", back_populates="registros")
     maquina = relationship("Maquina", back_populates="registros")

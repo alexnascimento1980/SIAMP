@@ -2,6 +2,7 @@
 LANCAMENTO (extraídos de turno_service.py/lancamento_service.py, onde
 existiam como cópias praticamente idênticas do mesmo nome em cada
 arquivo - ver commit que fez essa extração)."""
+
 from datetime import date
 
 import pytest
@@ -67,9 +68,13 @@ def test_validar_ordens_producao_existem_todas_presentes_nao_levanta(db_session)
     db_session.refresh(produto)
 
     ordem = OrdemProducao(
-        numero_op="OP-1", produto_id=produto.id, produto_codigo=produto.codigo,
-        produto_descricao=produto.descricao, quantidade_a_produzir=1000,
-        periodo_inicio=date(2026, 9, 1), periodo_fim=date(2026, 9, 10),
+        numero_op="OP-1",
+        produto_id=produto.id,
+        produto_codigo=produto.codigo,
+        produto_descricao=produto.descricao,
+        quantidade_a_produzir=1000,
+        periodo_inicio=date(2026, 9, 1),
+        periodo_fim=date(2026, 9, 10),
     )
     db_session.add(ordem)
     db_session.commit()

@@ -4,6 +4,7 @@ Idempotente: seeds.sql usa `ON CONFLICT DO NOTHING`.
 
 Uso: python -m app.scripts.seed_db
 """
+
 import os
 
 from sqlalchemy import text

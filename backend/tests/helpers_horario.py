@@ -7,6 +7,7 @@ aposentado para escrita -, mas os turnos antigos continuam existindo
 em produção e precisam seguir legíveis (Histórico, PDF, CSV, KPIs,
 dashboard) e corrigíveis. Este helper reproduz o que o antigo
 fechar_turno/salvar_rascunho gravava, sem passar pela API."""
+
 from datetime import time
 
 from app.core.timezone import calcular_data_registro_turno

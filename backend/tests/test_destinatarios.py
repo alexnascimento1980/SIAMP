@@ -44,18 +44,14 @@ def test_admin_cria_lista_edita_e_remove_destinatario(client, db_session):
     assert destinatario["email"] == "gerente@empresa.com"
 
     # Duplicado (mesmo com case diferente) -> 409
-    res_dup = client.post(
-        "/api/v1/destinatarios/", json={"email": "gerente@empresa.com"}
-    )
+    res_dup = client.post("/api/v1/destinatarios/", json={"email": "gerente@empresa.com"})
     assert res_dup.status_code == 409
 
     listagem = client.get("/api/v1/destinatarios/").json()
     assert any(d["id"] == destinatario["id"] for d in listagem)
 
     # Desativa
-    res_edit = client.patch(
-        f"/api/v1/destinatarios/{destinatario['id']}", json={"ativo": False}
-    )
+    res_edit = client.patch(f"/api/v1/destinatarios/{destinatario['id']}", json={"ativo": False})
     assert res_edit.status_code == 200
     assert res_edit.json()["ativo"] is False
 

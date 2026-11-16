@@ -66,10 +66,7 @@ def _exigir_pode_alterar_rascunho(db: Session, turno_id: int, usuario: Usuario) 
         return
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
-        detail=(
-            "Este rascunho pertence a outro usuário. Peça a um supervisor "
-            "ou administrador para continuá-lo."
-        ),
+        detail=("Este rascunho pertence a outro usuário. Peça a um supervisor ou administrador para continuá-lo."),
     )
 
 
@@ -83,12 +80,7 @@ def listar_turnos(
     Histórico de turnos encerrados, mais recentes primeiro, com os KPIs
     já calculados para exibição direta na tela de histórico.
     """
-    turnos = (
-        db.query(Turno)
-        .order_by(Turno.data_registro.desc())
-        .limit(min(limite, 200))
-        .all()
-    )
+    turnos = db.query(Turno).order_by(Turno.data_registro.desc()).limit(min(limite, 200)).all()
 
     # Uma única query para os KPIs de todos os turnos listados, em vez de
     # uma consulta por turno (evita N+1 em listas grandes de histórico).
@@ -172,9 +164,7 @@ def criar_fechamento_lancamento(
     """Fecha um turno direto (sem passar por rascunho) usando o modelo
     de lançamentos livres."""
     try:
-        return fechar_turno_lancamento(
-            db=db, dados=dados, background_tasks=background_tasks, usuario_id=usuario.id
-        )
+        return fechar_turno_lancamento(db=db, dados=dados, background_tasks=background_tasks, usuario_id=usuario.id)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
@@ -203,11 +193,7 @@ def atualizar_rascunho_lancamento(
     try:
         return salvar_rascunho_lancamento(db, dados, turno_id=turno_id)
     except ValueError as exc:
-        status_code = (
-            status.HTTP_404_NOT_FOUND
-            if "não encontrado" in str(exc)
-            else status.HTTP_409_CONFLICT
-        )
+        status_code = status.HTTP_404_NOT_FOUND if "não encontrado" in str(exc) else status.HTTP_409_CONFLICT
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
 
 
@@ -224,15 +210,9 @@ def fechar_rascunho_lancamento(
     SUPERVISOR ou ADMIN podem fechar o rascunho."""
     _exigir_pode_alterar_rascunho(db, turno_id, usuario)
     try:
-        return fechar_turno_lancamento(
-            db=db, dados=dados, background_tasks=background_tasks, turno_id=turno_id
-        )
+        return fechar_turno_lancamento(db=db, dados=dados, background_tasks=background_tasks, turno_id=turno_id)
     except ValueError as exc:
-        status_code = (
-            status.HTTP_404_NOT_FOUND
-            if "não encontrado" in str(exc)
-            else status.HTTP_400_BAD_REQUEST
-        )
+        status_code = status.HTTP_404_NOT_FOUND if "não encontrado" in str(exc) else status.HTTP_400_BAD_REQUEST
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
 
 
@@ -248,15 +228,9 @@ def corrigir_turno_lancamento(
     SUPERVISOR. Substitui todos os lançamentos do turno pelos
     informados; não reenvia e-mail (evita duplicidade)."""
     try:
-        return editar_turno_lancamento(
-            db=db, turno_id=turno_id, dados=dados, usuario_id=usuario.id
-        )
+        return editar_turno_lancamento(db=db, turno_id=turno_id, dados=dados, usuario_id=usuario.id)
     except ValueError as exc:
-        status_code = (
-            status.HTTP_404_NOT_FOUND
-            if "não encontrado" in str(exc)
-            else status.HTTP_400_BAD_REQUEST
-        )
+        status_code = status.HTTP_404_NOT_FOUND if "não encontrado" in str(exc) else status.HTTP_400_BAD_REQUEST
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
 
 
@@ -396,11 +370,7 @@ def corrigir_turno(
             usuario_id=usuario.id,
         )
     except ValueError as exc:
-        status_code = (
-            status.HTTP_404_NOT_FOUND
-            if "não encontrado" in str(exc)
-            else status.HTTP_400_BAD_REQUEST
-        )
+        status_code = status.HTTP_404_NOT_FOUND if "não encontrado" in str(exc) else status.HTTP_400_BAD_REQUEST
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
     except Exception as exc:
         db.rollback()
@@ -487,6 +457,7 @@ def baixar_relatorio_turno(
 
     if turno.modelo_apontamento == "LANCAMENTO":
         from app.services.analytics import calcular_kpis_turno_lancamento
+
         kpis = calcular_kpis_turno_lancamento(db, turno_id)
         registros_pdf = montar_registros_pdf_lancamento(db, turno_id)
     else:

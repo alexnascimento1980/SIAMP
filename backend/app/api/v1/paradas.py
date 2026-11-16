@@ -39,12 +39,7 @@ def listar_paradas_do_turno(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_current_user),
 ):
-    paradas = (
-        db.query(Parada)
-        .filter(Parada.turno_id == turno_id)
-        .order_by(Parada.inicio)
-        .all()
-    )
+    paradas = db.query(Parada).filter(Parada.turno_id == turno_id).order_by(Parada.inicio).all()
     if not paradas:
         return []
     return [

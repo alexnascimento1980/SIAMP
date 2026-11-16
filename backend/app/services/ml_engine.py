@@ -9,9 +9,7 @@ from sqlalchemy.orm import Session
 # contexto de build dos Dockerfiles) - garante que o artefato treinado
 # seja incluído automaticamente em qualquer imagem Docker do projeto,
 # local ou em produção. Ver data_science/src/train.py.
-MODEL_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "ml_models", "modelo_risco_parada.joblib")
-)
+MODEL_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "ml_models", "modelo_risco_parada.joblib"))
 
 _modelo_cache = None
 
@@ -122,11 +120,7 @@ def prever_risco_parada(
         # modelo treinado usaria, com pesos simples e explicáveis, em
         # vez de reafirmar uma regra sobre o próprio dado já visível
         # no dashboard.
-        pontuacao = (
-            max(0.0, ciclo_divergencia_pct) * 0.4
-            + taxa_falha_maquina * 0.4
-            + taxa_falha_peca * 0.2
-        )
+        pontuacao = max(0.0, ciclo_divergencia_pct) * 0.4 + taxa_falha_maquina * 0.4 + taxa_falha_peca * 0.2
         risco = 1 if pontuacao > 0.15 else 0
         probabilidade = min(0.95, pontuacao + 0.1)
         fonte = "heuristica"

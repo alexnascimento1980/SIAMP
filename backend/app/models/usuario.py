@@ -33,9 +33,7 @@ class Usuario(Base):
     # invalida na hora todos os tokens emitidos antes - sem isso, quem
     # tivesse um token roubado/copiado continuaria autenticado por até
     # JWT_EXPIRES_MINUTES (8h) mesmo depois do reset de senha.
-    token_version: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default="0"
-    )
+    token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,

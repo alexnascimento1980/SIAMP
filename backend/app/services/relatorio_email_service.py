@@ -16,6 +16,7 @@ módulo a depender de turno_service.py, sendo justamente a causa da
 dependência circular que essa extração resolve (turno_service.py e
 lancamento_service.py já precisavam um do outro por outros motivos;
 adicionar mais um duplicava o problema)."""
+
 import re
 from datetime import datetime
 
@@ -55,10 +56,7 @@ def _resolver_destinatarios(db: Session) -> list[str]:
     (retrocompatibilidade, para ambientes que ainda não migraram para
     a tela)."""
     emails_db = [
-        email
-        for (email,) in db.query(DestinatarioRelatorio.email)
-        .filter(DestinatarioRelatorio.ativo.is_(True))
-        .all()
+        email for (email,) in db.query(DestinatarioRelatorio.email).filter(DestinatarioRelatorio.ativo.is_(True)).all()
     ]
     return emails_db if emails_db else settings.report_recipients
 
@@ -85,9 +83,7 @@ def agendar_email_relatorio(
     # Verifica os dois provedores possíveis (Brevo OU SMTP) - checar só
     # smtp_user/smtp_pass aqui faria o envio parar silenciosamente se
     # só o Brevo estivesse configurado (caso de produção no Render).
-    provedor_configurado = bool(settings.brevo_api_key) or bool(
-        settings.smtp_user and settings.smtp_pass
-    )
+    provedor_configurado = bool(settings.brevo_api_key) or bool(settings.smtp_user and settings.smtp_pass)
     if not (provedor_configurado and destinatarios):
         return False
 
@@ -100,18 +96,12 @@ def agendar_email_relatorio(
     pdf_turno = gerar_relatorio_turno_pdf(dados_turno, kpis, registros_pdf)
 
     metricas_por_periodo = {
-        periodo: calcular_metricas_acumuladas(db, periodo=periodo)
-        for periodo in ("diario", "semanal", "mensal")
+        periodo: calcular_metricas_acumuladas(db, periodo=periodo) for periodo in ("diario", "semanal", "mensal")
     }
     producao_por_turno = montar_producao_por_turno(db)
-    pdf_dashboard = gerar_relatorio_dashboard_pdf(
-        dados_turno, kpis, metricas_por_periodo, producao_por_turno
-    )
+    pdf_dashboard = gerar_relatorio_dashboard_pdf(dados_turno, kpis, metricas_por_periodo, producao_por_turno)
 
-    assunto = (
-        f"[SIAMP] Fechamento de Turno: {turno.nome_turno} - "
-        f"{turno.data_registro.strftime('%d/%m/%y')}"
-    )
+    assunto = f"[SIAMP] Fechamento de Turno: {turno.nome_turno} - {turno.data_registro.strftime('%d/%m/%y')}"
     corpo = (
         "<p>Segue em anexo o relatório de produção e o dashboard do "
         "turno (desempenho comparado ao acumulado diário/semanal/"

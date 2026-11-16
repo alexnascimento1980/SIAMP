@@ -19,22 +19,41 @@ from app.schemas.ordem_producao_schema import OrdemProducaoCreate
 # de uma injetora ao longo do período (comparativo de meta x produção
 # soma por ordem_producao_id, independente da máquina).
 COLUNAS_OBRIGATORIAS = {
-    "numero_op", "produto_codigo",
-    "quantidade_a_produzir", "periodo_inicio", "periodo_fim",
+    "numero_op",
+    "produto_codigo",
+    "quantidade_a_produzir",
+    "periodo_inicio",
+    "periodo_fim",
 }
 COLUNAS_OPCIONAIS = {
     "numero_maquina",
-    "data_emissao", "tipo_op", "setor_produtivo", "lote",
-    "equipamento_descricao", "ferramenta_codigo", "ferramenta_descricao",
-    "formula_codigo", "formula_descricao", "embalagem_codigo",
-    "embalagem_descricao", "qtde_por_embalagem", "qtde_embalagens_previstas",
-    "cavidades", "ciclo_segundos", "qtde_produzida_por_hora_meta",
-    "peso_liquido_unitario", "peso_bruto_unitario", "composicao_mistura",
+    "data_emissao",
+    "tipo_op",
+    "setor_produtivo",
+    "lote",
+    "equipamento_descricao",
+    "ferramenta_codigo",
+    "ferramenta_descricao",
+    "formula_codigo",
+    "formula_descricao",
+    "embalagem_codigo",
+    "embalagem_descricao",
+    "qtde_por_embalagem",
+    "qtde_embalagens_previstas",
+    "cavidades",
+    "ciclo_segundos",
+    "qtde_produzida_por_hora_meta",
+    "peso_liquido_unitario",
+    "peso_bruto_unitario",
+    "composicao_mistura",
     "observacoes",
 }
 COLUNAS_INTEIRAS = {
-    "quantidade_a_produzir", "qtde_por_embalagem", "qtde_embalagens_previstas",
-    "cavidades", "qtde_produzida_por_hora_meta",
+    "quantidade_a_produzir",
+    "qtde_por_embalagem",
+    "qtde_embalagens_previstas",
+    "cavidades",
+    "qtde_produzida_por_hora_meta",
 }
 COLUNAS_FLOAT = {"ciclo_segundos", "peso_liquido_unitario", "peso_bruto_unitario"}
 COLUNAS_DATA = {"data_emissao", "periodo_inicio", "periodo_fim"}
@@ -60,9 +79,7 @@ def _parse_data(valor: str) -> date:
             return datetime.strptime(valor, formato).date()
         except ValueError:
             continue
-    raise LinhaInvalidaError(
-        f"Data inválida: '{valor}' (use AAAA-MM-DD ou DD/MM/AAAA)."
-    )
+    raise LinhaInvalidaError(f"Data inválida: '{valor}' (use AAAA-MM-DD ou DD/MM/AAAA).")
 
 
 def _converter_linha(linha: dict) -> dict:
@@ -80,16 +97,12 @@ def _converter_linha(linha: dict) -> dict:
             try:
                 convertido[chave] = int(float(valor.replace(",", ".")))
             except ValueError as erro:
-                raise LinhaInvalidaError(
-                    f"Valor inválido em '{chave}': '{valor}' (esperado número inteiro)."
-                ) from erro
+                raise LinhaInvalidaError(f"Valor inválido em '{chave}': '{valor}' (esperado número inteiro).") from erro
         elif chave in COLUNAS_FLOAT:
             try:
                 convertido[chave] = float(valor.replace(",", "."))
             except ValueError as erro:
-                raise LinhaInvalidaError(
-                    f"Valor inválido em '{chave}': '{valor}' (esperado número)."
-                ) from erro
+                raise LinhaInvalidaError(f"Valor inválido em '{chave}': '{valor}' (esperado número).") from erro
         else:
             convertido[chave] = valor
     return convertido
@@ -133,11 +146,7 @@ def _ler_xml(conteudo: bytes) -> list[dict]:
 
 
 def _resolver_produto_por_codigo(db: Session, codigo: str) -> Produto | None:
-    return (
-        db.query(Produto)
-        .filter(func.lower(Produto.codigo) == codigo.lower())
-        .first()
-    )
+    return db.query(Produto).filter(func.lower(Produto.codigo) == codigo.lower()).first()
 
 
 def _resolver_maquina_por_numero(db: Session, numero: str) -> Maquina | None:
@@ -150,9 +159,7 @@ def _resolver_maquina_por_numero(db: Session, numero: str) -> Maquina | None:
     return None
 
 
-def importar_ordens_producao(
-    db: Session, conteudo: bytes, nome_arquivo: str, usuario_id: int
-) -> dict:
+def importar_ordens_producao(db: Session, conteudo: bytes, nome_arquivo: str, usuario_id: int) -> dict:
     """Importa Ordens de Produção em lote, de um arquivo CSV ou XML.
 
     Processa cada linha de forma independente: uma linha com erro
@@ -179,9 +186,7 @@ def importar_ordens_producao(
     numeros_op_no_arquivo = set()
     novas_ordens = []
 
-    numeros_op_existentes = {
-        numero for (numero,) in db.query(OrdemProducao.numero_op).all()
-    }
+    numeros_op_existentes = {numero for (numero,) in db.query(OrdemProducao.numero_op).all()}
 
     # Começa em 2: linha 1 é o cabeçalho no CSV (aproximação razoável
     # também para XML, onde não há de fato uma "linha 1" literal, mas
@@ -191,26 +196,18 @@ def importar_ordens_producao(
         try:
             faltando = {c for c in COLUNAS_OBRIGATORIAS if not _obter(linha_bruta, c)}
             if faltando:
-                raise LinhaInvalidaError(
-                    f"Campo(s) obrigatório(s) ausente(s): {', '.join(sorted(faltando))}."
-                )
+                raise LinhaInvalidaError(f"Campo(s) obrigatório(s) ausente(s): {', '.join(sorted(faltando))}.")
 
             if numero_op in numeros_op_existentes:
-                raise LinhaInvalidaError(
-                    f"Já existe uma OP cadastrada com o número '{numero_op}'."
-                )
+                raise LinhaInvalidaError(f"Já existe uma OP cadastrada com o número '{numero_op}'.")
             if numero_op in numeros_op_no_arquivo:
-                raise LinhaInvalidaError(
-                    f"Número de OP '{numero_op}' repetido dentro do próprio arquivo."
-                )
+                raise LinhaInvalidaError(f"Número de OP '{numero_op}' repetido dentro do próprio arquivo.")
 
             produto_codigo = _obter(linha_bruta, "produto_codigo")
             produto = _resolver_produto_por_codigo(db, produto_codigo)
             if produto is None:
                 pecas_faltando.add(produto_codigo)
-                raise LinhaInvalidaError(
-                    f"Peça com código '{produto_codigo}' não está cadastrada no catálogo."
-                )
+                raise LinhaInvalidaError(f"Peça com código '{produto_codigo}' não está cadastrada no catálogo.")
 
             numero_maquina = _obter(linha_bruta, "numero_maquina")
             maquina = None

@@ -56,9 +56,7 @@ def test_envio_bem_sucedido_chama_login_e_send_message():
 
         mock_smtp.assert_called_once_with("smtp.exemplo.com", 587, timeout=15)
         mock_smtp.return_value.starttls.assert_called_once()
-        mock_smtp.return_value.login.assert_called_once_with(
-            "siamp@empresa.com", "senha-app"
-        )
+        mock_smtp.return_value.login.assert_called_once_with("siamp@empresa.com", "senha-app")
         assert mock_smtp.return_value.send_message.call_count == 1
         mensagem_enviada = mock_smtp.return_value.send_message.call_args[0][0]
         assert mensagem_enviada["To"] == "dest1@empresa.com, dest2@empresa.com"
@@ -70,48 +68,38 @@ def test_envio_com_dois_anexos_smtp():
         mock_smtp.return_value.__enter__.return_value = mock_smtp.return_value
 
         enviar_relatorio_email(
-            ["dest@empresa.com"], "Fechamento de turno", "<p>corpo</p>", DOIS_ANEXOS,
+            ["dest@empresa.com"],
+            "Fechamento de turno",
+            "<p>corpo</p>",
+            DOIS_ANEXOS,
         )
 
         mensagem_enviada = mock_smtp.return_value.send_message.call_args[0][0]
-        partes_anexo = [
-            p for p in mensagem_enviada.walk()
-            if p.get_content_disposition() == "attachment"
-        ]
+        partes_anexo = [p for p in mensagem_enviada.walk() if p.get_content_disposition() == "attachment"]
         assert len(partes_anexo) == 2
         nomes = {p.get_filename() for p in partes_anexo}
         assert nomes == {"relatorio.pdf", "relatorio_dashboard.pdf"}
 
 
 def test_from_usa_smtp_from_quando_diferente_do_smtp_user():
-    fake_settings = _settings_falsas(
-        smtp_user="b610a9001@smtp-brevo.com", smtp_from="siamp@empresa.com"
-    )
+    fake_settings = _settings_falsas(smtp_user="b610a9001@smtp-brevo.com", smtp_from="siamp@empresa.com")
     with patch("app.services.mailer.settings", fake_settings), patch("smtplib.SMTP") as mock_smtp:
         mock_smtp.return_value.__enter__.return_value = mock_smtp.return_value
 
-        enviar_relatorio_email(
-            ["dest@empresa.com"], "Assunto", "<p>corpo</p>", UM_ANEXO
-        )
+        enviar_relatorio_email(["dest@empresa.com"], "Assunto", "<p>corpo</p>", UM_ANEXO)
 
         mensagem_enviada = mock_smtp.return_value.send_message.call_args[0][0]
         assert mensagem_enviada["From"] == "siamp@empresa.com"
-        mock_smtp.return_value.login.assert_called_once_with(
-            "b610a9001@smtp-brevo.com", "senha-app"
-        )
+        mock_smtp.return_value.login.assert_called_once_with("b610a9001@smtp-brevo.com", "senha-app")
 
 
 def test_falha_autenticacao_levanta_envio_email_error():
     with patch("app.services.mailer.settings", _settings_falsas()), patch("smtplib.SMTP") as mock_smtp:
         mock_smtp.return_value.__enter__.return_value = mock_smtp.return_value
-        mock_smtp.return_value.login.side_effect = smtplib.SMTPAuthenticationError(
-            535, b"credenciais invalidas"
-        )
+        mock_smtp.return_value.login.side_effect = smtplib.SMTPAuthenticationError(535, b"credenciais invalidas")
 
         with pytest.raises(EnvioEmailError):
-            enviar_relatorio_email(
-                ["dest@empresa.com"], "Assunto", "<p>corpo</p>", UM_ANEXO
-            )
+            enviar_relatorio_email(["dest@empresa.com"], "Assunto", "<p>corpo</p>", UM_ANEXO)
 
 
 def test_falha_de_rede_levanta_envio_email_error():
@@ -119,9 +107,7 @@ def test_falha_de_rede_levanta_envio_email_error():
         mock_smtp.side_effect = OSError("Connection refused")
 
         with pytest.raises(EnvioEmailError):
-            enviar_relatorio_email(
-                ["dest@empresa.com"], "Assunto", "<p>corpo</p>", UM_ANEXO
-            )
+            enviar_relatorio_email(["dest@empresa.com"], "Assunto", "<p>corpo</p>", UM_ANEXO)
 
 
 # --- Caminho API HTTP do Brevo (preferido quando BREVO_API_KEY existe) -
@@ -136,9 +122,7 @@ def test_usa_brevo_quando_api_key_configurada_ignora_smtp():
     ):
         mock_post.return_value = MagicMock(status_code=201, text="")
 
-        enviar_relatorio_email(
-            ["dest@empresa.com"], "Assunto", "<p>corpo</p>", UM_ANEXO
-        )
+        enviar_relatorio_email(["dest@empresa.com"], "Assunto", "<p>corpo</p>", UM_ANEXO)
 
         mock_smtp.assert_not_called()
         mock_post.assert_called_once()
@@ -180,7 +164,10 @@ def test_brevo_monta_payload_com_dois_anexos():
         mock_post.return_value = MagicMock(status_code=201, text="")
 
         enviar_relatorio_email(
-            ["dest@empresa.com"], "Fechamento de turno", "<p>corpo</p>", DOIS_ANEXOS,
+            ["dest@empresa.com"],
+            "Fechamento de turno",
+            "<p>corpo</p>",
+            DOIS_ANEXOS,
         )
 
         payload = mock_post.call_args[1]["json"]
@@ -192,14 +179,10 @@ def test_brevo_monta_payload_com_dois_anexos():
 def test_brevo_erro_http_levanta_envio_email_error():
     fake_settings = _settings_falsas(brevo_api_key="chave-brevo-falsa")
     with patch("app.services.mailer.settings", fake_settings), patch("requests.post") as mock_post:
-        mock_post.return_value = MagicMock(
-            status_code=401, text='{"message":"Key not found"}'
-        )
+        mock_post.return_value = MagicMock(status_code=401, text='{"message":"Key not found"}')
 
         with pytest.raises(EnvioEmailError):
-            enviar_relatorio_email(
-                ["dest@empresa.com"], "Assunto", "<p>corpo</p>", UM_ANEXO
-            )
+            enviar_relatorio_email(["dest@empresa.com"], "Assunto", "<p>corpo</p>", UM_ANEXO)
 
 
 def test_brevo_falha_de_rede_levanta_envio_email_error():
@@ -208,6 +191,4 @@ def test_brevo_falha_de_rede_levanta_envio_email_error():
         mock_post.side_effect = requests.ConnectionError("timeout")
 
         with pytest.raises(EnvioEmailError):
-            enviar_relatorio_email(
-                ["dest@empresa.com"], "Assunto", "<p>corpo</p>", UM_ANEXO
-            )
+            enviar_relatorio_email(["dest@empresa.com"], "Assunto", "<p>corpo</p>", UM_ANEXO)
