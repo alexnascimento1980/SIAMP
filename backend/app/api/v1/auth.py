@@ -2,11 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
-from app.api.deps import COOKIE_NAME, get_current_user
-from app.core.config import settings
+from app.api.deps import COOKIE_NAME, definir_cookie_sessao, get_current_user
 from app.core.database import get_db
 from app.core.rate_limit import limiter
-from app.core.security import criar_access_token, verificar_senha
+from app.core.security import verificar_senha
 from app.models.usuario import Usuario
 from app.schemas.auth_schema import TokenResponse, UsuarioLogadoResponse
 
@@ -67,22 +66,7 @@ def login(
             detail="Usuário desativado. Contate um administrador.",
         )
 
-    token = criar_access_token(subject=usuario.email, perfil=usuario.perfil)
-
-    response.set_cookie(
-        key=COOKIE_NAME,
-        value=token,
-        max_age=settings.jwt_expires_minutes * 60,
-        httponly=True,
-        secure=settings.cookie_secure,
-        # "lax" é suficiente aqui: o frontend só chama a API via fetch/XHR
-        # (nunca via navegação de topo cross-site), e cookies SameSite=Lax
-        # não são enviados em requests cross-site desse tipo — o que já
-        # mitiga CSRF nos endpoints de escrita sem precisar de um token
-        # CSRF separado.
-        samesite="lax",
-        path="/",
-    )
+    token = definir_cookie_sessao(response, usuario)
 
     return TokenResponse(access_token=token)
 
