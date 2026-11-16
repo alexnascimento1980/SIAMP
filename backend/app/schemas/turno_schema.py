@@ -53,9 +53,7 @@ class RegistroHorarioCreate(BaseModel):
         try:
             time.fromisoformat(value)
         except ValueError as exc:
-            raise ValueError(
-                "hora_referencia deve estar no formato HH:MM."
-            ) from exc
+            raise ValueError("hora_referencia deve estar no formato HH:MM.") from exc
         return value
 
     @field_validator("retomada")
@@ -77,19 +75,14 @@ class RegistroHorarioCreate(BaseModel):
             and prod_executada is not None
             and (value + pecas_boas) > prod_executada
         ):
-            raise ValueError(
-                "A soma de peças boas e refugo não pode ser maior que a "
-                "produção executada informada."
-            )
+            raise ValueError("A soma de peças boas e refugo não pode ser maior que a produção executada informada.")
         return value
 
     @field_validator("parada_programada")
     @classmethod
     def validar_parada_programada(cls, value: bool, info):
         if value and info.data.get("inicio_parada") is None:
-            raise ValueError(
-                "Marque o início da parada antes de sinalizá-la como programada."
-            )
+            raise ValueError("Marque o início da parada antes de sinalizá-la como programada.")
         return value
 
 

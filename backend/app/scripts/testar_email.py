@@ -9,6 +9,7 @@ Uso:
 Se SMTP_USER/SMTP_PASS não estiverem configurados no .env, o script
 avisa e não tenta enviar nada (mesmo comportamento do envio real).
 """
+
 import argparse
 import sys
 
@@ -89,12 +90,13 @@ def main() -> None:
         raise SystemExit(1)
 
     if settings.brevo_api_key:
-        print(f"[testar_email] Enviando de {settings.smtp_from} via API do "
-              f"Brevo para {args.para}...")
+        print(f"[testar_email] Enviando de {settings.smtp_from} via API do Brevo para {args.para}...")
     else:
-        print(f"[testar_email] Enviando de {settings.smtp_from} "
-              f"(autenticando como {settings.smtp_user} via "
-              f"{settings.smtp_server}:{settings.smtp_port}) para {args.para}...")
+        print(
+            f"[testar_email] Enviando de {settings.smtp_from} "
+            f"(autenticando como {settings.smtp_user} via "
+            f"{settings.smtp_server}:{settings.smtp_port}) para {args.para}..."
+        )
 
     try:
         enviar_relatorio_email(
@@ -110,10 +112,12 @@ def main() -> None:
                 "gerado a partir dos dados reais quando um turno é "
                 "fechado.</p>"
             ),
-            anexos=[(
-                _gerar_pdf_de_exemplo(),
-                montar_nome_arquivo_relatorio("[EXEMPLO] 1º Turno", agora_brasilia()),
-            )],
+            anexos=[
+                (
+                    _gerar_pdf_de_exemplo(),
+                    montar_nome_arquivo_relatorio("[EXEMPLO] 1º Turno", agora_brasilia()),
+                )
+            ],
         )
     except EnvioEmailError as exc:
         print(f"[testar_email] Falha ao enviar: {exc}", file=sys.stderr)

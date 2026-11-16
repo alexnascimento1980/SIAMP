@@ -49,8 +49,7 @@ def test_nenhum_id_de_migration_passa_do_limite_do_postgres():
 
     assert not problemas, (
         "Migration(s) com id de revisão maior que 32 caracteres "
-        "(limite da coluna alembic_version.version_num no Postgres):\n"
-        + "\n".join(problemas)
+        "(limite da coluna alembic_version.version_num no Postgres):\n" + "\n".join(problemas)
     )
 
 
@@ -72,7 +71,4 @@ def test_cadeia_de_migrations_esta_integra():
             down_revisions_referenciadas.add(down_revision)
 
     orfaos = down_revisions_referenciadas - revisions_existentes
-    assert not orfaos, (
-        "down_revision referenciando uma migration que não existe: "
-        f"{orfaos}"
-    )
+    assert not orfaos, f"down_revision referenciando uma migration que não existe: {orfaos}"

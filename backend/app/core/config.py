@@ -37,8 +37,7 @@ def _build_settings() -> Settings:
         # Falha alto (fail-loud) em vez de rodar com uma chave previsível:
         # um SECRET_KEY ausente/óbvio permitiria forjar tokens válidos.
         raise RuntimeError(
-            "JWT_SECRET_KEY não configurada. Defina uma chave aleatória "
-            "forte na variável de ambiente JWT_SECRET_KEY."
+            "JWT_SECRET_KEY não configurada. Defina uma chave aleatória forte na variável de ambiente JWT_SECRET_KEY."
         )
 
     smtp_user_value = os.getenv("SMTP_USER", "")

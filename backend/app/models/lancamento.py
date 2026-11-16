@@ -27,9 +27,7 @@ class Lancamento(Base):
     __tablename__ = "lancamentos_turno"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    turno_id: Mapped[int] = mapped_column(
-        ForeignKey("turnos.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    turno_id: Mapped[int] = mapped_column(ForeignKey("turnos.id", ondelete="CASCADE"), nullable=False, index=True)
     maquina_id: Mapped[int] = mapped_column(ForeignKey("maquinas.id"), nullable=False, index=True)
 
     tipo: Mapped[str] = mapped_column(String(20), nullable=False)
@@ -38,9 +36,7 @@ class Lancamento(Base):
 
     # Só para tipo=PRODUCAO
     produto_id: Mapped[int | None] = mapped_column(ForeignKey("produtos.id"), nullable=True)
-    ordem_producao_id: Mapped[int | None] = mapped_column(
-        ForeignKey("ordens_producao.id"), nullable=True
-    )
+    ordem_producao_id: Mapped[int | None] = mapped_column(ForeignKey("ordens_producao.id"), nullable=True)
     quantidade: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Ciclo (segundos) informado manualmente pelo operador para este

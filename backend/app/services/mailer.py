@@ -86,13 +86,9 @@ def _enviar_via_brevo_api(
             resposta.status_code,
             resposta.text,
         )
-        raise EnvioEmailError(
-            f"Falha ao enviar e-mail via Brevo (HTTP {resposta.status_code})."
-        )
+        raise EnvioEmailError(f"Falha ao enviar e-mail via Brevo (HTTP {resposta.status_code}).")
 
-    logger.info(
-        "E-mail de relatório enviado com sucesso via Brevo para %s.", destinatarios
-    )
+    logger.info("E-mail de relatório enviado com sucesso via Brevo para %s.", destinatarios)
 
 
 def _enviar_via_smtp(
@@ -115,8 +111,7 @@ def _enviar_via_smtp(
             server.send_message(mensagem)
     except smtplib.SMTPAuthenticationError as exc:
         logger.error(
-            "Falha de autenticação SMTP (usuário/senha incorretos, ou "
-            "senha de app não configurada para %s): %s",
+            "Falha de autenticação SMTP (usuário/senha incorretos, ou senha de app não configurada para %s): %s",
             settings.smtp_user,
             exc,
         )
@@ -131,9 +126,7 @@ def _enviar_via_smtp(
         )
         raise EnvioEmailError("Falha ao enviar e-mail.") from exc
     else:
-        logger.info(
-            "E-mail de relatório enviado com sucesso via SMTP para %s.", destinatarios
-        )
+        logger.info("E-mail de relatório enviado com sucesso via SMTP para %s.", destinatarios)
 
 
 def enviar_relatorio_email(
@@ -170,10 +163,7 @@ def enviar_relatorio_email(
         return
 
     if not settings.smtp_user or not settings.smtp_pass:
-        logger.info(
-            "Envio de e-mail pulado: nem BREVO_API_KEY nem SMTP_USER/"
-            "SMTP_PASS configurados."
-        )
+        logger.info("Envio de e-mail pulado: nem BREVO_API_KEY nem SMTP_USER/SMTP_PASS configurados.")
         return
 
     _enviar_via_smtp(destinatarios, assunto, corpo_html, anexos)

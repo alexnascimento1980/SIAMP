@@ -27,12 +27,11 @@ def _rodar_script(modulo, monkeypatch, argv):
     modulo.main()
 
 
-def test_cria_conta_admin_ja_protegida_quando_nao_existe(
-    db_session, _redirecionar_sessao_do_script, monkeypatch
-):
+def test_cria_conta_admin_ja_protegida_quando_nao_existe(db_session, _redirecionar_sessao_do_script, monkeypatch):
     modulo = _redirecionar_sessao_do_script
     _rodar_script(
-        modulo, monkeypatch,
+        modulo,
+        monkeypatch,
         ["--nome", "Conta Mestre", "--email", "mestre@siamp.com", "--senha", "senhaForte123"],
     )
 
@@ -44,9 +43,7 @@ def test_cria_conta_admin_ja_protegida_quando_nao_existe(
     assert verificar_senha("senhaForte123", usuario.senha_hash)
 
 
-def test_restaura_conta_sabotada_sem_tocar_na_senha(
-    db_session, _redirecionar_sessao_do_script, monkeypatch
-):
+def test_restaura_conta_sabotada_sem_tocar_na_senha(db_session, _redirecionar_sessao_do_script, monkeypatch):
     # Reproduz o incidente que motivou esta funcionalidade: a conta
     # existe mas foi desativada, rebaixada de perfil, e desprotegida -
     # o script deve restaurar os três, sem sobrescrever uma senha
@@ -54,15 +51,19 @@ def test_restaura_conta_sabotada_sem_tocar_na_senha(
     modulo = _redirecionar_sessao_do_script
     senha_trocada_pelo_usuario = gerar_hash_senha("senha-trocada-manualmente")
     usuario = Usuario(
-        nome="Conta Mestre", email="mestre@siamp.com",
+        nome="Conta Mestre",
+        email="mestre@siamp.com",
         senha_hash=senha_trocada_pelo_usuario,
-        perfil="OPERADOR", ativo=False, protegido=False,
+        perfil="OPERADOR",
+        ativo=False,
+        protegido=False,
     )
     db_session.add(usuario)
     db_session.commit()
 
     _rodar_script(
-        modulo, monkeypatch,
+        modulo,
+        monkeypatch,
         ["--nome", "Conta Mestre", "--email", "mestre@siamp.com", "--senha", "senha-do-env-antiga"],
     )
 
@@ -76,9 +77,7 @@ def test_restaura_conta_sabotada_sem_tocar_na_senha(
     assert not verificar_senha("senha-do-env-antiga", usuario.senha_hash)
 
 
-def test_recria_conta_excluida_totalmente(
-    db_session, _redirecionar_sessao_do_script, monkeypatch
-):
+def test_recria_conta_excluida_totalmente(db_session, _redirecionar_sessao_do_script, monkeypatch):
     # Cenário mais crítico: a conta foi excluída de vez (não só
     # desativada) - o próximo restart do container deve recriá-la do
     # zero, já protegida.
@@ -86,7 +85,8 @@ def test_recria_conta_excluida_totalmente(
     assert db_session.query(Usuario).filter(Usuario.email == "mestre@siamp.com").first() is None
 
     _rodar_script(
-        modulo, monkeypatch,
+        modulo,
+        monkeypatch,
         ["--nome", "Conta Mestre", "--email", "mestre@siamp.com", "--senha", "senhaForte123"],
     )
 
@@ -97,22 +97,24 @@ def test_recria_conta_excluida_totalmente(
     assert usuario.protegido is True
 
 
-def test_conta_ja_correta_nao_altera_nada(
-    db_session, _redirecionar_sessao_do_script, monkeypatch
-):
+def test_conta_ja_correta_nao_altera_nada(db_session, _redirecionar_sessao_do_script, monkeypatch):
     modulo = _redirecionar_sessao_do_script
     senha_hash_original = gerar_hash_senha("senha-ja-correta")
     usuario = Usuario(
-        nome="Conta Mestre", email="mestre@siamp.com",
+        nome="Conta Mestre",
+        email="mestre@siamp.com",
         senha_hash=senha_hash_original,
-        perfil="ADMIN", ativo=True, protegido=True,
+        perfil="ADMIN",
+        ativo=True,
+        protegido=True,
     )
     db_session.add(usuario)
     db_session.commit()
     atualizado_em_antes = usuario.updated_at
 
     _rodar_script(
-        modulo, monkeypatch,
+        modulo,
+        monkeypatch,
         ["--nome", "Conta Mestre", "--email", "mestre@siamp.com", "--senha", "outra-senha-qualquer"],
     )
 

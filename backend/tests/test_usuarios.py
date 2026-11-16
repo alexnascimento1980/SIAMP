@@ -123,9 +123,7 @@ def test_admin_reseta_senha_de_outro_usuario(client, db_session):
     op = _criar_operador(db_session)
     _login(client, admin)
 
-    res = client.patch(
-        f"/api/v1/usuarios/{op.id}/senha", json={"nova_senha": "senha-nova-123"}
-    )
+    res = client.patch(f"/api/v1/usuarios/{op.id}/senha", json={"nova_senha": "senha-nova-123"})
     assert res.status_code == 200, res.text
 
     db_session.refresh(op)
@@ -158,9 +156,7 @@ def test_resposta_do_reset_nao_expoe_hash_nem_senha(client, db_session):
     op = _criar_operador(db_session)
     _login(client, admin)
 
-    res = client.patch(
-        f"/api/v1/usuarios/{op.id}/senha", json={"nova_senha": "senha-nova-123"}
-    )
+    res = client.patch(f"/api/v1/usuarios/{op.id}/senha", json={"nova_senha": "senha-nova-123"})
     corpo = res.json()
     assert "senha_hash" not in corpo
     assert "senha" not in corpo
@@ -172,9 +168,7 @@ def test_operador_nao_pode_resetar_senha_de_ninguem(client, db_session):
     op2 = _criar_operador(db_session, email="op2@siamp.test")
     _login(client, op1)
 
-    res = client.patch(
-        f"/api/v1/usuarios/{op2.id}/senha", json={"nova_senha": "senha-nova-123"}
-    )
+    res = client.patch(f"/api/v1/usuarios/{op2.id}/senha", json={"nova_senha": "senha-nova-123"})
     assert res.status_code == 403
 
 
@@ -202,9 +196,7 @@ def test_admin_pode_resetar_a_propria_senha(client, db_session):
     admin = _criar_admin(db_session)
     _login(client, admin)
 
-    res = client.patch(
-        f"/api/v1/usuarios/{admin.id}/senha", json={"nova_senha": "senha-nova-admin"}
-    )
+    res = client.patch(f"/api/v1/usuarios/{admin.id}/senha", json={"nova_senha": "senha-nova-admin"})
     assert res.status_code == 200
 
 
@@ -227,8 +219,11 @@ def test_admin_altera_perfil_de_operador_para_supervisor(client, db_session):
 def test_admin_altera_perfil_de_supervisor_para_operador(client, db_session):
     admin = _criar_admin(db_session)
     sup = Usuario(
-        nome="Supervisor Teste", email="sup@siamp.test",
-        senha_hash=gerar_hash_senha("senha-forte-123"), perfil="SUPERVISOR", ativo=True,
+        nome="Supervisor Teste",
+        email="sup@siamp.test",
+        senha_hash=gerar_hash_senha("senha-forte-123"),
+        perfil="SUPERVISOR",
+        ativo=True,
     )
     db_session.add(sup)
     db_session.commit()
@@ -327,8 +322,10 @@ def test_excluir_usuario_com_turno_editado_nao_quebra_e_desvincula(client, db_se
     colaborador_desligado = _criar_operador(db_session, email="desligado@siamp.test")
 
     turno = Turno(
-        nome_turno="1º Turno", responsavel_nome="Alguém",
-        status_assinatura="ASSINADO_DIGITALMENTE", modelo_apontamento="LANCAMENTO",
+        nome_turno="1º Turno",
+        responsavel_nome="Alguém",
+        status_assinatura="ASSINADO_DIGITALMENTE",
+        modelo_apontamento="LANCAMENTO",
         editado_por_id=colaborador_desligado.id,
     )
     db_session.add(turno)
@@ -358,9 +355,12 @@ def test_excluir_usuario_com_ordem_producao_criada_desvincula(client, db_session
     db_session.refresh(peca)
 
     ordem = OrdemProducao(
-        numero_op="OP-2026-0001", produto_id=peca.id,
-        periodo_inicio=date(2026, 9, 1), periodo_fim=date(2026, 9, 30),
-        quantidade_a_produzir=1000, criado_por_id=colaborador_desligado.id,
+        numero_op="OP-2026-0001",
+        produto_id=peca.id,
+        periodo_inicio=date(2026, 9, 1),
+        periodo_fim=date(2026, 9, 30),
+        quantidade_a_produzir=1000,
+        criado_por_id=colaborador_desligado.id,
     )
     db_session.add(ordem)
     db_session.commit()
@@ -448,9 +448,7 @@ def test_protecao_nao_bloqueia_ativar_conta_protegida(client, db_session):
     # proteção.
     admin_a = _criar_admin(db_session, email="admin-a@siamp.test")
     admin_b = _criar_admin(db_session, email="admin-b@siamp.test")
-    db_session.query(Usuario).filter(Usuario.id == admin_b.id).update(
-        {"protegido": True, "ativo": False}
-    )
+    db_session.query(Usuario).filter(Usuario.id == admin_b.id).update({"protegido": True, "ativo": False})
     db_session.commit()
 
     _login(client, admin_a)
@@ -546,9 +544,7 @@ def test_resetar_senha_de_conta_protegida_funciona_apos_desproteger(client, db_s
     db_session.commit()
 
     _login(client, admin_a)
-    assert client.patch(
-        f"/api/v1/usuarios/{admin_b.id}/senha", json={"nova_senha": "senhaNova123"}
-    ).status_code == 409
+    assert client.patch(f"/api/v1/usuarios/{admin_b.id}/senha", json={"nova_senha": "senhaNova123"}).status_code == 409
 
     client.patch(f"/api/v1/usuarios/{admin_b.id}/protegido", json={"protegido": False})
     res = client.patch(f"/api/v1/usuarios/{admin_b.id}/senha", json={"nova_senha": "senhaNova123"})

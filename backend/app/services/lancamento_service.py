@@ -107,7 +107,8 @@ def montar_registros_pdf_lancamento(db: Session, turno_id: int) -> list[dict]:
                 cavidades_texto += f" (informadas pelo operador: {lanc.cavidades_informado})"
             descricao_com_ciclo = (
                 f"{produto.descricao} ({ciclo_texto}; {cavidades_texto})"
-                if produto else f"({ciclo_texto}; {cavidades_texto})"
+                if produto
+                else f"({ciclo_texto}; {cavidades_texto})"
             )
 
             # Mostra a conta do refugo por extenso quando houve descarte
@@ -118,22 +119,23 @@ def montar_registros_pdf_lancamento(db: Session, turno_id: int) -> list[dict]:
             if refugo_calc is not None:
                 peso_peca_g = produto.peso_gramas if produto else None
                 descricao_com_ciclo += (
-                    f" | refugo: {refugo_calc}pçs "
-                    f"({lanc.peso_bruto_descarte}g ÷ {peso_peca_g}g/peça)"
+                    f" | refugo: {refugo_calc}pçs ({lanc.peso_bruto_descarte}g ÷ {peso_peca_g}g/peça)"
                 )
 
-            resultado.append({
-                "hora_referencia": f"{inicio_str}-{fim_str}",
-                "numero_maquina": maq.numero_maquina,
-                "produto_descricao": descricao_com_ciclo,
-                "numero_op": ordem.numero_op if ordem else None,
-                "prod_executada": lanc.quantidade or 0,
-                "producao_esperada": esperado_exibicao,
-                "refugo": refugo_calc,
-                "inicio_parada": None,
-                "retomada": None,
-                "parada_programada": False,
-            })
+            resultado.append(
+                {
+                    "hora_referencia": f"{inicio_str}-{fim_str}",
+                    "numero_maquina": maq.numero_maquina,
+                    "produto_descricao": descricao_com_ciclo,
+                    "numero_op": ordem.numero_op if ordem else None,
+                    "prod_executada": lanc.quantidade or 0,
+                    "producao_esperada": esperado_exibicao,
+                    "refugo": refugo_calc,
+                    "inicio_parada": None,
+                    "retomada": None,
+                    "parada_programada": False,
+                }
+            )
         else:
             # PARADA_FALHA agora conta como capacidade esperada perdida
             # no total do turno (ver analytics.calcular_capacidade_
@@ -146,26 +148,26 @@ def montar_registros_pdf_lancamento(db: Session, turno_id: int) -> list[dict]:
                 esperado_falha = calcular_capacidade_esperada_lancamento(lanc, maq, produto)
                 ciclo_padrao, cavidades_padrao = resolver_ciclo_cavidades(maq, None)
                 producao_esperada_parada = (
-                    "N/D" if esperado_falha == 0 and not (ciclo_padrao and cavidades_padrao)
-                    else esperado_falha
+                    "N/D" if esperado_falha == 0 and not (ciclo_padrao and cavidades_padrao) else esperado_falha
                 )
             else:
                 producao_esperada_parada = 0
 
-            resultado.append({
-                "hora_referencia": f"{inicio_str}-{fim_str}",
-                "numero_maquina": maq.numero_maquina,
-                "produto_descricao": lanc.motivo or (
-                    "Parada programada" if lanc.tipo == TIPO_PARADA_PROGRAMADA else "Falha na injetora"
-                ),
-                "numero_op": None,
-                "prod_executada": 0,
-                "producao_esperada": producao_esperada_parada,
-                "refugo": None,
-                "inicio_parada": inicio_str,
-                "retomada": fim_str,
-                "parada_programada": lanc.tipo == TIPO_PARADA_PROGRAMADA,
-            })
+            resultado.append(
+                {
+                    "hora_referencia": f"{inicio_str}-{fim_str}",
+                    "numero_maquina": maq.numero_maquina,
+                    "produto_descricao": lanc.motivo
+                    or ("Parada programada" if lanc.tipo == TIPO_PARADA_PROGRAMADA else "Falha na injetora"),
+                    "numero_op": None,
+                    "prod_executada": 0,
+                    "producao_esperada": producao_esperada_parada,
+                    "refugo": None,
+                    "inicio_parada": inicio_str,
+                    "retomada": fim_str,
+                    "parada_programada": lanc.tipo == TIPO_PARADA_PROGRAMADA,
+                }
+            )
     return resultado
 
 
@@ -184,9 +186,7 @@ def salvar_rascunho_lancamento(
             criado_por_id=usuario_id,
             status_assinatura=STATUS_EM_ANDAMENTO,
             modelo_apontamento=MODELO_LANCAMENTO,
-            data_registro=calcular_data_registro_turno(
-                [lanc.horario_inicio for lanc in dados.lancamentos]
-            ),
+            data_registro=calcular_data_registro_turno([lanc.horario_inicio for lanc in dados.lancamentos]),
         )
         db.add(turno)
         db.flush()
@@ -198,8 +198,7 @@ def salvar_rascunho_lancamento(
             raise ValueError("Este turno não usa o modelo de lançamentos livres.")
         if turno.status_assinatura != STATUS_EM_ANDAMENTO:
             raise ValueError(
-                "Este turno já foi fechado - use a tela de Histórico para "
-                "corrigi-lo, em vez de salvar como rascunho."
+                "Este turno já foi fechado - use a tela de Histórico para corrigi-lo, em vez de salvar como rascunho."
             )
         turno.nome_turno = dados.nome_turno
         turno.responsavel_nome = dados.responsavel_nome
@@ -243,9 +242,7 @@ def fechar_turno_lancamento(
             criado_por_id=usuario_id,
             status_assinatura=STATUS_ASSINADO,
             modelo_apontamento=MODELO_LANCAMENTO,
-            data_registro=calcular_data_registro_turno(
-                [lanc.horario_inicio for lanc in dados.lancamentos]
-            ),
+            data_registro=calcular_data_registro_turno([lanc.horario_inicio for lanc in dados.lancamentos]),
         )
         db.add(turno)
         db.flush()

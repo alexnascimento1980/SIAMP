@@ -18,8 +18,11 @@ def _login(client, usuario, senha="senha-forte-123"):
 
 def _criar_admin(db_session, email="admin-teste@siamp.test"):
     admin = Usuario(
-        nome="Admin Teste", email=email,
-        senha_hash=gerar_hash_senha("senha-forte-123"), perfil="ADMIN", ativo=True,
+        nome="Admin Teste",
+        email=email,
+        senha_hash=gerar_hash_senha("senha-forte-123"),
+        perfil="ADMIN",
+        ativo=True,
     )
     db_session.add(admin)
     db_session.commit()
@@ -38,16 +41,24 @@ def _criar_turno_fechado_com_producao(db_session, quantidade=100, numero_maquina
     db_session.refresh(peca)
 
     turno = Turno(
-        nome_turno="1º Turno", responsavel_nome="Líder Teste",
-        status_assinatura="ASSINADO_DIGITALMENTE", modelo_apontamento="LANCAMENTO",
+        nome_turno="1º Turno",
+        responsavel_nome="Líder Teste",
+        status_assinatura="ASSINADO_DIGITALMENTE",
+        modelo_apontamento="LANCAMENTO",
     )
     db_session.add(turno)
     db_session.flush()
-    db_session.add(Lancamento(
-        turno_id=turno.id, maquina_id=maquina.id, tipo="PRODUCAO",
-        horario_inicio=time(5, 0), horario_fim=time(6, 0),
-        produto_id=peca.id, quantidade=quantidade,
-    ))
+    db_session.add(
+        Lancamento(
+            turno_id=turno.id,
+            maquina_id=maquina.id,
+            tipo="PRODUCAO",
+            horario_inicio=time(5, 0),
+            horario_fim=time(6, 0),
+            produto_id=peca.id,
+            quantidade=quantidade,
+        )
+    )
     db_session.commit()
     db_session.refresh(turno)
     return turno
@@ -242,15 +253,21 @@ def test_excluir_turno_modelo_por_hora_apaga_registros_em_cascata(client, db_ses
     db_session.refresh(maquina)
 
     turno = Turno(
-        nome_turno="1º Turno", responsavel_nome="Líder Teste",
-        status_assinatura="ASSINADO_DIGITALMENTE", modelo_apontamento="HORARIO",
+        nome_turno="1º Turno",
+        responsavel_nome="Líder Teste",
+        status_assinatura="ASSINADO_DIGITALMENTE",
+        modelo_apontamento="HORARIO",
     )
     db_session.add(turno)
     db_session.flush()
-    db_session.add(RegistroHorario(
-        turno_id=turno.id, maquina_id=maquina.id,
-        hora_referencia=time(5, 0), prod_executada=50,
-    ))
+    db_session.add(
+        RegistroHorario(
+            turno_id=turno.id,
+            maquina_id=maquina.id,
+            hora_referencia=time(5, 0),
+            prod_executada=50,
+        )
+    )
     db_session.commit()
     db_session.refresh(turno)
     registro_id = db_session.query(RegistroHorario).filter(RegistroHorario.turno_id == turno.id).first().id
@@ -277,8 +294,10 @@ def test_excluir_turno_nao_apaga_ordem_de_producao_referenciada(client, db_sessi
     db_session.refresh(peca)
 
     op = OrdemProducao(
-        numero_op="OP-TESTE-EXCLUIR", produto_id=peca.id,
-        periodo_inicio=date(2026, 9, 1), periodo_fim=date(2026, 9, 30),
+        numero_op="OP-TESTE-EXCLUIR",
+        produto_id=peca.id,
+        periodo_inicio=date(2026, 9, 1),
+        periodo_fim=date(2026, 9, 30),
         quantidade_a_produzir=1000,
     )
     db_session.add(op)
@@ -286,16 +305,25 @@ def test_excluir_turno_nao_apaga_ordem_de_producao_referenciada(client, db_sessi
     db_session.refresh(op)
 
     turno = Turno(
-        nome_turno="1º Turno", responsavel_nome="Líder Teste",
-        status_assinatura="ASSINADO_DIGITALMENTE", modelo_apontamento="LANCAMENTO",
+        nome_turno="1º Turno",
+        responsavel_nome="Líder Teste",
+        status_assinatura="ASSINADO_DIGITALMENTE",
+        modelo_apontamento="LANCAMENTO",
     )
     db_session.add(turno)
     db_session.flush()
-    db_session.add(Lancamento(
-        turno_id=turno.id, maquina_id=maquina.id, tipo="PRODUCAO",
-        horario_inicio=time(5, 0), horario_fim=time(6, 0),
-        produto_id=peca.id, quantidade=100, ordem_producao_id=op.id,
-    ))
+    db_session.add(
+        Lancamento(
+            turno_id=turno.id,
+            maquina_id=maquina.id,
+            tipo="PRODUCAO",
+            horario_inicio=time(5, 0),
+            horario_fim=time(6, 0),
+            produto_id=peca.id,
+            quantidade=100,
+            ordem_producao_id=op.id,
+        )
+    )
     db_session.commit()
     db_session.refresh(turno)
 
@@ -327,8 +355,11 @@ def test_supervisor_nao_pode_excluir_turno_definitivamente(client, db_session):
     # vez é restrito só a ADMIN - mesma política já usada para
     # excluir usuário e peça.
     supervisor = Usuario(
-        nome="Supervisor Teste", email="supervisor-exclui@siamp.test",
-        senha_hash=gerar_hash_senha("senha-forte-123"), perfil="SUPERVISOR", ativo=True,
+        nome="Supervisor Teste",
+        email="supervisor-exclui@siamp.test",
+        senha_hash=gerar_hash_senha("senha-forte-123"),
+        perfil="SUPERVISOR",
+        ativo=True,
     )
     db_session.add(supervisor)
     db_session.commit()

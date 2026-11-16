@@ -49,9 +49,7 @@ def test_reset_de_senha_invalida_o_token_antigo_do_usuario(client, db_session):
     assert _me_com_bearer(client, token_antigo).status_code == 200
 
     _login_token(client, admin)
-    res = client.patch(
-        f"/api/v1/usuarios/{alvo.id}/senha", json={"nova_senha": "outra-senha-forte-1"}
-    )
+    res = client.patch(f"/api/v1/usuarios/{alvo.id}/senha", json={"nova_senha": "outra-senha-forte-1"})
     assert res.status_code == 200, res.text
 
     # O token emitido antes do reset deixou de valer...

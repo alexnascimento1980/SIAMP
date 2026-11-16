@@ -70,9 +70,7 @@ def test_admin_cria_edita_e_desativa_peca(client, db_session):
     assert editado["codigo"] == "T1"  # código não muda no update
 
     # Desativa
-    res_desativa = client.patch(
-        f"/api/v1/produtos/{produto['id']}", json={"ativo": False}
-    )
+    res_desativa = client.patch(f"/api/v1/produtos/{produto['id']}", json={"ativo": False})
     assert res_desativa.status_code == 200
     assert res_desativa.json()["ativo"] is False
 
@@ -120,9 +118,7 @@ def test_editar_codigo_da_peca_com_sucesso(client, db_session):
         json={"codigo": "COD-ANTIGO", "descricao": "Peça", "ciclo_padrao": 10.0, "cavidades": 2},
     ).json()
 
-    res = client.patch(
-        f"/api/v1/produtos/{produto['id']}", json={"codigo": "COD-NOVO"}
-    )
+    res = client.patch(f"/api/v1/produtos/{produto['id']}", json={"codigo": "COD-NOVO"})
     assert res.status_code == 200, res.text
     assert res.json()["codigo"] == "COD-NOVO"
 
@@ -220,17 +216,24 @@ def test_excluir_peca_com_registro_horario_e_bloqueado(client, db_session):
 
     maquina = Maquina(numero_maquina="1", descricao="Injetora 1", ativo=True)
     turno = Turno(
-        nome_turno="1º Turno", responsavel_nome="Líder Teste",
-        status_assinatura="ASSINADO_DIGITALMENTE", modelo_apontamento="HORARIO",
+        nome_turno="1º Turno",
+        responsavel_nome="Líder Teste",
+        status_assinatura="ASSINADO_DIGITALMENTE",
+        modelo_apontamento="HORARIO",
     )
     db_session.add_all([maquina, turno])
     db_session.commit()
     db_session.refresh(maquina)
     db_session.refresh(turno)
-    db_session.add(RegistroHorario(
-        turno_id=turno.id, maquina_id=maquina.id, produto_id=produto_id,
-        hora_referencia=time(5, 0), prod_executada=100,
-    ))
+    db_session.add(
+        RegistroHorario(
+            turno_id=turno.id,
+            maquina_id=maquina.id,
+            produto_id=produto_id,
+            hora_referencia=time(5, 0),
+            prod_executada=100,
+        )
+    )
     db_session.commit()
 
     res = client.delete(f"/api/v1/produtos/{produto_id}")

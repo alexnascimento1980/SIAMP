@@ -23,9 +23,7 @@ class InferenciaRequest(BaseModel):
     duracao_min: float = Field(..., json_schema_extra={"example": 120.0})
     quantidade: int | None = Field(default=None, json_schema_extra={"example": 350})
     turno_num: int = Field(default=1, json_schema_extra={"example": 1})
-    dia_semana: int = Field(
-        default=0, json_schema_extra={"example": 2}, description="0=segunda ... 6=domingo"
-    )
+    dia_semana: int = Field(default=0, json_schema_extra={"example": 2}, description="0=segunda ... 6=domingo")
 
 
 @router.post("/diagnostico-risco")

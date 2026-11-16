@@ -4,6 +4,7 @@ Peças - passa a ser exclusivo de ADMIN. A LEITURA (listar) continua
 aberta a todo mundo de propósito: o dropdown de seleção no apontamento
 de produção depende dela, e o Dashboard mostra o comparativo de OPs a
 qualquer perfil (confirmado com o usuário antes de implementar)."""
+
 from app.core.security import gerar_hash_senha
 from app.models.produto import Produto
 from app.models.usuario import Usuario
@@ -19,8 +20,11 @@ def _login(client, usuario):
 
 def _criar_usuario(db_session, perfil, email):
     usuario = Usuario(
-        nome=f"Teste {perfil}", email=email,
-        senha_hash=gerar_hash_senha("senha-forte-123"), perfil=perfil, ativo=True,
+        nome=f"Teste {perfil}",
+        email=email,
+        senha_hash=gerar_hash_senha("senha-forte-123"),
+        perfil=perfil,
+        ativo=True,
     )
     db_session.add(usuario)
     db_session.commit()

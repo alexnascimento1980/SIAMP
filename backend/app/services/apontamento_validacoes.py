@@ -10,6 +10,7 @@ cada modelo de apontamento extrai o conjunto relevante da sua própria
 estrutura de dados antes de chamar, então o validador em si não
 precisa conhecer o formato de nenhum dos dois payloads.
 """
+
 from sqlalchemy.orm import Session
 
 from app.models.maquina import Maquina
@@ -54,9 +55,7 @@ def validar_ordens_producao_existem(db: Session, ordem_ids: set[int]) -> None:
     banco."""
     if not ordem_ids:
         return
-    existentes = {
-        oid for (oid,) in db.query(OrdemProducao.id).filter(OrdemProducao.id.in_(ordem_ids)).all()
-    }
+    existentes = {oid for (oid,) in db.query(OrdemProducao.id).filter(OrdemProducao.id.in_(ordem_ids)).all()}
     faltando = ordem_ids - existentes
     if faltando:
         raise ValueError(f"Ordem(ns) de Produção não encontrada(s): {sorted(faltando)}.")

@@ -38,6 +38,9 @@ jobs:
       - name: Lint (ruff)
         run: ruff check .
 
+      - name: Formatação (ruff format)
+        run: ruff format --check .
+
       - name: Rodar testes
         env:
           JWT_SECRET_KEY: chave-de-teste-ci-nao-usar-em-producao

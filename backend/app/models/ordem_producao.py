@@ -67,9 +67,7 @@ class OrdemProducao(Base):
     observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     criado_por_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
-    criado_em: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=agora_brasilia
-    )
+    criado_em: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=agora_brasilia)
 
     maquina = relationship("Maquina")
     produto = relationship("Produto")
