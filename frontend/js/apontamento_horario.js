@@ -1,3 +1,7 @@
+// Funções chamadas pelos atributos data-onclick/data-onchange/data-oninput
+// do HTML (ver js/acoes.js) - lista fechada, substitui os handlers inline.
+registrarAcoes({ atualizarHorariosTurno, confirmarFechamento, onPecaSelecionada, salvarRascunho, salvarValor });
+
 // Grade horária de acordo com as fichas operacionais de cada turno
 const HORARIOS_POR_TURNO = {
   1: [
@@ -101,7 +105,7 @@ function ativarModoEdicao() {
   document.querySelector(".container-fluid.p-3").prepend(aviso);
 
   const botaoFechar = document.querySelector(
-    'button[onclick="confirmarFechamento()"]',
+    'button[data-onclick="confirmarFechamento"]',
   );
   botaoFechar.innerHTML =
     '<i class="bi bi-check-circle me-2"></i>Salvar Correção';
@@ -335,45 +339,45 @@ function renderizarTabela() {
     tr.innerHTML = `
       <td class="fw-bold fs-5 text-secondary">${hora}</td>
       <td>
-        <select class="form-select select-peca" onchange="onPecaSelecionada('${hora}', this.value)">
+        <select class="form-select select-peca" data-onchange="onPecaSelecionada" data-args='["${hora}", "@@value"]'>
           <option value="" ${salvo.produtoId ? "" : "selected"}>— Selecionar —</option>
           ${opcoesPecas}
         </select>
       </td>
       <td>
-        <select class="form-select select-op" onchange="salvarValor('${hora}', 'ordemProducaoId', this.value)">
+        <select class="form-select select-op" data-onchange="salvarValor" data-args='["${hora}", "ordemProducaoId", "@@value"]'>
           <option value="" ${salvo.ordemProducaoId ? "" : "selected"}>— Nenhuma —</option>
           ${opcoesOps}
         </select>
       </td>
       <td>
         <input type="number" min="0" class="form-control" placeholder="0" 
-          value="${escaparHtml(salvo.prod)}" onchange="salvarValor('${hora}', 'prod', this.value)">
+          value="${escaparHtml(salvo.prod)}" data-onchange="salvarValor" data-args='["${hora}", "prod", "@@value"]'>
       </td>
       <td>
         <input type="number" min="0.1" step="0.1" class="form-control" placeholder="ciclo (s)"
-          value="${escaparHtml(salvo.cicloInformado)}" onchange="salvarValor('${hora}', 'cicloInformado', this.value)">
+          value="${escaparHtml(salvo.cicloInformado)}" data-onchange="salvarValor" data-args='["${hora}", "cicloInformado", "@@value"]'>
       </td>
       <td>
         <input type="time" class="form-control mb-1" 
-          value="${escaparHtml(salvo.inicio)}" onchange="salvarValor('${hora}', 'inicio', this.value)">
+          value="${escaparHtml(salvo.inicio)}" data-onchange="salvarValor" data-args='["${hora}", "inicio", "@@value"]'>
         <input type="number" min="0" class="form-control form-control-sm" placeholder="contador"
-          value="${escaparHtml(salvo.contadorParada)}" onchange="salvarValor('${hora}', 'contadorParada', this.value)">
+          value="${escaparHtml(salvo.contadorParada)}" data-onchange="salvarValor" data-args='["${hora}", "contadorParada", "@@value"]'>
       </td>
       <td>
         <input type="time" class="form-control mb-1" 
-          value="${escaparHtml(salvo.retomada)}" onchange="salvarValor('${hora}', 'retomada', this.value)">
+          value="${escaparHtml(salvo.retomada)}" data-onchange="salvarValor" data-args='["${hora}", "retomada", "@@value"]'>
         <input type="number" min="0" class="form-control form-control-sm" placeholder="contador"
-          value="${escaparHtml(salvo.contadorRetomada)}" onchange="salvarValor('${hora}', 'contadorRetomada', this.value)">
+          value="${escaparHtml(salvo.contadorRetomada)}" data-onchange="salvarValor" data-args='["${hora}", "contadorRetomada", "@@value"]'>
       </td>
       <td>
         <input type="checkbox" class="form-check-input" title="Parada programada (não penaliza o OEE)"
           ${salvo.paradaProgramada ? "checked" : ""}
-          onchange="salvarValor('${hora}', 'paradaProgramada', this.checked)">
+          data-onchange="salvarValor" data-args='["${hora}", "paradaProgramada", "@@checked"]'>
       </td>
       <td>
         <input type="text" class="form-control text-start input-motivo" placeholder="Ex: Molde travado" 
-          onchange="salvarValor('${hora}', 'motivo', this.value)">
+          data-onchange="salvarValor" data-args='["${hora}", "motivo", "@@value"]'>
       </td>
     `;
 

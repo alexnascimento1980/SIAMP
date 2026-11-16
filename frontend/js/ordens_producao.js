@@ -1,3 +1,7 @@
+// Funções chamadas pelos atributos data-onclick/data-onchange/data-oninput
+// do HTML (ver js/acoes.js) - lista fechada, substitui os handlers inline.
+registrarAcoes({ cancelarEdicao, editarOp, excluirOp, extrairDocumentoOp, importarArquivo });
+
 let opsCarregadas = [];
 let pecasCatalogo = [];
 let maquinasCatalogo = [];
@@ -122,10 +126,10 @@ function renderizarLista(ops, comparativos) {
       : `<div class="small text-secondary fst-italic">Sem máquina vinculada - comparativo indisponível.</div>`;
 
     const botoesGerenciar = `
-        <button class="btn btn-sm btn-outline-secondary" onclick="editarOp(${op.id})" title="Editar">
+        <button class="btn btn-sm btn-outline-secondary" data-onclick="editarOp" data-args='[${op.id}]' title="Editar">
           <i class="bi bi-pencil-square"></i>
         </button>
-        <button class="btn btn-sm btn-outline-danger" onclick="excluirOp(${op.id})" title="Remover">
+        <button class="btn btn-sm btn-outline-danger" data-onclick="excluirOp" data-args='[${op.id}]' title="Remover">
           <i class="bi bi-trash"></i>
         </button>
       `;

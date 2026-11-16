@@ -1,3 +1,7 @@
+// Funções chamadas pelos atributos data-onclick/data-onchange/data-oninput
+// do HTML (ver js/acoes.js) - lista fechada, substitui os handlers inline.
+registrarAcoes({ abrirExclusaoTurno, alternarSelecaoTurno, alternarSelecionarTodos, baixarRelatorio, carregarTurnos, confirmarExclusaoTurno, exportarCsv, limparSelecao, marcarSelecionadosComoTeste, reenviarEmail });
+
 let perfilUsuario = null;
 let turnosSelecionados = new Set();
 
@@ -73,7 +77,7 @@ function renderizarTurnos(turnos) {
       ? `<td class="text-center">
            <input type="checkbox" class="form-check-input check-turno" value="${t.id}"
              ${turnosSelecionados.has(t.id) ? "checked" : ""}
-             onchange="alternarSelecaoTurno(${t.id}, this.checked)">
+             data-onchange="alternarSelecaoTurno" data-args='[${t.id}, "@@checked"]'>
          </td>`
       : "";
 
@@ -100,7 +104,7 @@ function renderizarTurnos(turnos) {
     // Reenvio de e-mail só faz sentido para turno já fechado (é o
     // único caso em que um e-mail original já foi enviado).
     const botaoReenviarEmail = !emAndamento && podeEditar
-      ? `<button class="btn btn-sm btn-outline-secondary" title="Reenviar relatório por e-mail" onclick="reenviarEmail(${t.id}, this)">
+      ? `<button class="btn btn-sm btn-outline-secondary" title="Reenviar relatório por e-mail" data-onclick="reenviarEmail" data-args='[${t.id}, "@@el"]'>
            <i class="bi bi-envelope-arrow-up"></i>
          </button>`
       : "";
@@ -124,7 +128,7 @@ function renderizarTurnos(turnos) {
     // data-* é um atributo comum, sem essa segunda camada de
     // interpretação - escaparHtml() sozinho já é suficiente ali.
     const botaoExcluir = perfilUsuario === "ADMIN"
-      ? `<button class="btn btn-sm btn-outline-danger" title="Excluir definitivamente" data-turno-nome="${escaparHtml(t.nome_turno)}" data-turno-data="${escaparHtml(dataFormatada)}" onclick="abrirExclusaoTurno(${t.id}, this.dataset.turnoNome, this.dataset.turnoData)">
+      ? `<button class="btn btn-sm btn-outline-danger" title="Excluir definitivamente" data-turno-nome="${escaparHtml(t.nome_turno)}" data-turno-data="${escaparHtml(dataFormatada)}" data-onclick="abrirExclusaoTurno" data-args='[${t.id}, "@@data.turnoNome", "@@data.turnoData"]'>
            <i class="bi bi-trash"></i>
          </button>`
       : "";
@@ -140,7 +144,7 @@ function renderizarTurnos(turnos) {
       <td class="text-center">${badgeStatus}</td>
       <td class="text-center">
         <div class="d-flex gap-1 justify-content-center">
-          <button class="btn btn-sm btn-outline-primary" onclick="baixarRelatorio(${t.id}, this)">
+          <button class="btn btn-sm btn-outline-primary" data-onclick="baixarRelatorio" data-args='[${t.id}, "@@el"]'>
             <i class="bi bi-file-earmark-pdf me-1"></i>PDF
           </button>
           ${botaoReenviarEmail}

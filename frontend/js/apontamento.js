@@ -1,3 +1,7 @@
+// Funções chamadas pelos atributos data-onclick/data-onchange/data-oninput
+// do HTML (ver js/acoes.js) - lista fechada, substitui os handlers inline.
+registrarAcoes({ adicionarLancamento, aplicarHorarioPadraoOuLimpar, cancelarEdicaoLancamento, confirmarFechamento, editarLancamento, onTipoLancamentoMudou, removerLancamento, salvarRascunho });
+
 // Estado: lancamentosState[numero_maquina] = [ {tipo, horario_inicio, horario_fim, produto_id, ordem_producao_id, quantidade, ciclo_informado, cavidades_informado, peso_bruto_descarte, motivo}, ... ]
 // IMPORTANTE: todo campo que um lançamento pode carregar precisa
 // aparecer TANTO aqui quanto no carregamento de um turno existente
@@ -583,10 +587,10 @@ function renderizarListaLancamentos() {
           <td class="text-center">${lanc.tipo === "PRODUCAO" ? esperado : "-"}</td>
           <td class="text-center">
             <div class="d-flex gap-1 justify-content-center">
-              <button class="btn btn-sm btn-outline-secondary" onclick="editarLancamento(${i})" title="Corrigir">
+              <button class="btn btn-sm btn-outline-secondary" data-onclick="editarLancamento" data-args='[${i}]' title="Corrigir">
                 <i class="bi bi-pencil-square"></i>
               </button>
-              <button class="btn btn-sm btn-outline-danger" onclick="removerLancamento(${i})" title="Excluir">
+              <button class="btn btn-sm btn-outline-danger" data-onclick="removerLancamento" data-args='[${i}]' title="Excluir">
                 <i class="bi bi-trash"></i>
               </button>
             </div>

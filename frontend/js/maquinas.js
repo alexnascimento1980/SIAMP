@@ -1,3 +1,7 @@
+// Funções chamadas pelos atributos data-onclick/data-onchange/data-oninput
+// do HTML (ver js/acoes.js) - lista fechada, substitui os handlers inline.
+registrarAcoes({ abrirEdicao, alterarStatus, carregarMaquinas, excluirMaquina });
+
 let maquinasCarregadas = [];
 let modalEditar = null;
 
@@ -55,8 +59,8 @@ function renderizarMaquinas(maquinas) {
       ? '<span class="badge bg-success">Ativa</span>'
       : '<span class="badge bg-secondary">Inativa</span>';
     const botaoStatus = m.ativo
-      ? `<button class="btn btn-sm btn-outline-danger" onclick="alterarStatus(${m.id}, false)">Desativar</button>`
-      : `<button class="btn btn-sm btn-outline-success" onclick="alterarStatus(${m.id}, true)">Reativar</button>`;
+      ? `<button class="btn btn-sm btn-outline-danger" data-onclick="alterarStatus" data-args='[${m.id}, false]'>Desativar</button>`
+      : `<button class="btn btn-sm btn-outline-success" data-onclick="alterarStatus" data-args='[${m.id}, true]'>Reativar</button>`;
 
     tr.innerHTML = `
       <td class="fw-bold">${escaparHtml(m.numero_maquina)}</td>
@@ -64,11 +68,11 @@ function renderizarMaquinas(maquinas) {
       <td class="text-center">${badgeStatus}</td>
       <td class="text-center">
         <div class="d-flex gap-1 justify-content-center">
-          <button class="btn btn-sm btn-outline-secondary" onclick="abrirEdicao(${m.id})" title="Editar">
+          <button class="btn btn-sm btn-outline-secondary" data-onclick="abrirEdicao" data-args='[${m.id}]' title="Editar">
             <i class="bi bi-pencil-square"></i>
           </button>
           ${botaoStatus}
-          <button class="btn btn-sm btn-outline-danger" title="Excluir definitivamente" onclick="excluirMaquina(${m.id})">
+          <button class="btn btn-sm btn-outline-danger" title="Excluir definitivamente" data-onclick="excluirMaquina" data-args='[${m.id}]'>
             <i class="bi bi-trash"></i>
           </button>
         </div>

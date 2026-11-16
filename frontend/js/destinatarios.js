@@ -1,3 +1,7 @@
+// Funções chamadas pelos atributos data-onclick/data-onchange/data-oninput
+// do HTML (ver js/acoes.js) - lista fechada, substitui os handlers inline.
+registrarAcoes({ alterarStatus, carregarDestinatarios, removerDestinatario });
+
 let destinatariosCarregados = [];
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -49,8 +53,8 @@ function renderizarDestinatarios() {
       ? '<span class="badge bg-success">Ativo</span>'
       : '<span class="badge bg-secondary">Inativo</span>';
     const botaoStatus = d.ativo
-      ? `<button class="btn btn-sm btn-outline-danger" onclick="alterarStatus(${d.id}, false)">Desativar</button>`
-      : `<button class="btn btn-sm btn-outline-success" onclick="alterarStatus(${d.id}, true)">Reativar</button>`;
+      ? `<button class="btn btn-sm btn-outline-danger" data-onclick="alterarStatus" data-args='[${d.id}, false]'>Desativar</button>`
+      : `<button class="btn btn-sm btn-outline-success" data-onclick="alterarStatus" data-args='[${d.id}, true]'>Reativar</button>`;
 
     tr.innerHTML = `
       <td class="fw-bold">${escaparHtml(d.email)}</td>
@@ -59,7 +63,7 @@ function renderizarDestinatarios() {
       <td class="text-center">
         <div class="d-flex gap-1 justify-content-center">
           ${botaoStatus}
-          <button class="btn btn-sm btn-outline-danger" title="Remover definitivamente" onclick="removerDestinatario(${d.id})">
+          <button class="btn btn-sm btn-outline-danger" title="Remover definitivamente" data-onclick="removerDestinatario" data-args='[${d.id}]'>
             <i class="bi bi-trash"></i>
           </button>
         </div>
