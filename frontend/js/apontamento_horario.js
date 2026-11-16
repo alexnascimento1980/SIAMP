@@ -1,6 +1,6 @@
 // Funções chamadas pelos atributos data-onclick/data-onchange/data-oninput
 // do HTML (ver js/acoes.js) - lista fechada, substitui os handlers inline.
-registrarAcoes({ atualizarHorariosTurno, confirmarFechamento, onPecaSelecionada, salvarRascunho, salvarValor });
+registrarAcoes({ atualizarHorariosTurno, confirmarFechamento, onPecaSelecionada, salvarValor });
 
 // Grade horária de acordo com as fichas operacionais de cada turno
 const HORARIOS_POR_TURNO = {
@@ -30,12 +30,10 @@ let ordensProducaoDisponiveis = [];
 // Estado centralizado dos apontamentos: dados[numero_maquina][hora] = { prod, inicio, retomada, motivo, produtoId, ordemProducaoId, paradaProgramada, cicloInformado, contadorParada, contadorRetomada }
 let registrosState = {};
 
-// Preenchido quando a tela está em modo de correção de um turno já
-// fechado (via apontamento.html?editar=<id>). null = modo normal (novo turno).
+// Esta tela existe só para CORRIGIR turnos antigos, feitos no modelo de
+// grade por hora (aposentado: turnos novos são criados em apontamento.html,
+// por lançamentos). O id vem de apontamento_horario.html?editar=<id>.
 let turnoEditandoId = null;
-// Rascunho: turno salvo em EM_ANDAMENTO, ainda sendo preenchido. Não
-// dispara PDF/e-mail - só o fechamento definitivo faz isso.
-let rascunhoTurnoId = null;
 
 // Inicialização
 document.addEventListener("DOMContentLoaded", async () => {
@@ -56,21 +54,23 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const params = new URLSearchParams(window.location.search);
   const idParaEditar = params.get("editar");
-  const idParaRascunho = params.get("rascunho");
 
-  if (idParaEditar) {
-    if (perfil !== "ADMIN" && perfil !== "SUPERVISOR") {
-      alert(
-        "Apenas administradores e supervisores podem corrigir um turno já fechado.",
-      );
-      window.location.href = "historico.html";
-      return;
-    }
-    turnoEditandoId = idParaEditar;
-    ativarModoEdicao();
-  } else if (idParaRascunho) {
-    rascunhoTurnoId = idParaRascunho;
+  // Sem ?editar=<id> não há o que fazer aqui: o apontamento por hora
+  // não cria mais turnos (nem rascunhos). Quem chegar por um favorito
+  // ou link antigo é levado para a tela de apontamento atual.
+  if (!idParaEditar) {
+    window.location.href = params.get("rascunho") ? "historico.html" : "apontamento.html";
+    return;
   }
+  if (perfil !== "ADMIN" && perfil !== "SUPERVISOR") {
+    alert(
+      "Apenas administradores e supervisores podem corrigir um turno já fechado.",
+    );
+    window.location.href = "historico.html";
+    return;
+  }
+  turnoEditandoId = idParaEditar;
+  ativarModoEdicao();
 
   document.getElementById("dataTurno").valueAsDate = new Date();
   atualizarRelogio();
@@ -79,16 +79,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Em modo de edição, inclui também máquinas já desativadas, para que
   // os registros históricos delas continuem visíveis e editáveis.
   await Promise.all([
-    carregarMaquinas(!!turnoEditandoId),
+    carregarMaquinas(true),
     carregarPecas(),
     carregarOrdensProducao(),
   ]);
 
-  if (turnoEditandoId) {
-    await carregarTurnoParaEdicao(turnoEditandoId);
-  } else if (rascunhoTurnoId) {
-    await carregarTurnoParaEdicao(rascunhoTurnoId);
-  }
+  await carregarTurnoParaEdicao(turnoEditandoId);
 
   renderizarTabela();
   atualizarResumoTurno();
@@ -559,14 +555,12 @@ function montarPayloadFechamento() {
   return { lider, payload };
 }
 
-// Envio para o Backend FastAPI: cria/atualiza um rascunho, fecha um
-// turno novo, fecha um rascunho existente, ou corrige um turno já
-// fechado (turnoEditandoId) - qual caminho depende de qual id estiver
-// definido no momento.
+// Envio para o Backend FastAPI: corrige o turno antigo em edição
+// (PATCH /turnos/{id}), restrito a ADMIN/SUPERVISOR.
 async function confirmarFechamento() {
   const { lider, payload } = montarPayloadFechamento();
   if (!lider) {
-    alert("Por favor, preencha o nome do líder antes de finalizar.");
+    alert("Por favor, preencha o nome do líder antes de salvar a correção.");
     return;
   }
 
@@ -579,27 +573,9 @@ async function confirmarFechamento() {
   botao.disabled = true;
   botao.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Gerando documento...';
 
-  let caminho;
-  let metodo;
-  let tipo; // "correcao" | "fechar_rascunho" | "fechar_direto"
-
-  if (turnoEditandoId) {
-    caminho = `/turnos/${turnoEditandoId}`;
-    metodo = "PATCH";
-    tipo = "correcao";
-  } else if (rascunhoTurnoId) {
-    caminho = `/turnos/${rascunhoTurnoId}/fechar`;
-    metodo = "POST";
-    tipo = "fechar_rascunho";
-  } else {
-    caminho = `/turnos/fechamento`;
-    metodo = "POST";
-    tipo = "fechar_direto";
-  }
-
   try {
-    const res = await chamarApi(caminho, {
-      method: metodo,
+    const res = await chamarApi(`/turnos/${turnoEditandoId}`, {
+      method: "PATCH",
       body: JSON.stringify(payload),
     });
 
@@ -609,15 +585,8 @@ async function confirmarFechamento() {
     }
 
     if (res.ok) {
-      if (tipo === "correcao") {
-        alert("✅ Turno corrigido com sucesso!");
-        window.location.href = "historico.html";
-      } else {
-        alert(
-          "✅ Fechamento de turno registrado e assinado com sucesso! O relatório será gerado.",
-        );
-        window.location.reload();
-      }
+      alert("✅ Turno corrigido com sucesso!");
+      window.location.href = "historico.html";
     } else {
       const erro = await res.json().catch(() => null);
       alert(
@@ -634,61 +603,5 @@ async function confirmarFechamento() {
   } finally {
     botao.disabled = false;
     botao.innerHTML = conteudoOriginal;
-  }
-}
-
-// Salva o progresso do turno em andamento, sem disparar PDF/e-mail -
-// pode ser chamado várias vezes ao longo do turno. Na primeira vez,
-// cria o rascunho (POST); nas seguintes, atualiza o mesmo (PATCH).
-async function salvarRascunho() {
-  const { lider, payload } = montarPayloadFechamento();
-  if (!lider) {
-    alert("Por favor, preencha o nome do líder antes de salvar o rascunho.");
-    return;
-  }
-  if (turnoEditandoId) {
-    alert("Este turno já está fechado - use 'Salvar Correção' em vez de rascunho.");
-    return;
-  }
-
-  const btn = document.getElementById("btnSalvarRascunho");
-  const textoOriginal = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span>`;
-
-  const caminho = rascunhoTurnoId ? `/turnos/rascunho/${rascunhoTurnoId}` : `/turnos/rascunho`;
-  const metodo = rascunhoTurnoId ? "PATCH" : "POST";
-
-  try {
-    const res = await chamarApi(caminho, {
-      method: metodo,
-      body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-      const erro = await res.json().catch(() => null);
-      alert("⚠️ " + extrairMensagemDeErro(erro, "Não foi possível salvar o rascunho."));
-      return;
-    }
-
-    const resultado = await res.json();
-    rascunhoTurnoId = String(resultado.turno_id);
-
-    // Atualiza a URL sem recarregar a página, para que um refresh
-    // acidental (ou fechar e reabrir a aba) continue de onde parou.
-    const novaUrl = `${window.location.pathname}?rascunho=${rascunhoTurnoId}`;
-    window.history.replaceState({}, "", novaUrl);
-
-    const indicador = document.getElementById("indicadorRascunho");
-    const agora = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-    indicador.innerText = `Rascunho salvo às ${agora}`;
-    indicador.classList.remove("d-none");
-  } catch (error) {
-    if (error.message === "Sessão expirada.") return;
-    console.error("Erro ao salvar rascunho:", error);
-    alert("❌ Não foi possível salvar o rascunho.");
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = textoOriginal;
   }
 }
