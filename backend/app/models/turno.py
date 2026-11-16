@@ -66,6 +66,17 @@ class Turno(Base):
     )
     editado_em: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # Quem criou o turno (rascunho ou fechamento direto). Usado para
+    # restringir quem pode continuar editando/fechando um RASCUNHO:
+    # o próprio autor, SUPERVISOR ou ADMIN. Nulo em turnos antigos
+    # (anteriores a esta coluna) e quando o autor é excluído - nesses
+    # casos o rascunho continua liberado para qualquer usuário logado,
+    # como era antes.
+    criado_por_id: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     # Marca reversível para turnos criados só para teste (ex.: durante
     # a implantação do sistema, treinamento de operadores). Continua
     # aparecendo no Histórico, mas é excluído do dashboard, dos
@@ -94,3 +105,4 @@ class Turno(Base):
         cascade="all, delete-orphan",
     )
     editado_por = relationship("Usuario", foreign_keys=[editado_por_id])
+    criado_por = relationship("Usuario", foreign_keys=[criado_por_id])

@@ -173,6 +173,7 @@ def salvar_rascunho_lancamento(
     db: Session,
     dados: TurnoLancamentoRascunho,
     turno_id: int | None,
+    usuario_id: int | None = None,
 ) -> dict:
     if turno_id is None:
         turno = Turno(
@@ -180,6 +181,7 @@ def salvar_rascunho_lancamento(
             responsavel_nome=dados.responsavel_nome,
             regulador_nome=dados.regulador_nome,
             observacoes=dados.observacoes,
+            criado_por_id=usuario_id,
             status_assinatura=STATUS_EM_ANDAMENTO,
             modelo_apontamento=MODELO_LANCAMENTO,
             data_registro=calcular_data_registro_turno(
@@ -225,6 +227,7 @@ def fechar_turno_lancamento(
     dados: TurnoLancamentoCreate,
     background_tasks: BackgroundTasks,
     turno_id: int | None = None,
+    usuario_id: int | None = None,
 ) -> dict:
     """Fecha um turno usando o modelo de lançamentos livres - cria um
     novo (turno_id=None) ou finaliza um rascunho já existente."""
@@ -237,6 +240,7 @@ def fechar_turno_lancamento(
             responsavel_nome=dados.responsavel_nome,
             regulador_nome=dados.regulador_nome,
             observacoes=dados.observacoes,
+            criado_por_id=usuario_id,
             status_assinatura=STATUS_ASSINADO,
             modelo_apontamento=MODELO_LANCAMENTO,
             data_registro=calcular_data_registro_turno(

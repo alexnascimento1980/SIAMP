@@ -11,7 +11,7 @@ from app.models.maquina import Maquina
 from app.models.ordem_producao import OrdemProducao
 from app.models.produto import Produto
 from app.models.registro_turno import RegistroHorario
-from app.models.turno import Turno
+from app.models.turno import STATUS_EM_ANDAMENTO, Turno
 from app.models.usuario import Usuario
 from app.schemas.lancamento_schema import (
     LancamentoDetail,
@@ -51,6 +51,30 @@ from app.services.turno_service import (
 )
 
 router = APIRouter(prefix="/turnos", tags=["Turnos"])
+
+
+def _exigir_pode_alterar_rascunho(db: Session, turno_id: int, usuario: Usuario) -> None:
+    """Um rascunho (turno EM_ANDAMENTO) só pode ser atualizado ou
+    fechado pelo próprio autor, por SUPERVISOR ou por ADMIN - antes,
+    qualquer usuário logado (inclusive OPERADOR) podia mexer no
+    rascunho de outra pessoa só conhecendo o id. Turnos inexistentes
+    ou já fechados passam direto: quem responde é o serviço (404/409/
+    400, como antes). Rascunhos sem autor registrado (criados antes
+    desta regra, ou cujo autor foi excluído) continuam liberados."""
+    turno = db.query(Turno).filter(Turno.id == turno_id).first()
+    if turno is None or turno.status_assinatura != STATUS_EM_ANDAMENTO:
+        return
+    if turno.criado_por_id is None or turno.criado_por_id == usuario.id:
+        return
+    if usuario.perfil in ("ADMIN", "SUPERVISOR"):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=(
+            "Este rascunho pertence a outro usuário. Peça a um supervisor "
+            "ou administrador para continuá-lo."
+        ),
+    )
 
 
 @router.get("/", response_model=list[TurnoListItem])
@@ -147,6 +171,7 @@ def criar_fechamento_turno(
             db=db,
             dados=dados,
             background_tasks=background_tasks,
+            usuario_id=usuario.id,
         )
     except ValueError as exc:
         raise HTTPException(
@@ -169,7 +194,7 @@ def criar_rascunho(
 ):
     """Cria um novo turno em andamento (rascunho), sem disparar PDF/
     e-mail. Pode ser salvo já no início do turno, com zero registros."""
-    resultado = salvar_rascunho(db, dados, turno_id=None)
+    resultado = salvar_rascunho(db, dados, turno_id=None, usuario_id=usuario.id)
     return resultado
 
 
@@ -182,7 +207,9 @@ def atualizar_rascunho(
 ):
     """Atualiza o progresso de um rascunho já criado. Rejeita se o
     turno já tiver sido fechado (nesse caso, a correção precisa passar
-    pela tela de Histórico, restrita a ADMIN/SUPERVISOR)."""
+    pela tela de Histórico, restrita a ADMIN/SUPERVISOR). Só o autor,
+    SUPERVISOR ou ADMIN podem atualizar o rascunho."""
+    _exigir_pode_alterar_rascunho(db, turno_id, usuario)
     try:
         return salvar_rascunho(db, dados, turno_id=turno_id)
     except ValueError as exc:
@@ -203,7 +230,9 @@ def fechar_rascunho(
     usuario: Usuario = Depends(get_current_user),
 ):
     """Fecha definitivamente um turno que vinha sendo salvo como
-    rascunho - só agora o PDF/e-mail são disparados."""
+    rascunho - só agora o PDF/e-mail são disparados. Só o autor,
+    SUPERVISOR ou ADMIN podem fechar o rascunho."""
+    _exigir_pode_alterar_rascunho(db, turno_id, usuario)
     try:
         return fechar_turno_rascunho(
             db=db, turno_id=turno_id, dados=dados, background_tasks=background_tasks
@@ -234,7 +263,9 @@ def criar_fechamento_lancamento(
     """Fecha um turno direto (sem passar por rascunho) usando o modelo
     de lançamentos livres."""
     try:
-        return fechar_turno_lancamento(db=db, dados=dados, background_tasks=background_tasks)
+        return fechar_turno_lancamento(
+            db=db, dados=dados, background_tasks=background_tasks, usuario_id=usuario.id
+        )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
@@ -247,7 +278,7 @@ def criar_rascunho_lancamento(
 ):
     """Cria um novo turno em andamento (rascunho) no modelo de
     lançamentos livres, sem disparar PDF/e-mail."""
-    return salvar_rascunho_lancamento(db, dados, turno_id=None)
+    return salvar_rascunho_lancamento(db, dados, turno_id=None, usuario_id=usuario.id)
 
 
 @router.patch("/lancamento/rascunho/{turno_id}")
@@ -259,6 +290,7 @@ def atualizar_rascunho_lancamento(
 ):
     """Atualiza o progresso de um rascunho (modelo de lançamentos
     livres) já criado."""
+    _exigir_pode_alterar_rascunho(db, turno_id, usuario)
     try:
         return salvar_rascunho_lancamento(db, dados, turno_id=turno_id)
     except ValueError as exc:
@@ -279,7 +311,9 @@ def fechar_rascunho_lancamento(
     usuario: Usuario = Depends(get_current_user),
 ):
     """Fecha definitivamente um rascunho (modelo de lançamentos
-    livres) - só agora o PDF/e-mail são disparados."""
+    livres) - só agora o PDF/e-mail são disparados. Só o autor,
+    SUPERVISOR ou ADMIN podem fechar o rascunho."""
+    _exigir_pode_alterar_rascunho(db, turno_id, usuario)
     try:
         return fechar_turno_lancamento(
             db=db, dados=dados, background_tasks=background_tasks, turno_id=turno_id

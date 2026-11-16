@@ -258,6 +258,7 @@ def fechar_turno(
     db: Session,
     dados: FechamentoTurnoCreate,
     background_tasks: BackgroundTasks,
+    usuario_id: int | None = None,
 ) -> dict:
     if not dados.registros:
         raise ValueError("O fechamento do turno deve possuir pelo menos um registro.")
@@ -268,6 +269,7 @@ def fechar_turno(
         regulador_nome=dados.regulador_nome,
         observacoes=dados.observacoes,
         status_assinatura=STATUS_ASSINADO,
+        criado_por_id=usuario_id,
         data_registro=calcular_data_registro_turno(
             [time.fromisoformat(reg.hora_referencia) for reg in dados.registros]
         ),
@@ -299,6 +301,7 @@ def salvar_rascunho(
     db: Session,
     dados: RascunhoTurnoCreate,
     turno_id: int | None,
+    usuario_id: int | None = None,
 ) -> dict:
     """Salva (cria ou atualiza) o progresso de um turno ainda em
     andamento, sem disparar PDF/e-mail - permite ao operador ir
@@ -313,6 +316,7 @@ def salvar_rascunho(
             regulador_nome=dados.regulador_nome,
             observacoes=dados.observacoes,
             status_assinatura=STATUS_EM_ANDAMENTO,
+            criado_por_id=usuario_id,
             data_registro=calcular_data_registro_turno(
                 [time.fromisoformat(reg.hora_referencia) for reg in dados.registros]
             ),
