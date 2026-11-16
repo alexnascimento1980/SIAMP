@@ -27,6 +27,7 @@ build/
 # (ex.: app.scripts.exportar_catalogos) - específicos de uma
 # transferência pontual, não fazem parte do código-fonte do projeto.
 database/exportado_*
+*.sql.bak
 
 # Artefatos dos testes E2E (screenshots de falha, cache do Playwright)
 e2e/test-results/
