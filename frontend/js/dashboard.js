@@ -1,3 +1,7 @@
+// Funções chamadas pelos atributos data-onclick/data-onchange/data-oninput
+// do HTML (ver js/acoes.js) - lista fechada, substitui os handlers inline.
+registrarAcoes({ baixarRelatorioOp });
+
 document.addEventListener("DOMContentLoaded", async () => {
   const sessao = await exigirSessao();
   if (!sessao) return;
@@ -272,7 +276,7 @@ function renderizarComparativoOps(comparativos) {
       <button
         type="button"
         class="btn btn-sm btn-link p-0 mt-1"
-        onclick="baixarRelatorioOp(${op.id}, this)"
+        data-onclick="baixarRelatorioOp" data-args='[${op.id}, "@@el"]'
       >
         <i class="bi bi-file-earmark-pdf me-1"></i>Baixar PDF
       </button>

@@ -1,3 +1,7 @@
+// Funções chamadas pelos atributos data-onclick/data-onchange/data-oninput
+// do HTML (ver js/acoes.js) - lista fechada, substitui os handlers inline.
+registrarAcoes({ abrirEdicao, abrirExclusaoPeca, alterarStatus, carregarPecas, confirmarExclusaoPeca, renderizarPecas });
+
 let pecasCarregadas = [];
 let modalEditar = null;
 let sessaoAtual = null;
@@ -72,8 +76,8 @@ function renderizarPecas() {
       ? '<span class="badge bg-success">Ativa</span>'
       : '<span class="badge bg-secondary">Inativa</span>';
     const botaoStatus = p.ativo
-      ? `<button class="btn btn-sm btn-outline-danger" onclick="alterarStatus(${p.id}, false)">Desativar</button>`
-      : `<button class="btn btn-sm btn-outline-success" onclick="alterarStatus(${p.id}, true)">Reativar</button>`;
+      ? `<button class="btn btn-sm btn-outline-danger" data-onclick="alterarStatus" data-args='[${p.id}, false]'>Desativar</button>`
+      : `<button class="btn btn-sm btn-outline-success" data-onclick="alterarStatus" data-args='[${p.id}, true]'>Reativar</button>`;
     // p.codigo (texto livre) vai em data-peca-codigo, NUNCA
     // interpolado direto dentro do onclick="..." - mesmo motivo já
     // documentado em usuarios.js e historico.js (escaparHtml() não
@@ -81,7 +85,7 @@ function renderizarPecas() {
     // só contra quebra de HTML/atributo - achado numa avaliação de
     // segurança do projeto).
     const botaoExcluir = ehAdmin
-      ? `<button class="btn btn-sm btn-outline-danger" data-peca-codigo="${escaparHtml(p.codigo)}" onclick="abrirExclusaoPeca(${p.id}, this.dataset.pecaCodigo)" title="Excluir permanentemente">
+      ? `<button class="btn btn-sm btn-outline-danger" data-peca-codigo="${escaparHtml(p.codigo)}" data-onclick="abrirExclusaoPeca" data-args='[${p.id}, "@@data.pecaCodigo"]' title="Excluir permanentemente">
           <i class="bi bi-trash"></i>
         </button>`
       : "";
@@ -95,7 +99,7 @@ function renderizarPecas() {
       <td class="text-center">${badgeStatus}</td>
       <td class="text-center">
         <div class="d-flex gap-1 justify-content-center">
-          <button class="btn btn-sm btn-outline-secondary" onclick="abrirEdicao(${p.id})" title="Editar">
+          <button class="btn btn-sm btn-outline-secondary" data-onclick="abrirEdicao" data-args='[${p.id}]' title="Editar">
             <i class="bi bi-pencil-square"></i>
           </button>
           ${botaoStatus}

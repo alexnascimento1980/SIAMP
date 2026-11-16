@@ -1,3 +1,6 @@
+// Ações compartilhadas por todas as telas (ver js/acoes.js).
+registrarAcoes({ sair });
+
 // Autenticação compartilhada por todas as telas.
 //
 // A sessão agora é mantida pelo backend via cookie httpOnly (definido em
