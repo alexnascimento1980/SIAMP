@@ -66,6 +66,25 @@ async function carregarCatalogos() {
   }
 }
 
+const COMPARATIVOS_SIMULTANEOS = 4;
+
+// Aplica `funcao` a cada item com no máximo `limite` chamadas em andamento,
+// preservando a ordem dos resultados.
+async function mapearComLimite(itens, limite, funcao) {
+  const resultados = new Array(itens.length);
+  let proximo = 0;
+  async function trabalhador() {
+    while (proximo < itens.length) {
+      const indice = proximo++;
+      resultados[indice] = await funcao(itens[indice]);
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(limite, itens.length) }, trabalhador),
+  );
+  return resultados;
+}
+
 async function carregarOps() {
   const container = document.getElementById("listaOps");
   try {
@@ -73,13 +92,18 @@ async function carregarOps() {
     if (!res.ok) throw new Error("Não foi possível carregar as ordens de produção.");
     opsCarregadas = await res.json();
 
-    // Busca o comparativo (meta x real) de cada OP em paralelo.
-    const comparativos = await Promise.all(
-      opsCarregadas.map((op) =>
+    // Busca o comparativo (meta x real) de cada OP, no máximo
+    // COMPARATIVOS_SIMULTANEOS por vez. Disparar todos de uma vez (uma
+    // requisição por OP, dezenas ao mesmo tempo) esgotava as conexões do
+    // banco (limite do pooler do Supabase) e várias OPs ficavam sem o
+    // percentual por erro 500.
+    const comparativos = await mapearComLimite(
+      opsCarregadas,
+      COMPARATIVOS_SIMULTANEOS,
+      (op) =>
         chamarApi(`/ordens-producao/${op.id}/comparativo`)
           .then((r) => (r.ok ? r.json() : null))
           .catch(() => null),
-      ),
     );
 
     renderizarLista(opsCarregadas, comparativos);

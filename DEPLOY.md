@@ -69,6 +69,7 @@ ficar exposto fora dele. Para o navegador, é tudo uma origem só.
    | `BREVO_API_KEY`     | Chave da **API** do Brevo (Settings → SMTP & API → API Keys) - **não** a chave SMTP                                                                                           |
    | `REPORT_RECIPIENTS` | Opcional - prefira cadastrar pela tela Destinatários depois do primeiro login                                                                                                 |
    | `SEED_ON_START`     | `true` no primeiro deploy (carrega as 102 peças e as 6 máquinas de exemplo); pode deixar `true` sempre, é seguro repetir (usa `ON CONFLICT DO NOTHING`)                       |
+   | `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` | Opcionais (padrão `5` e `5`). Teto de conexões ao banco por processo = soma dos dois. Precisa ficar **abaixo do limite do pooler**: o Supabase em *session mode* (porta 5432 do pooler) aceita só 15 clientes simultâneos no plano gratuito, e passar disso causa `EMAXCONNSESSION` (erro 500). Pedidos além do teto esperam por uma conexão livre em vez de falhar |
    | `ADMIN_EMAIL` / `ADMIN_SENHA` / `ADMIN_NOME` | Opcional - cria o primeiro usuário admin automaticamente, sem precisar de acesso a shell. Ver passo 3 abaixo.                                              |
 
 5. Clica em **Create Web Service**. O primeiro build demora alguns
