@@ -113,7 +113,7 @@ Plataforma para digitalização e automação do processo de fechamento de turno
 ## 🛠️ Tecnologias
 
 - **Backend:** Python 3.12 + FastAPI, SQLAlchemy, Alembic
-- **Frontend:** HTML5/CSS3/JavaScript + Bootstrap (páginas estáticas, servidas via Nginx)
+- **Frontend:** HTML5/CSS3/JavaScript + Bootstrap (páginas estáticas, servidas via Nginx; Bootstrap, Bootstrap Icons e Chart.js ficam em `frontend/vendor/`, sem CDN). Instalável como PWA no celular
 - **Banco de Dados:** PostgreSQL (Supabase em produção)
 - **Relatórios:** ReportLab (PDF)
 - **Autenticação:** JWT em cookie `httpOnly` (`PyJWT` + `passlib`/`bcrypt`), login em `/api/v1/auth/login`
@@ -365,6 +365,34 @@ gerenciada pela tela **Destinatários** (ADMIN) — não é mais necessário
 editar `REPORT_RECIPIENTS` no `.env` e reiniciar o servidor toda vez
 que alguém entra ou sai da lista. Sem nenhum destinatário cadastrado
 ali, o sistema usa `REPORT_RECIPIENTS` do `.env` como reserva.
+
+### App no celular (PWA)
+
+O SIAMP é uma PWA: os operadores instalam no celular e abrem como um
+aplicativo, em tela cheia, com ícone na tela inicial.
+
+**Instalar (Android, Chrome):** abra o endereço do SIAMP, entre com o
+usuário e toque em **Instalar** no aviso que aparece embaixo (ou menu ⋮ →
+**Instalar app** / **Adicionar à tela inicial**). No iPhone (Safari):
+**Compartilhar** → **Adicionar à Tela de Início**.
+
+Requisitos: o site precisa abrir por **HTTPS** (no Render já é) ou em
+`localhost`. Em `http://IP-da-rede:porta` o navegador não instala nem
+ativa o modo offline.
+
+**O que funciona sem sinal:** o app abre e as telas carregam (HTML, CSS,
+JS e ícones ficam guardados no aparelho). Os **dados** (turnos, máquinas,
+relatórios) vêm sempre do servidor: sem conexão a tela mostra um aviso
+"sem conexão" com o botão *Tentar novamente*, e **não há lançamento
+offline** - nada é salvo localmente. Por segurança, nenhuma resposta da
+API é guardada no celular (importante quando o aparelho é compartilhado).
+
+**Atualizações:** as páginas e scripts são buscados na rede primeiro, então
+um deploy novo chega na próxima abertura com internet. Se mudar a lista de
+arquivos do app (`CASCA` em `frontend/sw.js`) ou quiser forçar a limpeza do
+cache de todos os aparelhos, aumente `VERSAO` em `frontend/sw.js`. Ao
+adicionar uma página/JS novo, inclua-o em `CASCA` para que também abra
+offline.
 
 ### Rodando os testes
 

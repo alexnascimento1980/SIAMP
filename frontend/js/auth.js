@@ -50,11 +50,30 @@ async function chamarApi(caminho, opcoes = {}) {
  * retorna null se não houver sessão.
  */
 async function exigirSessao() {
+  let res;
   try {
-    const res = await fetch(`${API_BASE_URL}/auth/me`, {
+    res = await fetch(`${API_BASE_URL}/auth/me`, {
       credentials: "include",
     });
-    if (!res.ok) throw new Error("sem sessão");
+  } catch (erro) {
+    // Sem rede (ex.: celular sem sinal, com o app aberto pela PWA): não é
+    // sessão expirada. Mantém o usuário na tela e avisa (ver js/pwa.js).
+    window.dispatchEvent(new CustomEvent("siamp:sem-conexao"));
+    return null;
+  }
+
+  if (res.status >= 500) {
+    // Servidor/proxy indisponível ou acordando (free tier): idem.
+    window.dispatchEvent(new CustomEvent("siamp:sem-conexao"));
+    return null;
+  }
+
+  if (!res.ok) {
+    window.location.href = "login.html";
+    return null;
+  }
+
+  try {
     return await res.json();
   } catch (erro) {
     window.location.href = "login.html";
