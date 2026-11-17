@@ -1,11 +1,13 @@
 -r requirements.txt
 
 # pytest: framework de testes.
-# httpx: exigido pelo starlette.testclient.TestClient (usado em
+# httpx2: exigido pelo starlette.testclient.TestClient (usado em
 # tests/conftest.py) a partir das versões recentes do Starlette/FastAPI -
-# não é uma dependência de runtime da aplicação, só dos testes.
+# não é uma dependência de runtime da aplicação, só dos testes. Substitui
+# o httpx, que o Starlette passou a marcar como obsoleto no TestClient
+# (StarletteDeprecationWarning: "install httpx2 instead").
 pytest==9.1.1
-httpx==0.28.1
+httpx2==2.16.2
 
 # ruff: linter + formatter (substitui flake8/isort/pyupgrade por uma
 # ferramenta única, muito mais rápida). Configuração em pyproject.toml.
