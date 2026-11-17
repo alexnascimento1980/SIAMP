@@ -15,6 +15,12 @@ Escopo atual:
   destrutivos ficam desabilitados na própria tela, não só bloqueados
   no backend).
 
+**Fora do escopo do E2E:** instalação da PWA, service worker e a fila
+offline (finalizar turno sem sinal). Esses fluxos dependem de HTTPS/modo
+avião reais e são conferidos pelo "Checklist depois do deploy" do
+`DEPLOY.md`; a parte de servidor (fechamento idempotente por `id_envio`,
+data do turno) é coberta por `backend/tests/test_id_envio.py`.
+
 As duas suítes têm propósitos diferentes e **não se substituem**: a
 do backend é rápida (minutos) e cobre muito mais casos/variações; esta
 aqui é mais lenta, cobre menos casos, mas garante que frontend e

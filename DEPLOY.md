@@ -70,6 +70,8 @@ ficar exposto fora dele. Para o navegador, é tudo uma origem só.
    | `REPORT_RECIPIENTS` | Opcional - prefira cadastrar pela tela Destinatários depois do primeiro login                                                                                                 |
    | `SEED_ON_START`     | `true` no primeiro deploy (carrega as 102 peças e as 6 máquinas de exemplo); pode deixar `true` sempre, é seguro repetir (usa `ON CONFLICT DO NOTHING`)                       |
    | `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` | Opcionais (padrão `5` e `5`). Teto de conexões ao banco por processo = soma dos dois. Precisa ficar **abaixo do limite do pooler**: o Supabase em *session mode* (porta 5432 do pooler) aceita só 15 clientes simultâneos no plano gratuito, e passar disso causa `EMAXCONNSESSION` (erro 500). Pedidos além do teto esperam por uma conexão livre em vez de falhar |
+   | `DB_POOL_TIMEOUT` / `DB_POOL_RECYCLE` | Opcionais (padrão `30` e `1800` segundos): quanto um pedido espera por uma conexão livre antes de falhar, e depois de quanto tempo uma conexão parada é devolvida ao pooler |
+   | `JWT_EXPIRES_MINUTES` | Opcional (padrão `480`, 8 h): duração do login. Vale também para quem finaliza turno offline - se vencer, é preciso entrar de novo para a fila ser enviada |
    | `ADMIN_EMAIL` / `ADMIN_SENHA` / `ADMIN_NOME` | Opcional - cria o primeiro usuário admin automaticamente, sem precisar de acesso a shell. Ver passo 3 abaixo.                                              |
 
 5. Clica em **Create Web Service**. O primeiro build demora alguns
@@ -139,7 +141,12 @@ Depois disso, acessa a URL pública que o Render te deu (algo como
 - Volta nas variáveis de ambiente do serviço e preenche `CORS_ORIGINS`
   com a URL pública real, agora que você já sabe qual é.
 - Todo `git push` na branch conectada dispara um novo deploy
-  automaticamente (auto-deploy vem ligado por padrão).
+  automaticamente (auto-deploy vem ligado por padrão). O fluxo usual é
+  branch → Pull Request → CI verde → merge no `main`, e o Render publica a
+  partir daí (ver "Fluxo de desenvolvimento" no README).
+- O histórico do Git foi reescrito em nov/2026 (remoção de um `.sql.bak`).
+  O Render segue o `main` e não precisa de nenhuma ação; só quem tem clone
+  local antigo precisa clonar de novo.
 
 ## 5. Levar máquinas/peças customizadas do ambiente local
 
@@ -181,6 +188,36 @@ no deploy, junto com `alembic upgrade head`.
 
 Se o app instalado parecer "preso" numa versão antiga depois de um
 deploy, aumente `VERSAO` em `frontend/sw.js` e faça novo deploy.
+
+## Segurança no deploy
+
+- O nginx do `deploy/` envia CSP, `X-Frame-Options`, `nosniff`,
+  `Referrer-Policy`, `Permissions-Policy` e **HSTS**. Eles ficam em
+  `deploy/nginx.conf.template` (e repetidos nos `location` de `.js/.css`,
+  `sw.js` e `manifest.webmanifest`).
+- `COOKIE_SECURE=true` é obrigatório em produção (HTTPS).
+- Trocar a senha de um usuário (reset) derruba as sessões abertas dele.
+- Bootstrap, ícones e Chart.js vêm de `frontend/vendor/`: o site não depende
+  de nenhum CDN externo, então a CSP não libera domínios de terceiros.
+
+## Checklist depois do deploy
+
+Rápido, depois de qualquer deploy que mexa em backend, nginx ou PWA:
+
+1. **Render → Logs:** o container subiu e `alembic upgrade head` terminou sem
+   erro (a última migration é a `0021_turno_id_envio`).
+2. **Logs sem `EMAXCONNSESSION`** (conexões do Supabase esgotadas) depois de
+   abrir Dashboard e Ordens de Produção.
+3. **Chrome do computador → F12 → Application:** *Manifest* sem erros (nome
+   SIAMP e 3 ícones) e *Service Workers* com `sw.js` "activated and running".
+4. **Celular Android (Chrome):** abra o endereço, entre, toque em **Instalar**
+   e abra pelo ícone da tela inicial.
+5. **Fila offline:** com o Apontamento já aberto uma vez com internet, ative o
+   **modo avião**, finalize um turno de teste e confira o aviso "1 turno
+   aguardando envio". Desative o modo avião, aguarde alguns segundos e
+   confira que o turno aparece **uma vez** no Histórico.
+6. Depois de testar, no **Histórico** selecione o turno de teste e use
+   **Marcar como teste**, para ele não entrar no dashboard.
 
 ## Limitações do plano gratuito, para não ser surpresa
 
