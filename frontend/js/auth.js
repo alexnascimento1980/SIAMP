@@ -36,6 +36,7 @@ async function chamarApi(caminho, opcoes = {}) {
   });
 
   if (res.status === 401) {
+    limparSessaoLocal();
     window.location.href = "login.html";
     throw new Error("Sessão expirada.");
   }
@@ -49,7 +50,7 @@ async function chamarApi(caminho, opcoes = {}) {
  * logado ({ id, nome, email, perfil }). Redireciona para o login e
  * retorna null se não houver sessão.
  */
-async function exigirSessao() {
+async function exigirSessao(opcoes = {}) {
   let res;
   try {
     res = await fetch(`${API_BASE_URL}/auth/me`, {
@@ -59,30 +60,96 @@ async function exigirSessao() {
     // Sem rede (ex.: celular sem sinal, com o app aberto pela PWA): não é
     // sessão expirada. Mantém o usuário na tela e avisa (ver js/pwa.js).
     window.dispatchEvent(new CustomEvent("siamp:sem-conexao"));
-    return null;
+    // Telas que funcionam offline (apontamento) pedem a última sessão
+    // conhecida neste aparelho. É só para montar a tela (nome/perfil): o
+    // servidor valida a sessão de verdade em cada envio.
+    return opcoes.permitirOffline ? lerSessaoLocal() : null;
   }
 
   if (res.status >= 500) {
     // Servidor/proxy indisponível ou acordando (free tier): idem.
     window.dispatchEvent(new CustomEvent("siamp:sem-conexao"));
-    return null;
+    return opcoes.permitirOffline ? lerSessaoLocal() : null;
   }
 
   if (!res.ok) {
+    limparSessaoLocal();
     window.location.href = "login.html";
     return null;
   }
 
   try {
-    return await res.json();
+    const sessao = await res.json();
+    guardarSessaoLocal(sessao);
+    return sessao;
   } catch (erro) {
     window.location.href = "login.html";
     return null;
   }
 }
 
+// Última sessão conhecida (id, nome, e-mail, perfil) - sem token nem senha.
+// Usada só para abrir a tela de apontamento sem sinal; apagada ao sair.
+const CHAVE_SESSAO_LOCAL = "siamp_sessao_local";
+
+function guardarSessaoLocal(sessao) {
+  try {
+    window.localStorage.setItem(
+      CHAVE_SESSAO_LOCAL,
+      JSON.stringify({
+        id: sessao.id,
+        nome: sessao.nome,
+        email: sessao.email,
+        perfil: sessao.perfil,
+      }),
+    );
+  } catch (erro) {
+    /* sem armazenamento: só não abre offline */
+  }
+}
+
+function lerSessaoLocal() {
+  try {
+    const bruto = window.localStorage.getItem(CHAVE_SESSAO_LOCAL);
+    return bruto ? JSON.parse(bruto) : null;
+  } catch (erro) {
+    return null;
+  }
+}
+
+function limparSessaoLocal() {
+  try {
+    window.localStorage.removeItem(CHAVE_SESSAO_LOCAL);
+  } catch (erro) {
+    /* ignorar */
+  }
+}
+
 /** Encerra a sessão (limpa o cookie no backend) e volta para o login. */
 async function sair() {
+  // Turnos finalizados sem sinal ainda neste aparelho: avisa antes de sair.
+  // Eles não se perdem (ficam guardados e são enviados quando o mesmo
+  // usuário entrar de novo), mas quem sai precisa saber.
+  try {
+    const sessao = lerSessaoLocal();
+    if (window.FilaOffline && sessao) {
+      const pendentes = await window.FilaOffline.contarPendentesDoUsuario(sessao.id);
+      if (
+        pendentes > 0 &&
+        !window.confirm(
+          `Há ${pendentes} turno(s) finalizado(s) que ainda não foram enviados. ` +
+            "Eles ficam guardados neste aparelho e serão enviados quando você entrar de novo com sinal. " +
+            "Sair mesmo assim?",
+        )
+      ) {
+        return;
+      }
+    }
+  } catch (erro) {
+    /* sem acesso à fila: segue o logout normal */
+  }
+
+  limparSessaoLocal();
   try {
     await fetch(`${API_BASE_URL}/auth/logout`, {
       method: "POST",

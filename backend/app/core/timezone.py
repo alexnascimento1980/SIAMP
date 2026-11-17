@@ -38,7 +38,7 @@ _HORA_INICIO_CONSIDERADO_NOITE = 18
 _HORA_LIMITE_MADRUGADA = 5
 
 
-def calcular_data_registro_turno(horarios_inicio: list[time]) -> datetime:
+def calcular_data_registro_turno(horarios_inicio: list[time], agora: datetime | None = None) -> datetime:
     """Data/hora a gravar como Turno.data_registro, corrigindo o caso
     de um turno que atravessa a meia-noite (ex.: 3º Turno, 22:00-04:00)
     - salvar ou fechar de madrugada não deve gravar a data de HOJE,
@@ -62,7 +62,7 @@ def calcular_data_registro_turno(horarios_inicio: list[time]) -> datetime:
     que já passou da meia-noite), min() dá 02:00 (menor no relógio de
     24h), não 22:00 (o que realmente aconteceu primeiro) - descartaria
     exatamente o sinal que essa função precisa enxergar."""
-    agora = agora_brasilia()
+    agora = agora if agora is not None else agora_brasilia()
     if not horarios_inicio:
         return agora
 
@@ -71,3 +71,27 @@ def calcular_data_registro_turno(horarios_inicio: list[time]) -> datetime:
     if se_atravessou_meia_noite:
         return agora - timedelta(days=1)
     return agora
+
+
+# Quanto tempo depois um fechamento guardado no celular (fila offline)
+# ainda é aceito com o horário original do toque em "Finalizar", e
+# quanto de adiantamento do relógio do aparelho é tolerado.
+_MAX_ATRASO_FECHAMENTO = timedelta(days=7)
+_MAX_ADIANTAMENTO_RELOGIO = timedelta(minutes=10)
+
+
+def momento_de_fechamento_do_cliente(fechado_em: datetime | None) -> datetime | None:
+    """Converte o horário em que o operador tocou em "Finalizar" (enviado
+    pelo app, importante quando o envio atrasa por falta de sinal) para
+    Brasília "naive". Devolve None - e o servidor usa o "agora" dele,
+    como sempre - se não veio, se está no futuro além da tolerância ou
+    se é velho demais: um relógio de celular errado não pode gravar um
+    turno com data absurda."""
+    if fechado_em is None:
+        return None
+    if fechado_em.tzinfo is not None:
+        fechado_em = fechado_em.astimezone(FUSO_BRASILIA).replace(tzinfo=None)
+    agora = agora_brasilia()
+    if fechado_em > agora + _MAX_ADIANTAMENTO_RELOGIO or fechado_em < agora - _MAX_ATRASO_FECHAMENTO:
+        return None
+    return fechado_em

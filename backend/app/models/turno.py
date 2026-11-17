@@ -81,6 +81,12 @@ class Turno(Base):
         nullable=True,
     )
 
+    # Identificador do envio (UUID gerado pelo app ao fechar o turno).
+    # Único: garante que reenviar o mesmo fechamento (fila offline,
+    # resposta perdida) não cria um turno duplicado. Nulo em turnos
+    # antigos e em clientes que não enviam o campo.
+    id_envio: Mapped[str | None] = mapped_column(String(36), nullable=True, unique=True, index=True)
+
     # Marca reversível para turnos criados só para teste (ex.: durante
     # a implantação do sistema, treinamento de operadores). Continua
     # aparecendo no Histórico, mas é excluído do dashboard, dos

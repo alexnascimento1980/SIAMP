@@ -1,4 +1,4 @@
-from datetime import time
+from datetime import datetime, time
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -59,12 +59,25 @@ class LancamentoDetail(BaseModel):
     producao_esperada: int | None = None
 
 
+UUID_PADRAO = r"^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+
+
 class TurnoLancamentoCreate(BaseModel):
     nome_turno: str = Field(..., min_length=2, max_length=50)
     responsavel_nome: str = Field(..., min_length=2, max_length=120)
     regulador_nome: str | None = Field(default=None, max_length=120)
     observacoes: str | None = Field(default=None, max_length=2000)
     lancamentos: list[LancamentoCreate] = Field(..., min_length=1)
+    # Identificador do ENVIO, gerado pelo app (UUID) antes da primeira
+    # tentativa de fechar o turno. Torna o fechamento idempotente: se o
+    # celular reenviar o mesmo turno (fila offline, resposta perdida,
+    # duplo clique), o servidor devolve o turno já registrado em vez de
+    # criar um segundo. Opcional - clientes antigos continuam funcionando.
+    id_envio: str | None = Field(default=None, pattern=UUID_PADRAO)
+    # Quando o operador tocou em "Finalizar" (ISO 8601, de preferência UTC).
+    # Só serve para o turno guardar a data certa se o envio atrasar (fila
+    # offline); valores no futuro ou muito antigos são ignorados.
+    fechado_em: datetime | None = None
 
 
 class TurnoLancamentoRascunho(BaseModel):

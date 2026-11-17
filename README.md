@@ -382,10 +382,33 @@ ativa o modo offline.
 
 **O que funciona sem sinal:** o app abre e as telas carregam (HTML, CSS,
 JS e ícones ficam guardados no aparelho). Os **dados** (turnos, máquinas,
-relatórios) vêm sempre do servidor: sem conexão a tela mostra um aviso
-"sem conexão" com o botão *Tentar novamente*, e **não há lançamento
-offline** - nada é salvo localmente. Por segurança, nenhuma resposta da
-API é guardada no celular (importante quando o aparelho é compartilhado).
+relatórios) vêm sempre do servidor: nas outras telas, sem conexão aparece
+o aviso "sem conexão" com o botão *Tentar novamente*. Por segurança,
+nenhuma resposta da API é guardada no celular (importante quando o
+aparelho é compartilhado) - a única exceção é a cópia dos cadastros
+(máquinas, peças e ordens de produção) usada na tela de apontamento.
+
+**Finalizar turno sem sinal (fila offline):** na tela de Apontamento o
+operador preenche e toca em **Finalizar turno** normalmente. Sem conexão
+(ou com o servidor fora do ar), o turno fica guardado no aparelho e um
+aviso mostra "N turnos aguardando envio". Assim que o sinal volta - com o
+app aberto - ele é enviado sozinho (ou pelo botão **Enviar agora**).
+
+- **Sem duplicar:** cada fechamento tem um identificador (`id_envio`); se o
+  celular reenviar o mesmo turno, o servidor devolve o que já existe.
+- **Data certa:** o turno guarda o horário em que o operador tocou em
+  Finalizar, não o de quando o sinal voltou.
+- **Autor certo:** o turno só é enviado quando o mesmo usuário que o
+  finalizou estiver logado no aparelho. Ao sair com turnos pendentes, o app
+  avisa.
+- **Se o servidor recusar** (ex.: uma peça foi excluída desde então), o turno
+  não some: fica no aviso, em vermelho, com o motivo, e dá para **Baixar
+  dados** ou **Descartar**.
+- Para a tela abrir sem sinal, o aparelho precisa ter aberto o Apontamento
+  **com internet ao menos uma vez** (é quando ele guarda os cadastros).
+- Fora da fila: continuar um **rascunho** do servidor e **corrigir turno
+  fechado** exigem conexão. Rascunho salvo com sinal continua funcionando
+  como antes. A fila só envia com o app aberto (não há envio em segundo plano).
 
 **Atualizações:** as páginas e scripts são buscados na rede primeiro, então
 um deploy novo chega na próxima abertura com internet. Se mudar a lista de

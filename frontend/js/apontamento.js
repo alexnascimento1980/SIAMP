@@ -23,9 +23,16 @@ let indiceEditando = null; // índice do lançamento sendo corrigido (dentro de 
 let turnoEditandoId = null; // corrigir turno LANCAMENTO já fechado (ADMIN/SUPERVISOR)
 let rascunhoTurnoId = null; // continuar um rascunho LANCAMENTO em andamento
 
+let usuarioLogado = null; // { id, nome, perfil } - dono dos turnos enviados/enfileirados
+let cadastrosDoAparelho = null; // data da cópia local dos cadastros, se a tela abriu sem conexão
+let idEnvioFechamento = null; // UUID do fechamento (mesmo em novas tentativas -> servidor não duplica)
+let fechadoEmISO = null; // quando o operador tocou em "Finalizar"
+
 document.addEventListener("DOMContentLoaded", async () => {
-  const sessao = await exigirSessao();
+  // permitirOffline: sem sinal, abre com a última sessão conhecida neste aparelho.
+  const sessao = await exigirSessao({ permitirOffline: true });
   if (!sessao) return;
+  usuarioLogado = sessao;
 
   const perfil = sessao.perfil;
   if (perfil === "ADMIN") {
@@ -59,6 +66,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   setInterval(atualizarRelogio, 30000);
 
   await Promise.all([carregarMaquinas(), carregarPecas(), carregarOrdensProducao()]);
+  avisarCadastrosDoAparelho();
 
   if (turnoEditandoId) {
     await carregarTurnoParaEdicao(turnoEditandoId);
@@ -93,11 +101,50 @@ function atualizarRelogio() {
   });
 }
 
+// Busca um cadastro na API e guarda uma cópia no aparelho. Se a API não
+// responder (sem sinal, servidor acordando), usa a última cópia guardada,
+// para o apontamento poder ser preenchido offline. Sessão expirada (401)
+// continua levando ao login, sem usar cópia.
+async function buscarCadastro(chave, caminho, mensagemErro) {
+  try {
+    const res = await chamarApi(caminho);
+    if (!res.ok) throw new Error(mensagemErro);
+    const dados = await res.json();
+    if (window.FilaOffline) window.FilaOffline.salvarCatalogo(chave, dados);
+    return dados;
+  } catch (erro) {
+    if (erro.message === "Sessão expirada.") throw erro;
+    const copia = window.FilaOffline ? await window.FilaOffline.lerCatalogo(chave) : null;
+    if (copia && Array.isArray(copia.dados)) {
+      if (!cadastrosDoAparelho || copia.salvo_em < cadastrosDoAparelho) {
+        cadastrosDoAparelho = copia.salvo_em;
+      }
+      return copia.dados;
+    }
+    throw erro;
+  }
+}
+
+function avisarCadastrosDoAparelho() {
+  if (!cadastrosDoAparelho) return;
+  const quando = new Date(cadastrosDoAparelho).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const aviso = document.createElement("div");
+  aviso.className = "alert alert-warning mb-3";
+  aviso.textContent =
+    "Sem conexão: máquinas, peças e ordens de produção vieram da cópia guardada neste aparelho (" +
+    quando +
+    "). Você pode preencher e finalizar o turno; ele será enviado quando o sinal voltar.";
+  document.querySelector(".container-fluid").prepend(aviso);
+}
+
 async function carregarPecas() {
   try {
-    const res = await chamarApi("/produtos/");
-    if (!res.ok) throw new Error("Não foi possível carregar as peças.");
-    pecasDisponiveis = await res.json();
+    pecasDisponiveis = await buscarCadastro("produtos", "/produtos/", "Não foi possível carregar as peças.");
     const datalist = document.getElementById("listaPecasDatalist");
     pecasDisponiveis.forEach((p) => {
       const option = document.createElement("option");
@@ -142,9 +189,11 @@ async function carregarPecas() {
 
 async function carregarOrdensProducao() {
   try {
-    const res = await chamarApi("/ordens-producao/");
-    if (!res.ok) throw new Error("Não foi possível carregar as ordens de produção.");
-    ordensProducaoDisponiveis = await res.json();
+    ordensProducaoDisponiveis = await buscarCadastro(
+      "ordens",
+      "/ordens-producao/",
+      "Não foi possível carregar as ordens de produção.",
+    );
     const select = document.getElementById("lancOp");
     ordensProducaoDisponiveis.forEach((o) => {
       const option = document.createElement("option");
@@ -161,9 +210,11 @@ async function carregarOrdensProducao() {
 async function carregarMaquinas() {
   const container = document.getElementById("pills-maquinas");
   try {
-    const res = await chamarApi("/maquinas/?incluir_inativas=false");
-    if (!res.ok) throw new Error("Não foi possível carregar as máquinas.");
-    maquinasDisponiveis = await res.json();
+    maquinasDisponiveis = await buscarCadastro(
+      "maquinas",
+      "/maquinas/?incluir_inativas=false",
+      "Não foi possível carregar as máquinas.",
+    );
 
     if (maquinasDisponiveis.length === 0) {
       container.innerHTML = `<li class="nav-item"><span class="nav-link disabled">
@@ -735,12 +786,31 @@ async function confirmarFechamento() {
     tipo = "fechar_direto";
   }
 
+  // Fechamentos novos (não correções) levam um id de envio: se o pedido
+  // for repetido - nova tentativa, fila offline, resposta perdida - o
+  // servidor devolve o turno já registrado em vez de criar outro. Também
+  // levam o horário real do toque, para o turno ter a data certa mesmo se
+  // o envio atrasar por falta de sinal.
+  if (tipo !== "correcao") {
+    if (!idEnvioFechamento) {
+      idEnvioFechamento = gerarUuid();
+      fechadoEmISO = new Date().toISOString();
+    }
+    payload.id_envio = idEnvioFechamento;
+    payload.fechado_em = fechadoEmISO;
+  }
+
   try {
     const res = await chamarApi(caminho, { method: metodo, body: JSON.stringify(payload) });
 
     if (res.status === 403) {
       alert("Você não tem permissão para corrigir este turno.");
       return;
+    }
+
+    if (tipo !== "correcao" && [502, 503, 504].includes(res.status)) {
+      // Servidor fora do ar/acordando: trata como falta de conexão.
+      if (await guardarParaEnviarDepois(caminho, metodo, payload)) return;
     }
 
     if (res.ok) {
@@ -757,11 +827,55 @@ async function confirmarFechamento() {
   } catch (error) {
     if (error.message === "Sessão expirada.") return;
     console.error("Erro na requisição:", error);
+    // Falha de rede (fetch sem resposta): guarda o turno para enviar
+    // quando o sinal voltar. Correção de turno antigo não entra na fila.
+    if (tipo !== "correcao" && (error instanceof TypeError || navigator.onLine === false)) {
+      if (await guardarParaEnviarDepois(caminho, metodo, payload)) return;
+    }
     alert("❌ Não foi possível conectar à API.");
   } finally {
     botao.disabled = false;
     botao.innerHTML = conteudoOriginal;
   }
+}
+
+function gerarUuid() {
+  if (window.crypto && typeof window.crypto.randomUUID === "function") {
+    return window.crypto.randomUUID();
+  }
+  // Navegador sem randomUUID (ou página fora de contexto seguro).
+  const bytes = new Uint8Array(16);
+  window.crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const h = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+// Guarda o fechamento no aparelho para envio automático depois. Só diz
+// ao operador que "foi guardado" se a gravação deu certo; senão devolve
+// false e o fluxo normal mostra o erro (e o turno continua na tela).
+async function guardarParaEnviarDepois(caminho, metodo, payload) {
+  if (!window.FilaOffline || !usuarioLogado) return false;
+  try {
+    await window.FilaOffline.enfileirar({
+      id_envio: payload.id_envio,
+      caminho,
+      metodo,
+      payload,
+      usuario_id: usuarioLogado.id,
+      usuario_nome: usuarioLogado.nome,
+    });
+  } catch (erro) {
+    console.error("Não foi possível guardar o turno no aparelho:", erro);
+    return false;
+  }
+  alert(
+    "📴 Sem conexão com o servidor.\n\nO turno foi guardado neste aparelho e será enviado " +
+      "automaticamente quando o sinal voltar. Não é preciso refazer.",
+  );
+  window.location.href = "home.html";
+  return true;
 }
 
 async function salvarRascunho() {
@@ -803,7 +917,14 @@ async function salvarRascunho() {
   } catch (error) {
     if (error.message === "Sessão expirada.") return;
     console.error("Erro ao salvar rascunho:", error);
-    alert("❌ Não foi possível salvar o rascunho.");
+    if (error instanceof TypeError || navigator.onLine === false) {
+      alert(
+        "📴 Sem conexão: o rascunho não foi salvo. Você pode continuar preenchendo e finalizar o turno - " +
+          "ele será guardado neste aparelho e enviado quando o sinal voltar.",
+      );
+    } else {
+      alert("❌ Não foi possível salvar o rascunho.");
+    }
   } finally {
     btn.disabled = false;
     btn.innerHTML = textoOriginal;
