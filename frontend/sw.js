@@ -15,7 +15,7 @@
 //
 // Para forçar a renovação do cache de todos os aparelhos, aumente VERSAO.
 
-const VERSAO = "v1";
+const VERSAO = "v2";
 const CACHE = `siamp-${VERSAO}`;
 const LIMITE_REDE_MS = 4000;
 
@@ -38,6 +38,7 @@ const CASCA = [
   "js/config.js",
   "js/auth.js",
   "js/pwa.js",
+  "js/fila_offline.js",
   "js/login.js",
   "js/home.js",
   "js/apontamento.js",

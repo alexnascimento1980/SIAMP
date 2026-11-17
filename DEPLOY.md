@@ -175,6 +175,10 @@ Chrome do Android e use **Instalar app**. Detalhes (o que funciona
 offline, como forçar atualização do cache) no README, seção "App no
 celular (PWA)".
 
+Este recurso inclui a migration `0021_turno_id_envio` (coluna opcional
+`turnos.id_envio`, única, sem mexer nos dados existentes); ela roda sozinha
+no deploy, junto com `alembic upgrade head`.
+
 Se o app instalado parecer "preso" numa versão antiga depois de um
 deploy, aumente `VERSAO` em `frontend/sw.js` e faça novo deploy.
 

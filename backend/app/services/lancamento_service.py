@@ -1,7 +1,8 @@
 from fastapi import BackgroundTasks
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.timezone import agora_brasilia, calcular_data_registro_turno
+from app.core.timezone import agora_brasilia, calcular_data_registro_turno, momento_de_fechamento_do_cliente
 from app.models.lancamento import TIPO_PARADA_FALHA, TIPO_PARADA_PROGRAMADA, TIPO_PRODUCAO, Lancamento
 from app.models.maquina import Maquina
 from app.models.ordem_producao import OrdemProducao
@@ -221,6 +222,35 @@ def salvar_rascunho_lancamento(
     }
 
 
+def _turno_ja_registrado(db: Session, id_envio: str) -> Turno | None:
+    return db.query(Turno).filter(Turno.id_envio == id_envio).first()
+
+
+def _resposta_reenvio(db: Session, turno: Turno) -> dict:
+    """Resposta para um fechamento repetido (mesmo id_envio): devolve o
+    turno que já existe, sem alterar nada nem reenviar PDF/e-mail."""
+    return {
+        "status": "sucesso",
+        "mensagem": "Turno já estava registrado (reenvio ignorado).",
+        "turno_id": turno.id,
+        "status_assinatura": turno.status_assinatura,
+        "relatorio_email_agendado": False,
+        "kpis": calcular_kpis_turno_lancamento(db, turno.id),
+        "reenvio": True,
+    }
+
+
+def _resposta_reenvio_apos_corrida(db: Session, id_envio: str | None, erro: IntegrityError) -> dict:
+    """Dois envios do mesmo id_envio chegaram quase juntos e o outro
+    ganhou a corrida (índice único): desfaz o nosso e devolve o turno
+    dele. Qualquer outra violação de integridade continua sendo erro."""
+    db.rollback()
+    ja_registrado = _turno_ja_registrado(db, id_envio) if id_envio else None
+    if ja_registrado is None:
+        raise erro
+    return _resposta_reenvio(db, ja_registrado)
+
+
 def fechar_turno_lancamento(
     db: Session,
     dados: TurnoLancamentoCreate,
@@ -233,6 +263,12 @@ def fechar_turno_lancamento(
     if not dados.lancamentos:
         raise ValueError("O fechamento do turno deve possuir pelo menos um lançamento.")
 
+    id_envio = dados.id_envio.lower() if dados.id_envio else None
+    if id_envio:
+        ja_registrado = _turno_ja_registrado(db, id_envio)
+        if ja_registrado is not None:
+            return _resposta_reenvio(db, ja_registrado)
+
     if turno_id is None:
         turno = Turno(
             nome_turno=dados.nome_turno,
@@ -242,10 +278,17 @@ def fechar_turno_lancamento(
             criado_por_id=usuario_id,
             status_assinatura=STATUS_ASSINADO,
             modelo_apontamento=MODELO_LANCAMENTO,
-            data_registro=calcular_data_registro_turno([lanc.horario_inicio for lanc in dados.lancamentos]),
+            id_envio=id_envio,
+            data_registro=calcular_data_registro_turno(
+                [lanc.horario_inicio for lanc in dados.lancamentos],
+                agora=momento_de_fechamento_do_cliente(dados.fechado_em),
+            ),
         )
         db.add(turno)
-        db.flush()
+        try:
+            db.flush()
+        except IntegrityError as erro:
+            return _resposta_reenvio_apos_corrida(db, id_envio, erro)
     else:
         turno = db.query(Turno).filter(Turno.id == turno_id).first()
         if turno is None:
@@ -259,12 +302,16 @@ def fechar_turno_lancamento(
         turno.regulador_nome = dados.regulador_nome
         turno.observacoes = dados.observacoes
         turno.status_assinatura = STATUS_ASSINADO
+        turno.id_envio = id_envio
         db.query(Lancamento).filter(Lancamento.turno_id == turno_id).delete()
         db.flush()
 
     _criar_lancamentos(db, turno, dados.lancamentos)
 
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as erro:
+        return _resposta_reenvio_apos_corrida(db, id_envio, erro)
     db.refresh(turno)
 
     kpis = calcular_kpis_turno_lancamento(db, turno.id)
