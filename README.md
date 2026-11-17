@@ -89,6 +89,8 @@ Plataforma para digitalização e automação do processo de fechamento de turno
 
 - **Autenticação por usuário:** login com e-mail/senha, sessão via cookie `httpOnly` (não exposto ao JavaScript) — sem cadastro público, contas são criadas por um administrador.
 - **Controle de acesso por perfil:** `ADMIN`, `SUPERVISOR` e `OPERADOR`, com permissões diferentes em cada tela (ver tabela abaixo). O frontend esconde o que o perfil não pode usar, mas a permissão de verdade é sempre revalidada pelo backend em cada endpoint.
+- **Segurança:** cabeçalhos HTTP restritivos (CSP sem `unsafe-inline` em scripts, `X-Frame-Options`, `nosniff` etc.), todas as bibliotecas do frontend servidas pelo próprio site (sem CDN), sessão em cookie `httpOnly`, senhas com no mínimo 10 caracteres, sessões invalidadas no reset de senha e rascunhos que só o autor, SUPERVISOR ou ADMIN podem continuar. Detalhes na seção [Segurança](#segurança).
+- **App no celular (PWA) com fila offline:** instalável na tela inicial do Android/iPhone; o operador consegue **finalizar um turno sem sinal** e o envio acontece sozinho quando a conexão volta, sem duplicar o turno e com a data certa. Ver [App no celular (PWA)](#app-no-celular-pwa).
 - **Hub de navegação:** depois do login, a tela **Início** reúne um card de acesso rápido para cada tela do sistema, já filtrados pelo perfil de quem está logado.
 - **Apontamento por lançamento livre:** em vez de uma grade fixa por hora, cada apontamento é um lançamento com horário de início/fim livre dentro do turno — produção (peça, Ordem de Produção, quantidade) ou parada (programada ou falha na injetora), quantos forem necessários por injetora. Início/fim já vêm preenchidos com o horário padrão do turno selecionado (editável), mas exigem digitação manual a partir do segundo lançamento de cada injetora — nenhum lançamento além do primeiro pode ocupar o turno inteiro. O cálculo de produção esperada usa a duração real de cada lançamento (`duração/ciclo × cavidades`), não mais uma hora cheia fixa — funciona nativamente com o 3º turno, que atravessa a meia-noite. Cada lançamento pode ser **editado depois de adicionado** (corrige erro de digitação sem precisar apagar e relançar do zero). *O modelo antigo (grade por hora) foi aposentado para escrita: não é mais possível abrir nem fechar turnos por hora (as rotas `POST /turnos/fechamento`, `/turnos/rascunho` e `/turnos/{id}/fechar` foram removidas). Turnos criados antes da mudança continuam preservados — aparecem no Histórico, no dashboard, no PDF e no CSV, e ADMIN/SUPERVISOR ainda podem corrigi-los. Um rascunho antigo por hora que tenha ficado em andamento não pode mais ser continuado: um ADMIN deve excluí-lo e o turno ser refeito no apontamento atual.*
 - **Horário dos turnos:** 1º Turno 05:00–13:00, 2º Turno 14:00–21:00, 3º Turno 22:00–04:00 (atravessa a meia-noite) — com um intervalo de 1h entre cada turno e o seguinte (13:00–14:00, 21:00–22:00, 04:00–05:00), reservado de propósito para manutenção e troca de molde/matéria-prima entre um turno e outro (confirmado com a empresa — não é uma lacuna a corrigir). Ao selecionar o 3º Turno na tela de apontamento, um aviso lembra o operador de conferir se a data corresponde ao dia em que o turno começou, não ao dia do fechamento (relevante ao fechar de madrugada) — a data gravada no banco já é calculada corretamente pelo backend independente desse aviso, que existe só para reduzir a confusão de quem preenche.
@@ -113,7 +115,7 @@ Plataforma para digitalização e automação do processo de fechamento de turno
 ## 🛠️ Tecnologias
 
 - **Backend:** Python 3.12 + FastAPI, SQLAlchemy, Alembic
-- **Frontend:** HTML5/CSS3/JavaScript + Bootstrap (páginas estáticas, servidas via Nginx; Bootstrap, Bootstrap Icons e Chart.js ficam em `frontend/vendor/`, sem CDN). Instalável como PWA no celular
+- **Frontend:** HTML5/CSS3/JavaScript + Bootstrap 5.3 (páginas estáticas, servidas via Nginx; Bootstrap, Bootstrap Icons e Chart.js ficam em `frontend/vendor/`, sem CDN). PWA instalável: manifest + service worker (`frontend/sw.js`) + fila offline em IndexedDB (`frontend/js/fila_offline.js`)
 - **Banco de Dados:** PostgreSQL (Supabase em produção)
 - **Relatórios:** ReportLab (PDF)
 - **Autenticação:** JWT em cookie `httpOnly` (`PyJWT` + `passlib`/`bcrypt`), login em `/api/v1/auth/login`
@@ -296,6 +298,16 @@ usada pelo dropdown de seleção no apontamento e pelo comparativo no
 Dashboard) continua aberta a todos os perfis de propósito, senão o
 apontamento diário de quem não é ADMIN quebraria.
 
+Regras que valem para todos os perfis:
+
+- **Rascunho de turno:** só o autor, um SUPERVISOR ou um ADMIN podem
+  continuar ou fechar um rascunho em andamento (rascunhos antigos, sem
+  autor registrado, continuam liberados).
+- **Senha:** mínimo de 10 caracteres, na criação e no reset.
+- **Sessão:** dura `JWT_EXPIRES_MINUTES` (padrão 480 min = 8 h) e é
+  invalidada quando a senha do usuário é resetada.
+- **Corrigir turno já fechado:** só ADMIN/SUPERVISOR.
+
 ### Cadastrando injetoras
 
 O número de injetoras não é fixo: administradores e supervisores
@@ -389,7 +401,7 @@ aparelho é compartilhado) - a única exceção é a cópia dos cadastros
 (máquinas, peças e ordens de produção) usada na tela de apontamento.
 
 **Finalizar turno sem sinal (fila offline):** na tela de Apontamento o
-operador preenche e toca em **Finalizar turno** normalmente. Sem conexão
+operador preenche e toca em **Assinar e Finalizar Turno** normalmente. Sem conexão
 (ou com o servidor fora do ar), o turno fica guardado no aparelho e um
 aviso mostra "N turnos aguardando envio". Assim que o sinal volta - com o
 app aberto - ele é enviado sozinho (ou pelo botão **Enviar agora**).
@@ -401,11 +413,16 @@ app aberto - ele é enviado sozinho (ou pelo botão **Enviar agora**).
 - **Autor certo:** o turno só é enviado quando o mesmo usuário que o
   finalizou estiver logado no aparelho. Ao sair com turnos pendentes, o app
   avisa.
+- **Sessão vencida:** o login vale 8 h. Se vencer com turnos na fila, a
+  próxima tela aberta leva ao login; depois de entrar (com o mesmo
+  usuário) a fila é enviada.
 - **Se o servidor recusar** (ex.: uma peça foi excluída desde então), o turno
   não some: fica no aviso, em vermelho, com o motivo, e dá para **Baixar
   dados** ou **Descartar**.
 - Para a tela abrir sem sinal, o aparelho precisa ter aberto o Apontamento
   **com internet ao menos uma vez** (é quando ele guarda os cadastros).
+- Os turnos pendentes ficam no navegador do aparelho. **Limpar os dados do
+  navegador/app antes de o envio acontecer apaga esses turnos.**
 - Fora da fila: continuar um **rascunho** do servidor e **corrigir turno
   fechado** exigem conexão. Rascunho salvo com sinal continua funcionando
   como antes. A fila só envia com o app aberto (não há envio em segundo plano).
@@ -417,6 +434,49 @@ cache de todos os aparelhos, aumente `VERSAO` em `frontend/sw.js`. Ao
 adicionar uma página/JS novo, inclua-o em `CASCA` para que também abra
 offline.
 
+### Segurança
+
+Resumo do que o projeto faz para se proteger (cada item tem teste
+automatizado ou foi validado no navegador):
+
+- **Cabeçalhos HTTP** (nginx, em `frontend/nginx.conf.template` e
+  `deploy/nginx.conf.template`): `Content-Security-Policy` com
+  `script-src 'self'` (sem `unsafe-inline`: não há `onclick=` nem
+  `<script>` inline - os eventos usam `data-onclick` + `js/acoes.js`),
+  `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy` e `Permissions-Policy`; em produção também HSTS. Como
+  `add_header` dentro de um `location` **substitui** os do nível `server`,
+  os cabeçalhos são repetidos nos blocos de `.js/.css`, `sw.js` e
+  `manifest.webmanifest` - ao criar um `location` novo, repita-os.
+- **Sem CDN:** Bootstrap, Bootstrap Icons e Chart.js ficam em
+  `frontend/vendor/` (licenças junto). Para atualizar uma versão, troque os
+  arquivos dessa pasta e aumente `VERSAO` em `frontend/sw.js`.
+- **HTML dinâmico:** valores vindos do banco são escapados antes de entrar
+  em `innerHTML` (`escaparHtml`) ou inseridos com `textContent`.
+- **Sessão:** JWT em cookie `httpOnly`, `SameSite=Lax`, `Secure` em produção
+  (`COOKIE_SECURE=true`); limite de tentativas no login; `token_version`
+  invalida sessões antigas no reset de senha.
+- **Dependências:** versões fixadas (ou limitadas por faixa) em `backend/requirements*.txt`.
+- **Segredos:** `.env` fora do Git e da imagem Docker; arquivos `*.sql.bak`
+  ignorados (`.gitignore`).
+
+### Banco de dados e migrations
+
+O esquema é gerenciado pelo Alembic (`backend/alembic/versions/`); o
+`entrypoint.sh` roda `alembic upgrade head` a cada início do container, no
+Docker local e no Render. As migrations são escritas para serem seguras de
+repetir (conferem se a coluna/índice já existe) e usam
+`batch_alter_table`, para funcionar tanto no Postgres quanto no SQLite
+usado nos testes. A mais recente é a `0021_turno_id_envio`
+(identificador único de envio do fechamento de turno, base da fila
+offline). Descer e subir todas as migrations (`alembic downgrade base` e
+`alembic upgrade head`) está validado em Postgres.
+
+**Pool de conexões:** o backend limita as conexões ao banco por processo
+(`DB_POOL_SIZE` + `DB_MAX_OVERFLOW`, padrão 5 + 5) e enfileira o que passar
+disso - necessário no Supabase gratuito, que aceita só 15 clientes
+simultâneos no *session pooler*. Ver `DEPLOY.md`.
+
 ### Rodando os testes
 
 ```bash
@@ -425,12 +485,20 @@ pip install -r requirements-dev.txt
 pytest -v
 ```
 
-Deve dar **301 testes passando**.
+Deve passar tudo (**327 testes** na última atualização deste README; o
+número muda a cada funcionalidade nova).
 
-O mesmo ambiente também roda `ruff check .` (linter) — configurado em
-`backend/pyproject.toml`, com regras escolhidas para este projeto
-especificamente (não um preset genérico). Roda automaticamente no CI
-antes da suíte de testes.
+O CI (`.github/workflows/tests.yml`) roda, nesta ordem, e todos precisam
+passar antes do merge:
+
+```bash
+ruff check .             # lint - regras em backend/pyproject.toml
+ruff format --check .    # formatação (para corrigir: ruff format .)
+pytest -v                # testes de unidade/integração
+```
+
+Para rodar o mesmo localmente, instale `requirements-dev.txt` (inclui
+`ruff`, `pytest` e `httpx2`, cliente HTTP usado pelo `TestClient`).
 
 Além dessa suíte (unidade/integração, via `TestClient`, sem navegador),
 existe uma suíte separada de testes E2E que cobre os fluxos mais
@@ -439,3 +507,24 @@ Ordem de Produção; cadastro e proteção de conta de usuário) através
 da interface real, num navegador de verdade - roda automaticamente no
 CI a cada push. Ver [`e2e/README.md`](e2e/README.md) para rodar
 localmente.
+
+O E2E cobre as telas principais, mas **não** o modo offline/fila: a PWA
+(instalação, service worker, finalizar turno sem sinal) é validada com o
+roteiro manual do `DEPLOY.md` ("Checklist depois do deploy") e pelos testes
+de backend da fila (`backend/tests/test_id_envio.py`).
+
+### Fluxo de desenvolvimento
+
+1. Crie uma branch a partir do `main` atualizado (`git switch main && git pull`,
+   depois `git switch -c nome-da-mudanca`).
+2. Faça as mudanças e rode `ruff check .`, `ruff format --check .` e
+   `pytest` em `backend/`.
+3. `git push -u origin nome-da-mudanca` e abra o Pull Request. Os workflows
+   *Testes Backend* e *Testes E2E* precisam ficar verdes.
+4. Faça o merge; o Render publica sozinho a partir do `main`. Depois apague a
+   branch (`git push origin --delete nome` e `git branch -d nome`).
+
+> **Histórico reescrito (nov/2026):** o histórico do Git foi reescrito para
+> remover um arquivo `.sql.bak` que tinha sido versionado por engano. Quem
+> clonou o repositório antes disso deve **clonar de novo** (um `git pull` num
+> clone antigo cria conflitos e reintroduz o histórico antigo).
