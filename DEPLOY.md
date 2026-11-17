@@ -167,11 +167,23 @@ python -m app.scripts.seed_db
 Gera um `.sql` com `ON CONFLICT DO NOTHING` (mesmo formato do
 `seeds.sql`) - seguro rodar mais de uma vez sem duplicar nada.
 
+## App no celular (PWA)
+
+Nada a configurar além do deploy normal: o Render serve o site em HTTPS,
+requisito para instalar a PWA. Depois do deploy, abra o endereço no
+Chrome do Android e use **Instalar app**. Detalhes (o que funciona
+offline, como forçar atualização do cache) no README, seção "App no
+celular (PWA)".
+
+Se o app instalado parecer "preso" numa versão antiga depois de um
+deploy, aumente `VERSAO` em `frontend/sw.js` e faça novo deploy.
+
 ## Limitações do plano gratuito, para não ser surpresa
 
 - **Cold start**: o serviço "dorme" depois de 15 minutos sem tráfego;
   a próxima requisição demora de 30 a 60 segundos para responder
-  enquanto ele acorda.
+  enquanto ele acorda. No app instalado, a tela abre na hora (vem do
+  cache) e os dados aparecem quando o servidor acordar.
 - **Banco Supabase gratuito**: fica pausado depois de alguns dias sem
   uso (você reativa manualmente pelo painel do Supabase quando
   precisar voltar a usar).

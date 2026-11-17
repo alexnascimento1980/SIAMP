@@ -21,7 +21,8 @@ COPY frontend/*.html /usr/share/nginx/html/
 COPY frontend/css/ /usr/share/nginx/html/css/
 COPY frontend/js/ /usr/share/nginx/html/js/
 COPY frontend/img/ /usr/share/nginx/html/img/
-COPY frontend/favicon-16.png frontend/favicon-32.png frontend/apple-touch-icon.png /usr/share/nginx/html/
+COPY frontend/vendor/ /usr/share/nginx/html/vendor/
+COPY frontend/favicon-16.png frontend/favicon-32.png frontend/apple-touch-icon.png frontend/manifest.webmanifest frontend/sw.js /usr/share/nginx/html/
 
 COPY deploy/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY deploy/start.sh /start.sh

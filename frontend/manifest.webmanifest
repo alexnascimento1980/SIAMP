@@ -1,0 +1,23 @@
+{
+  "id": "/home.html",
+  "name": "SIAMP - Sistema de Apontamento de Produção",
+  "short_name": "SIAMP",
+  "description": "Apontamento de turnos, OEE e ordens de produção no chão de fábrica.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "/home.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0d6efd",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "img/pwa/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "img/pwa/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "img/pwa/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Apontamento", "short_name": "Apontar", "url": "/apontamento.html" },
+    { "name": "Ordens de produção", "short_name": "Ordens", "url": "/ordens_producao.html" }
+  ]
+}
